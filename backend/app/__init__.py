@@ -71,7 +71,7 @@ def create_app(test_config=None):
         response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
         response.headers["X-Request-ID"] = secrets.token_hex(12)
         if request.path.startswith("/api/"):
-            response.headers["Cache-Control"] = "private, no-store, max-age=0"
+            response.headers["Cache-Control"] = "no-store"
             response.headers["Pragma"] = "no-cache"
             response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
         if request.is_secure and os.getenv("APP_ENV") == "production":
