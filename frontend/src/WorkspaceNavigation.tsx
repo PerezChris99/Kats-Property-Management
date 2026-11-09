@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   Activity, Bell, BookOpen, Building2, CalendarRange, ChartColumnIncreasing,
   ChevronRight, ClipboardCheck, CreditCard, FileCheck2, FileClock, FileText,
-  FolderLock, House, KeyRound, LayoutDashboard, LifeBuoy, LogOut, Mail,
+  FolderLock, House, KeyRound, LayoutDashboard, LogOut, Mail,
   Menu, ReceiptText, Search, Settings2, ShieldCheck, Smartphone,
   Users, Wallet, Wrench, X, type LucideIcon
 } from 'lucide-react'
@@ -75,6 +75,7 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }: Props) {
   const desktopSearch = useRef<HTMLInputElement>(null)
   const drawerSearch = useRef<HTMLInputElement>(null)
   const drawerTrigger = useRef<HTMLButtonElement>(null)
+  const drawerPanel = useRef<HTMLElement>(null)
 
   const groups = useMemo(() => {
     const wanted = query.trim().toLowerCase()
@@ -102,7 +103,25 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }: Props) {
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     drawerSearch.current?.focus()
+    function trapFocus(event: KeyboardEvent) {
+      if (event.key !== 'Tab') return
+      const elements = drawerPanel.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled])'
+      )
+      if (!elements?.length) return
+      const first = elements[0]
+      const last = elements[elements.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', trapFocus)
     return () => {
+      document.removeEventListener('keydown', trapFocus)
       document.body.style.overflow = previous
       drawerTrigger.current?.focus()
     }
@@ -166,7 +185,7 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }: Props) {
         <input ref={desktopSearch} type="search" placeholder="Find a page"
           aria-label="Search workspace navigation" value={query}
           onChange={event => setQuery(event.target.value)} />
-        {!searched && <kbd>⌘K</kbd>}
+        {!searched && <kbd>Ctrl K</kbd>}
       </div>
       <nav className="workspace-links" aria-label="Workspace sections">{menuItems(() => setQuery(''))}</nav>
       <div className="side-utilities">
@@ -192,7 +211,7 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }: Props) {
       </button>
     </nav>
     {drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)}>
-      <section id="mobile-workspace-drawer" role="dialog" aria-modal="true"
+      <section id="mobile-workspace-drawer" ref={drawerPanel} role="dialog" aria-modal="true"
         aria-label="Workspace navigation" className="workspace-drawer"
         onClick={event => event.stopPropagation()}>
         <div className="drawer-head">
