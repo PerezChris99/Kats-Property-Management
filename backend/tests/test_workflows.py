@@ -59,7 +59,20 @@ def test_manual_payment_requires_separate_approval_and_is_idempotent(app):
     assert reviewer.post("/api/v1/payments/" + payment_id + "/approve",
                          headers=csrf(reviewer)).status_code == 200
     assert db.session.query(LedgerEntry).filter_by(payment_id=payment_id).count() == 1
-    assert db.session.query(AuditLog).count() >= 5
+    reversed_payment = reviewer.post("/api/v1/payments/" + payment_id + "/reverse",
+        headers=csrf(reviewer), json={"reason":"Duplicate cash collection found during reconciliation"})
+    assert reversed_payment.status_code == 200, reversed_payment.json
+    assert reversed_payment.json["invoice"]["paid_ugx"] == 0
+    assert db.session.query(LedgerEntry).filter_by(payment_id=payment_id).count() == 2
+    again_reversed = reviewer.post("/api/v1/payments/" + payment_id + "/reverse",
+        headers=csrf(reviewer), json={"reason":"Repeated command"})
+    assert again_reversed.status_code == 200
+    assert db.session.query(LedgerEntry).filter_by(payment_id=payment_id).count() == 2
+    voided = reviewer.post("/api/v1/invoices/" + invoice_id + "/void",
+        headers=csrf(reviewer), json={"reason":"Invoice issued in error"})
+    assert voided.status_code == 200, voided.json
+    assert db.session.query(LedgerEntry).filter_by(invoice_id=invoice_id).count() == 4
+    assert db.session.query(AuditLog).count() >= 7
 
 def test_tenant_cannot_read_unlinked_data(app):
     user = create_user("tenant2@kats.test", "TENANT")
