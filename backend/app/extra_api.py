@@ -6,10 +6,10 @@ from flask import Blueprint, abort, current_app, jsonify, request
 from flask_jwt_extended import jwt_required
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from .extensions import db
+from .extensions import db, limiter
 from .api import current_user, roles, data, required_string, ugx, serialize, audit, list_page, fail
 from .models import User, Room, Lease, Tenant, Invoice, MaintenanceRequest, CaretakerAssignment
-from .extra_models import Notification, WorkOrder, Document, FiscalSubmission, LegalPage, SystemSetting
+from .extra_models import Notification, WorkOrder, Document, FiscalSubmission, LegalPage, SystemSetting, ContactRequest
 
 extra_api = Blueprint("extra_api", __name__)
 LEGAL_SLUGS = {"privacy", "terms", "cookies", "refund"}
@@ -226,3 +226,57 @@ def setting_update(user, key):
     audit(user, "system.setting", "setting", user.id, key=key)
     db.session.commit()
     return jsonify(setting=serialize(item, "key", "value"))
+
+
+@extra_api.post("/public/contact-requests")
+@limiter.limit("3 per hour")
+def public_contact():
+    obj=data()
+    # Honeypot blocks trivial scripted spam without collecting more personal data.
+    if obj.get("website"):
+        return jsonify(message="Request accepted"),202
+    full_name=required_string(obj,"full_name",160)
+    email=required_string(obj,"email",254).lower()
+    import re
+    if not re.fullmatch(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}",email):
+        return fail("Enter a valid email address")
+    message=required_string(obj,"message",3000)
+    if len(message)<20:
+        return fail("Please include at least 20 characters describing your request")
+    subject=required_string(obj,"subject",120)
+    if subject not in ("DEMO","PRICING","SUPPORT","OTHER"):
+        return fail("Invalid request subject")
+    if obj.get("consent") is not True:
+        return fail("Privacy consent is required")
+    phone=obj.get("phone")
+    if phone is not None and (not isinstance(phone,str) or len(phone)>30):
+        return fail("Invalid optional phone")
+    record=ContactRequest(full_name=full_name,email=email,phone=phone,subject=subject,
+                          message=message,consent=True,status="NEW")
+    db.session.add(record)
+    db.session.commit()
+    return jsonify(request_id=record.id,message="Your request has been recorded."),201
+
+@extra_api.get("/admin/contact-requests")
+@roles("OWNER","SUPER_ADMIN")
+def contact_inbox(user):
+    results=list_page(ContactRequest,db.session.query(ContactRequest).order_by(ContactRequest.created_at.desc()))
+    return jsonify(items=[serialize(r,"id","full_name","email","phone","subject",
+                                    "message","status","created_at") for r in results.items],
+                   total=results.total)
+
+@extra_api.post("/admin/contact-requests/<request_id>/resolve")
+@roles("OWNER","SUPER_ADMIN")
+def contact_review(user,request_id):
+    req=db.session.get(ContactRequest,request_id)
+    if not req:
+        abort(404)
+    status=required_string(data(),"status",20).upper()
+    if status not in ("NEW","IN_PROGRESS","RESOLVED","SPAM"):
+        return fail("Invalid inquiry status")
+    req.status=status
+    req.reviewed_by=user.id
+    req.reviewed_at=datetime.now(timezone.utc)
+    audit(user,"contact.review","contact_request",req.id,status=status)
+    db.session.commit()
+    return jsonify(inquiry=serialize(req,"id","status"))
