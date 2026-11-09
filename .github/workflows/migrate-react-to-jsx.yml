@@ -1,0 +1,35 @@
+name: One-time conversion from React TSX to JSX
+on:
+  push:
+    branches: [perez]
+    paths:
+      - frontend/scripts/convert-to-jsx.cjs
+permissions:
+  contents: write
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: perez
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install one-time TypeScript syntax transformer
+        run: cd frontend && npm install --no-audit --no-fund
+      - name: Convert all TSX and TS modules to JSX and JavaScript
+        run: node frontend/scripts/convert-to-jsx.cjs
+      - name: Lock JavaScript-only dependencies
+        run: cd frontend && npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Verify pure JSX and clean production build
+        run: cd frontend && npm ci --no-audit --no-fund && npm run build
+      - name: Commit generated JavaScript source directly to perez
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A frontend
+          git diff --cached --check
+          git commit -m "refactor(frontend): migrate React TypeScript modules to plain JSX and JS with lint and tests"
+          git push origin HEAD:perez
