@@ -25,11 +25,12 @@ celery_app.conf.update(
                  retry_backoff=True, retry_jitter=True, retry_kwargs={"max_retries": 3})
 def generate_rent_invoices():
     """The scheduler issues only whole-month invoices; partial periods require review."""
-    from datetime import date
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
     from app import create_app
     from app.billing import generate_monthly_rent
     application = create_app()
     with application.app_context():
-        return generate_monthly_rent(date.today())
+        return generate_monthly_rent(datetime.now(ZoneInfo("Africa/Kampala")).date())
 
 # No payment or fiscal task is enabled without a verified provider.
