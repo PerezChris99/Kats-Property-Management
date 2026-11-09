@@ -1,0 +1,21 @@
+# Avoid leaking local credentials, Git history, payment logs, or test data into images.
+.git
+.gitignore
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+__pycache__
+*.pyc
+.pytest_cache
+.venv
+*.sqlite3
+*.db
+tests/
+coverage/
+backups/
+uploads/
+*.log
+.DS_Store

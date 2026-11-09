@@ -1,0 +1,11 @@
+.git
+.env
+.env.*
+node_modules/
+dist/
+coverage/
+*.log
+*.pem
+*.key
+tests/
+.DS_Store
