@@ -3,7 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } fr
 import { Building2, CreditCard, LayoutDashboard, Menu, ShieldCheck, Wrench, LogOut } from 'lucide-react'
 
 type User = { id: string; full_name: string; role: string }
-type Row = Record<string, string | number | null>
+type Row = Record<string, string | number | boolean | null>
 type Field = { name: string; label: string; type?: string; required?: boolean; options?: string[] }
 type Resource = { title: string; path: string; fields: Field[]; columns: string[]; writable?: string[] }
 const RESOURCES: Record<string, Resource> = {
@@ -41,7 +41,7 @@ RESOURCES.assignments = {title:'Caretaker assignments',path:'caretaker/assignmen
   fields:[{name:'caretaker_user_id',label:'Caretaker user ID',required:true},
   {name:'room_id',label:'Room ID',required:true}]}
 const roles = ['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN']
-const formats = (key: string, value: string | number | null) => key.endsWith('_ugx') && typeof value === 'number' ? 'UGX ' + value.toLocaleString('en-UG') : String(value ?? '—')
+const formats = (key: string, value: string | number | boolean | null) => key.endsWith('_ugx') && typeof value === 'number' ? 'UGX ' + value.toLocaleString('en-UG') : String(value ?? '—')
 function csrfToken() {return document.cookie.split('; ').find(c => c.startsWith('csrf_access_token='))?.split('=')[1] ?? ''}
 async function api(path: string, opts: RequestInit = {}) {
   const headers = new Headers(opts.headers)
@@ -122,6 +122,36 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
     catch(err) {setError(err instanceof Error?err.message:'Could not save')}
     finally {setBusy(false)}
   }
+  async function financeAction(endpoint:string) {
+    const reason=window.prompt('Reason for this accounting correction (required)')
+    if(!reason?.trim())return
+    setBusy(true);setError('')
+    try{await api(endpoint,{method:'POST',body:JSON.stringify({reason})});await load()}
+    catch(err){setError(err instanceof Error?err.message:'Correction failed')}
+    finally{setBusy(false)}
+  }
+  async function unassign(id:string) {
+    if(!window.confirm('Remove this caretaker assignment?'))return
+    setBusy(true);setError('')
+    try{await api('caretaker/assignments/'+id,{method:'DELETE'});await load()}
+    catch(err){setError(err instanceof Error?err.message:'Could not remove assignment')}
+    finally{setBusy(false)}
+  }
+  async function caretakerRoomStatus(id:string,status:string) {
+    const reason=window.prompt('Reason for this room status change')
+    if(!reason?.trim())return
+    setBusy(true);setError('')
+    try{await api('caretaker/rooms/'+id+'/status',{method:'POST',body:JSON.stringify({status,reason})});await load()}
+    catch(err){setError(err instanceof Error?err.message:'Could not change status')}
+    finally{setBusy(false)}
+  }
+  async function toggleAccess(id:string,current:boolean) {
+    if(!window.confirm(current?'Disable this account?':'Re-enable this account?'))return
+    setBusy(true);setError('')
+    try{await api('admin/users/'+id+'/status',{method:'POST',body:JSON.stringify({is_active:!current})});await load()}
+    catch(err){setError(err instanceof Error?err.message:'Could not change access')}
+    finally{setBusy(false)}
+  }
   async function approve(id:string) {
     setBusy(true);setError('')
     try {await api('payments/'+id+'/approve',{method:'POST'});await load()}
@@ -131,8 +161,13 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   return <section className="page"><div className="page-head"><div><span className="eyebrow">OPERATIONS</span><h1>{resource.title}</h1></div>{canWrite&&<button className="button" onClick={()=>setEditing(!editing)}>{editing?'Cancel':'Add '+resource.title.toLowerCase()}</button>}</div>
     {error&&<p role="alert" className="error">{error}</p>}
     {editing&&canWrite&&<form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.map(field=><label key={field.name}>{field.label}{field.options?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select</option>{field.options.map(option=><option key={option}>{option}</option>)}</select>:references[field.name]?.length?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select a record</option>{references[field.name].map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name||row.number||row.full_name||row.invoice_number||row.email||row.title||row.id)}</option>)}</select>:<input required={field.required} type={field.type||'text'} min={field.type==='number'?'0':undefined} value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})}/>}</label>)}</div><button className="button" disabled={busy}>{busy?'Saving…':'Save record'}</button></form>}
-    {loading?<p role="status">Loading records…</p>:rows.length===0?<div className="empty"><h2>No records yet</h2><p>Authorized records will appear here after they are created.</p></div>:<div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col=><th key={col}>{col.replaceAll('_',' ')}</th>)}{resource.path==='payments'&&canWrite&&<th>Review</th>}</tr></thead><tbody>{rows.map((item,i)=><tr key={String(item.id||i)}>{resource.columns.map(col=><td key={col}>{formats(col,item[col])}</td>)}{resource.path==='payments'&&canWrite&&<td>{item.status==='PENDING_REVIEW'?<button className="outline-button" disabled={busy} onClick={()=>approve(String(item.id))}>Approve*</button>:<span>—</span>}</td>}</tr>)}</tbody></table></div>}
-    {resource.path==='payments'&&<p className="note">*Approval requires another staff member to verify source evidence. This action credits the invoice and cannot be undone through this interface.</p>}
+    {loading?<p role="status">Loading records…</p>:rows.length===0?<div className="empty"><h2>No records yet</h2><p>Authorized records will appear here after they are created.</p></div>:<div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col=><th key={col}>{col.replaceAll('_',' ')}</th>)}{resource.path==='payments'&&canWrite&&<th>Review</th>}{(resource.path==='payments'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)||resource.path==='invoices'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)||resource.path==='caretaker/rooms'||resource.path==='caretaker/assignments'||resource.path==='admin/users')&&<th>Actions</th>}</tr></thead><tbody>{rows.map((item,i)=><tr key={String(item.id||i)}>{resource.columns.map(col=><td key={col}>{formats(col,item[col])}</td>)}{resource.path==='payments'&&canWrite&&<td>{item.status==='PENDING_REVIEW'?<button className="outline-button" disabled={busy} onClick={()=>approve(String(item.id))}>Approve*</button>:<span>—</span>}</td>}
+    {resource.path==='payments'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)&&<td>{item.status==='RECONCILED'?<button className="outline-button" disabled={busy} onClick={()=>financeAction('payments/'+String(item.id)+'/reverse')}>Reverse</button>:'—'}</td>}
+    {resource.path==='invoices'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)&&<td>{item.status==='ISSUED'&&Number(item.paid_ugx)===0?<button className="outline-button" disabled={busy} onClick={()=>financeAction('invoices/'+String(item.id)+'/void')}>Void</button>:'—'}</td>}
+    {resource.path==='caretaker/rooms'&&<td><button className="outline-button" disabled={busy} onClick={()=>caretakerRoomStatus(String(item.id),'MAINTENANCE')}>Needs repair</button> <button className="outline-button" disabled={busy} onClick={()=>caretakerRoomStatus(String(item.id),'CLEANING')}>Cleaning</button></td>}
+    {resource.path==='caretaker/assignments'&&<td><button className="outline-button" disabled={busy} onClick={()=>unassign(String(item.id))}>Unassign</button></td>}
+    {resource.path==='admin/users'&&<td><button className="outline-button" disabled={busy} onClick={()=>toggleAccess(String(item.id),Boolean(item.is_active))}>{item.is_active?'Disable':'Enable'}</button></td>}</tr>)}</tbody></table></div>}
+    {resource.path==='payments'&&<p className="note">*Approval requires another staff member to verify source evidence. Approval credits the invoice; authorized owners or accountants can post an auditable accounting reversal. Reversal never automatically refunds cash.</p>}
     <p className="note">Records are scoped by server-side permissions. Copy IDs from existing records when linking items.</p></section>
 }
 function Dashboard({user}: {user:User}) {
