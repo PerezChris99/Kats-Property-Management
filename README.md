@@ -11,7 +11,7 @@ KATS is a mobile-first management application for **one property-management busi
 > [!IMPORTANT]
 > **Release status: implementation is not production acceptance.** Automated backend, frontend, and PostgreSQL checks exist. MTN/Airtel money settlement, URA EFRIS fiscal documents, production storage, email/SMS providers, HostWares deployment, legal approval, and customer/device testing still need independent validation. Successful CI does not authorize processing live money.
 
-[Architecture](docs/ARCHITECTURE.md) · [Production security](docs/PRODUCTION_SECURITY.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [HostWares deployment](docs/HOSTWARES_DEPLOYMENT.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
+[Architecture](docs/ARCHITECTURE.md) · [React JSX guide](docs/FRONTEND_JSX.md) · [Production security](docs/PRODUCTION_SECURITY.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [HostWares deployment](docs/HOSTWARES_DEPLOYMENT.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
 
 ---
 
@@ -37,7 +37,7 @@ KATS is a mobile-first management application for **one property-management busi
 ~~~mermaid
 flowchart TB
     subgraph Client["Client"]
-      UI["React + TypeScript<br/>Responsive PWA"]
+      UI["React + JavaScript / JSX<br/>Responsive PWA"]
       ROLES["Owner · Manager · Accountant<br/>Caretaker · Tenant"]
     end
     subgraph Application["Application runtime"]
@@ -198,7 +198,7 @@ The frontend menu does **not** grant authorization. The backend enforces role ce
 
 | Layer | Technology |
 | --- | --- |
-| UI | React 19, TypeScript, Vite, React Router, Lucide, responsive CSS, PWA |
+| UI | React 19, JavaScript / JSX, Vite, React Router, Lucide, responsive CSS, PWA |
 | API | Python 3.12+, Flask, Gunicorn, Argon2id, cookie-based JWT, CSRF |
 | Database | PostgreSQL 16, SQLAlchemy, Alembic |
 | Tasks | Redis, Celery workers, Celery Beat |
@@ -258,16 +258,20 @@ docker compose down
 
 Stopping containers preserves the volumes by default. Avoid removing volumes containing needed data.
 
-### Frontend development
+### Frontend development — JavaScript and JSX
+
+The React frontend uses **plain JavaScript (`.js`) and JSX (`.jsx`)**, not TypeScript/TSX. Its quality gate combines ESLint, React Hooks checks, targeted JavaScript tests and a Vite production build.
 
 ~~~bash
 cd frontend
-npm install
+npm ci
 npm run dev
+npm run lint
+npm test
 npm run build
 ~~~
 
-Vite handles local hot reloading when running the dev server. The Compose web container instead serves the compiled frontend and does not run Vite hot reload.
+Vite handles hot reload in development. Docker serves compiled assets and does not hot-reload Vite files. For architecture, conventions and testing see the [JSX frontend guide](docs/FRONTEND_JSX.md).
 
 ## 7. Secure external configuration
 

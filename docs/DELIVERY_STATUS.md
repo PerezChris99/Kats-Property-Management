@@ -21,7 +21,7 @@
 | Documents | Tenant-scoped presigned S3-compatible private files and downloads | S3-compatible storage, CORS, anti-malware validation, data retention/legal approval |
 | Messages | In-app alerts and scheduled reminders, resilient record model | SMS/email provider handoff and verified delivery, template/privacy consent |
 | Admin/marketing | Role permissions, security settings, versioned/publishable legal notices, demo inquiry inbox | Approved legal wording, email and production oversight |
-| Testing | Current Python/React tests, PostgreSQL 16 migration round-trip, PostgreSQL concurrency and audit-trigger tests | Comprehensive external E2E, security/load tests, mobile/iOS/Android devices and genuine UAT |
+| Testing | Current Python tests, frontend JavaScript lint and API regression tests, React JSX production build, PostgreSQL 16 migration round-trip, PostgreSQL concurrency and audit-trigger tests | Comprehensive external E2E, security/load tests, mobile/iOS/Android devices and genuine UAT |
 | Release | Development work committed to perez and PR-reviewed into main after green checks | Never release/deploy without full signoffs |
 
 ## Security baseline and known limitations
