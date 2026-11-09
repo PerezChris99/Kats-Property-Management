@@ -256,3 +256,20 @@ class DepositMovement(db.Model):
         CheckConstraint("kind IN ('HOLD','REFUND','WITHHOLD')", name="ck_deposit_kind"),
         CheckConstraint("status IN ('PENDING_REVIEW','APPROVED','REJECTED')", name="ck_deposit_state"),
     )
+
+
+class Permission(db.Model):
+    __tablename__ = "permissions"
+    name = db.Column(db.String(160), primary_key=True)
+    description = db.Column(db.String(250), nullable=False, default="")
+
+class Role(db.Model):
+    __tablename__ = "roles"
+    name = db.Column(db.String(30), primary_key=True)
+    description = db.Column(db.String(250), nullable=False, default="")
+
+class RolePermission(db.Model):
+    __tablename__ = "role_permissions"
+    role_name = db.Column(db.String(30), db.ForeignKey("roles.name", ondelete="CASCADE"), primary_key=True)
+    permission_name = db.Column(db.String(160), db.ForeignKey("permissions.name", ondelete="CASCADE"), primary_key=True)
+    granted_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
