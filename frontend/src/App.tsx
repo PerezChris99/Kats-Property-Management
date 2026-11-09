@@ -42,12 +42,39 @@ RESOURCES.assignments = {title:'Caretaker assignments',path:'caretaker/assignmen
   {name:'room_id',label:'Room ID',required:true}]}
 const roles = ['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN']
 const formats = (key: string, value: string | number | boolean | null) => key.endsWith('_ugx') && typeof value === 'number' ? 'UGX ' + value.toLocaleString('en-UG') : String(value ?? '—')
-function csrfToken() {return document.cookie.split('; ').find(c => c.startsWith('csrf_access_token='))?.split('=')[1] ?? ''}
+function cookie(name:string) {
+  return document.cookie.split('; ').find(c=>c.startsWith(name+'='))?.split('=').slice(1).join('=')||''
+}
+function csrfToken() {return cookie('csrf_access_token')}
+let refreshing:Promise<boolean>|null = null
+async function refreshAccess() {
+  if(!refreshing) {
+    refreshing = (async()=>{
+      const token = cookie('csrf_refresh_token')
+      if(!token)return false
+      try {
+        const response = await fetch('/api/v1/auth/refresh',{
+          method:'POST',credentials:'same-origin',cache:'no-store',
+          headers:{'X-CSRF-TOKEN':token}
+        })
+        return response.ok
+      } catch{return false}
+    })().finally(()=>{refreshing=null})
+  }
+  return refreshing
+}
 async function api(path: string, opts: RequestInit = {}) {
-  const headers = new Headers(opts.headers)
-  if (opts.body) headers.set('Content-Type', 'application/json')
-  if (opts.method && opts.method !== 'GET') headers.set('X-CSRF-TOKEN', csrfToken())
-  const response = await fetch('/api/v1/' + path, {...opts, headers, credentials:'same-origin', cache:'no-store'})
+  const perform=()=>{
+    const headers = new Headers(opts.headers)
+    if (opts.body) headers.set('Content-Type', 'application/json')
+    if (opts.method && opts.method !== 'GET') headers.set('X-CSRF-TOKEN', csrfToken())
+    return fetch('/api/v1/' + path, {...opts, headers, credentials:'same-origin', cache:'no-store'})
+  }
+  let response=await perform()
+  if(response.status===401 && !['auth/login','auth/refresh'].includes(path)) {
+    if(await refreshAccess()) response=await perform()
+    else window.dispatchEvent(new Event('kats:session-expired'))
+  }
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error?.message || 'Request failed (' + response.status + ')')
   return payload
@@ -92,6 +119,7 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   const [error,setError]=useState('')
   const [editing,setEditing]=useState(false)
   const [values,setValues]=useState<Record<string,string>>({})
+  const [idempotencyKey,setIdempotencyKey]=useState(()=>crypto.randomUUID())
   const [busy,setBusy]=useState(false)
   const [references,setReferences]=useState<Record<string,Row[]>>({})
   const canWrite=resource.writable?.includes(user.role)??false
@@ -115,10 +143,10 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
     event.preventDefault();setBusy(true);setError('')
     const body:Record<string,string|number>={}
     for(const field of resource.fields) {
-      const value=values[field.name]||''
+      const value=field.name==='idempotency_key'?idempotencyKey:(values[field.name]||'')
       if(value || field.required) body[field.name]=field.type==='number'?Number(value):value
     }
-    try {await api(resource.path==='payments'?'payments/manual':resource.path,{method:'POST',body:JSON.stringify(body)});setEditing(false);setValues({});await load()}
+    try {await api(resource.path==='payments'?'payments/manual':resource.path,{method:'POST',body:JSON.stringify(body)});setEditing(false);setValues({});setIdempotencyKey(crypto.randomUUID());await load()}
     catch(err) {setError(err instanceof Error?err.message:'Could not save')}
     finally {setBusy(false)}
   }
@@ -160,7 +188,7 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   }
   return <section className="page"><div className="page-head"><div><span className="eyebrow">OPERATIONS</span><h1>{resource.title}</h1></div>{canWrite&&<button className="button" onClick={()=>setEditing(!editing)}>{editing?'Cancel':'Add '+resource.title.toLowerCase()}</button>}</div>
     {error&&<p role="alert" className="error">{error}</p>}
-    {editing&&canWrite&&<form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.map(field=><label key={field.name}>{field.label}{field.options?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select</option>{field.options.map(option=><option key={option}>{option}</option>)}</select>:references[field.name]?.length?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select a record</option>{references[field.name].map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name||row.number||row.full_name||row.invoice_number||row.email||row.title||row.id)}</option>)}</select>:<input required={field.required} type={field.type||'text'} min={field.type==='number'?'0':undefined} value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})}/>}</label>)}</div><button className="button" disabled={busy}>{busy?'Saving…':'Save record'}</button></form>}
+    {editing&&canWrite&&<form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.filter(field=>field.name!=='idempotency_key').map(field=><label key={field.name}>{field.label}{field.options?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select</option>{field.options.map(option=><option key={option}>{option}</option>)}</select>:references[field.name]?.length?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select a record</option>{references[field.name].map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name||row.number||row.full_name||row.invoice_number||row.email||row.title||row.id)}</option>)}</select>:<input required={field.required} type={field.type||'text'} min={field.type==='number'?'0':undefined} value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})}/>}</label>)}</div><button className="button" disabled={busy}>{busy?'Saving…':'Save record'}</button></form>}
     {loading?<p role="status">Loading records…</p>:rows.length===0?<div className="empty"><h2>No records yet</h2><p>Authorized records will appear here after they are created.</p></div>:<div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col=><th key={col}>{col.replaceAll('_',' ')}</th>)}{resource.path==='payments'&&canWrite&&<th>Review</th>}{(resource.path==='payments'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)||resource.path==='invoices'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)||resource.path==='caretaker/rooms'||resource.path==='caretaker/assignments'||resource.path==='admin/users')&&<th>Actions</th>}</tr></thead><tbody>{rows.map((item,i)=><tr key={String(item.id||i)}>{resource.columns.map(col=><td key={col}>{formats(col,item[col])}</td>)}{resource.path==='payments'&&canWrite&&<td>{item.status==='PENDING_REVIEW'?<button className="outline-button" disabled={busy} onClick={()=>approve(String(item.id))}>Approve*</button>:<span>—</span>}</td>}
     {resource.path==='payments'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)&&<td>{item.status==='RECONCILED'?<button className="outline-button" disabled={busy} onClick={()=>financeAction('payments/'+String(item.id)+'/reverse')}>Reverse</button>:'—'}</td>}
     {resource.path==='invoices'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)&&<td>{item.status==='ISSUED'&&Number(item.paid_ugx)===0?<button className="outline-button" disabled={busy} onClick={()=>financeAction('invoices/'+String(item.id)+'/void')}>Void</button>:'—'}</td>}
@@ -246,6 +274,11 @@ export default function App() {
   const [online,setOnline]=useState(navigator.onLine)
   const navigate=useNavigate()
   useEffect(()=>{api('auth/me').then(p=>setUser(p.user)).catch(()=>{}).finally(()=>setReady(true))},[])
+  useEffect(()=>{
+    const expired=()=>setUser(null)
+    window.addEventListener('kats:session-expired',expired)
+    return ()=>window.removeEventListener('kats:session-expired',expired)
+  },[])
   useEffect(()=>{const update=()=>setOnline(navigator.onLine);window.addEventListener('online',update);window.addEventListener('offline',update);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}},[])
   function logout(){api('auth/logout',{method:'POST'}).catch(()=>{}).finally(()=>{setUser(null);navigate('/')})}
   if(!ready)return <div className="loading">Loading Kats…</div>
