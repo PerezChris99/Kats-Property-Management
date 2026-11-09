@@ -110,6 +110,8 @@ class Payment(db.Model):
     idempotency_key = db.Column(db.String(128), nullable=False, unique=True)
     created_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     reviewed_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
+    settled_at = db.Column(db.DateTime(timezone=True))
+    reversed_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     __table_args__ = (CheckConstraint("amount_ugx > 0", name="ck_payment_positive"),)
 
