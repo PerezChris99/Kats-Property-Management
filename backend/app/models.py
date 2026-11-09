@@ -323,3 +323,19 @@ class ExpenseEvent(db.Model):
     reason=db.Column(db.String(500),nullable=False)
     created_at=db.Column(db.DateTime(timezone=True),nullable=False,default=utcnow)
     __table_args__=(db.UniqueConstraint("expense_id","event",name="uq_expense_event_once"),)
+
+
+# Composite indexes for high-volume operational queries. Avoid indexing every
+# column: each additional index costs inserts, RAM and vacuum/backup I/O.
+Index("ix_rooms_property_status", Room.property_id, Room.status)
+Index("ix_leases_status_end", Lease.status, Lease.end_date)
+Index("ix_invoices_tenant_due", Invoice.tenant_id, Invoice.due_date)
+Index("ix_invoices_status_due", Invoice.status, Invoice.due_date)
+Index("ix_payments_invoice_status", Payment.invoice_id, Payment.status)
+Index("ix_payments_creator_status", Payment.created_by, Payment.status)
+Index("ix_maintenance_status_created", MaintenanceRequest.status, MaintenanceRequest.created_at)
+Index("ix_maintenance_tenant_created", MaintenanceRequest.tenant_id, MaintenanceRequest.created_at)
+Index("ix_expenses_status_incurred", Expense.status, Expense.incurred_on)
+Index("ix_audit_actor_created", AuditLog.actor_id, AuditLog.created_at)
+Index("ix_inspections_lease_kind", Inspection.lease_id, Inspection.kind)
+Index("ix_deposits_lease_status", DepositMovement.lease_id, DepositMovement.status)

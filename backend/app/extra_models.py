@@ -124,3 +124,8 @@ class ContactRequest(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     reviewed_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"))
     reviewed_at = db.Column(db.DateTime(timezone=True))
+
+
+from sqlalchemy import Index
+Index("ix_documents_tenant_created", Document.tenant_id, Document.created_at)
+Index("ix_notifications_user_created", Notification.user_id, Notification.created_at)
