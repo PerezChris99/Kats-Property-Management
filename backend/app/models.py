@@ -251,6 +251,7 @@ class DepositMovement(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     reviewed_at = db.Column(db.DateTime(timezone=True))
     __table_args__ = (
+        db.UniqueConstraint("kind", "external_reference", name="uq_deposit_external_reference"),
         CheckConstraint("amount_ugx > 0", name="ck_deposit_amount"),
         CheckConstraint("kind IN ('HOLD','REFUND','WITHHOLD')", name="ck_deposit_kind"),
         CheckConstraint("status IN ('PENDING_REVIEW','APPROVED','REJECTED')", name="ck_deposit_state"),

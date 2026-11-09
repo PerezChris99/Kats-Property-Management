@@ -28,6 +28,7 @@ def upgrade():
         sa.Column("kind",sa.String(20),nullable=False),
         sa.Column("amount_ugx",sa.BigInteger(),nullable=False),
         sa.Column("external_reference",sa.String(160)),
+        sa.UniqueConstraint("kind","external_reference",name="uq_deposit_external_reference"),
         sa.Column("reason",sa.String(500),nullable=False),
         sa.Column("idempotency_key",sa.String(128),nullable=False,unique=True),
         sa.Column("status",sa.String(30),nullable=False),

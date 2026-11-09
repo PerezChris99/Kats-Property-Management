@@ -165,8 +165,8 @@ def review_deposit(user,movement_id):
         if movement.kind=="WITHHOLD":
             inspected=db.session.query(Inspection).filter_by(
                 lease_id=lease.id,kind="MOVE_OUT").order_by(Inspection.created_at.desc()).first()
-            if not inspected or movement.amount_ugx>inspected.damage_estimate_ugx:
-                return fail("Withholding exceeds recorded move-out damage estimate",409)
+            if not inspected or current["withheld_ugx"] + movement.amount_ugx > inspected.damage_estimate_ugx:
+                return fail("Cumulative withholding exceeds recorded move-out damage estimate",409)
     movement.status="APPROVED" if decision=="APPROVE" else "REJECTED"
     movement.reviewed_by=user.id
     movement.reviewed_at=datetime.now(timezone.utc)
