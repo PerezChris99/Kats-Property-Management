@@ -345,6 +345,10 @@ def record_manual_payment(user):
     key = required_string(obj, "idempotency_key", 128)
     existing = db.session.query(Payment).filter_by(idempotency_key=key).first()
     if existing:
+        intended_amount = ugx(obj.get("amount_ugx"), positive=True)
+        if (existing.invoice_id != invoice.id or existing.amount_ugx != intended_amount
+                or existing.method != method):
+            return fail("Idempotency key already used for a different payment", 409)
         return jsonify(payment=serialize(existing, "id", "status", "amount_ugx")), 200
     amount = ugx(obj.get("amount_ugx"), positive=True)
     if amount > invoice.total_ugx - invoice.paid_ugx:
@@ -480,3 +484,30 @@ def integrations(user):
 def audit_entries(user):
     results = list_page(AuditLog, db.session.query(AuditLog).order_by(AuditLog.created_at.desc()))
     return jsonify(items=[serialize(a, "id", "actor_id", "action", "target_type", "target_id", "created_at") for a in results.items], total=results.total)
+
+
+@api.get("/tenant/lease")
+@roles("TENANT")
+def tenant_lease(user):
+    tenant_id = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+    if not tenant_id:
+        return jsonify(lease=None)
+    lease = db.session.query(Lease).filter_by(tenant_id=tenant_id, status="ACTIVE").first()
+    if not lease:
+        return jsonify(lease=None)
+    return jsonify(lease=serialize(lease, "id", "tenant_id", "room_id", "start_date", "end_date",
+                                 "rent_ugx", "deposit_ugx", "due_day", "status"))
+
+@api.get("/tenant/dashboard")
+@roles("TENANT")
+def tenant_dashboard(user):
+    tenant_id = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+    if not tenant_id:
+        return jsonify(total_ugx=0, paid_ugx=0, outstanding_ugx=0, invoices=0)
+    total, paid, count = db.session.query(
+        func.coalesce(func.sum(Invoice.total_ugx), 0),
+        func.coalesce(func.sum(Invoice.paid_ugx), 0),
+        func.count(Invoice.id)
+    ).filter(Invoice.tenant_id == tenant_id).one()
+    return jsonify(total_ugx=int(total), paid_ugx=int(paid),
+                   outstanding_ugx=int(total - paid), invoices=int(count))
