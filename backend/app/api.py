@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from .extensions import db, limiter
 from .models import (
     User, Property, Room, RoomStateHistory, Tenant, Lease,
-    Invoice, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog, CaretakerAssignment
+    Invoice, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog, CaretakerAssignment, Inspection
 )
 
 api = Blueprint("api", __name__)
@@ -875,3 +875,97 @@ def export_invoices(user):
     response.headers["Content-Disposition"] = "attachment; filename=kats-invoices.csv"
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@api.get("/inspections")
+@jwt_required()
+def inspections_list():
+    user = current_user()
+    query = db.session.query(Inspection)
+    if user.role == "CARETAKER":
+        assigned = db.session.query(CaretakerAssignment.room_id).filter_by(
+            caretaker_user_id=user.id)
+        query = query.filter(Inspection.room_id.in_(assigned))
+    elif user.role == "TENANT":
+        linked = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        if not linked:
+            return jsonify(items=[], total=0)
+        owned_leases = db.session.query(Lease.id).filter_by(tenant_id=linked)
+        query = query.filter(Inspection.lease_id.in_(owned_leases))
+    elif user.role not in STAFF:
+        abort(403)
+    results = list_page(Inspection, query.order_by(Inspection.created_at.desc()))
+    return jsonify(items=[
+        serialize(item, "id", "lease_id", "room_id", "kind", "condition_notes",
+                  "damage_estimate_ugx", "observed_on")
+        for item in results.items
+    ], total=results.total)
+
+@api.post("/inspections")
+@jwt_required()
+def create_inspection():
+    user = current_user()
+    obj = data()
+    lease = db.session.get(Lease, required_string(obj, "lease_id"))
+    if not lease:
+        abort(404)
+    if user.role == "CARETAKER":
+        ensure_assigned(user, lease.room_id)
+    elif user.role not in OPERATIONS:
+        abort(403)
+    kind = required_string(obj, "kind").upper()
+    if kind not in ("MOVE_IN", "MOVE_OUT", "ROUTINE"):
+        return fail("Invalid inspection kind")
+    if lease.status != "ACTIVE" and kind == "MOVE_OUT":
+        return fail("Move-out inspection requires an active lease", 409)
+    inspection = Inspection(
+        lease_id=lease.id, room_id=lease.room_id,
+        inspector_id=user.id, kind=kind,
+        condition_notes=required_string(obj, "condition_notes", 3000),
+        damage_estimate_ugx=ugx(obj.get("damage_estimate_ugx", 0)),
+        observed_on=parse_date(obj.get("observed_on"))
+    )
+    if inspection.observed_on < lease.start_date:
+        return fail("Inspection cannot predate the lease")
+    db.session.add(inspection)
+    db.session.flush()
+    audit(user, "inspection.record", "inspection", inspection.id,
+          kind=kind, room_id=lease.room_id)
+    db.session.commit()
+    return jsonify(inspection=serialize(
+        inspection, "id", "lease_id", "room_id", "kind", "observed_on"
+    )), 201
+
+@api.post("/leases/<lease_id>/terminate")
+@roles("OWNER", "MANAGER", "SUPER_ADMIN")
+def terminate_lease(user, lease_id):
+    obj = data()
+    reason = required_string(obj, "reason", 500)
+    lease = db.session.query(Lease).filter_by(id=lease_id).with_for_update().first()
+    if not lease:
+        abort(404)
+    if lease.status == "TERMINATED":
+        return jsonify(lease=serialize(lease, "id", "status"))
+    if lease.status != "ACTIVE":
+        return fail("Only active leases can be terminated", 409)
+    move_out = db.session.query(Inspection).filter_by(
+        lease_id=lease.id, kind="MOVE_OUT"
+    ).order_by(Inspection.created_at.desc()).first()
+    if not move_out:
+        return fail("A move-out inspection is required before termination", 409)
+    room = db.session.query(Room).filter_by(id=lease.room_id).with_for_update().first()
+    previous = room.status
+    lease.status = "TERMINATED"
+    room.status = "CLEANING"
+    db.session.add(RoomStateHistory(
+        room_id=room.id, old_status=previous, new_status="CLEANING",
+        reason="Lease termination: " + reason, actor_id=user.id
+    ))
+    audit(user, "lease.terminate", "lease", lease.id,
+          reason=reason, move_out_inspection_id=move_out.id)
+    db.session.commit()
+    return jsonify(
+        lease=serialize(lease, "id", "status"),
+        room=serialize(room, "id", "status"),
+        warning="Deposit settlement and any outstanding balance require separate approval."
+    )
