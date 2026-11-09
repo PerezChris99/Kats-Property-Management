@@ -15,10 +15,13 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: pip install -r requirements.txt
-      - run: pytest -q
+      - run: python -m pytest -q
         env:
           APP_ENV: testing
       - run: python -m compileall -q app
+      - run: python -m flask --app wsgi db upgrade
+        env:
+          APP_ENV: testing
   frontend:
     runs-on: ubuntu-latest
     defaults:
