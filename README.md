@@ -63,3 +63,5 @@ Commit on `perez`, use reviewed PRs to merge into `main`. A successful PR merge 
 Use `python -m pytest -q` for the SQLite-backed unit and API tests. The CI backend job also applies and rolls back all PostgreSQL migrations and then executes `tests/test_postgres_invariants.py` against a **disposable migrated PostgreSQL 16 database** via `TEST_POSTGRES_URL`; those tests verify PostgreSQL audit triggers and concurrent payment approval. The frontend job compiles React/TypeScript and performs a production build.
 
 This is development verification. Never substitute green CI for legally approved leases, MTN/Airtel/URA onboarding, external malware checks, real backup restores, third-party callbacks, real-device accessibility, or operational UAT.
+
+- **Audited portfolio editor:** `/portfolio-editor` searches and updates property, building, floor, and room listing fields; no overwrite of current signed lease amounts. `/room-placement` handles floor changes separately. PostgreSQL keeps the audit log append-only.

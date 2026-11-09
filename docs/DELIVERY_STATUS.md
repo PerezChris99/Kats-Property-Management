@@ -7,7 +7,7 @@
 | Foundation | Docker development stack, Flask/React, SQLAlchemy/PostgreSQL schema through 0015, Redis/Celery workers, PWA | Actual HostWares TLS deployment, backup restore and external observability |
 | Accounts/security | Argon2id, short-lived JWT/CSRF, one-time refresh rotation/revocation; hashed invitation/reset tokens, 30-minute recovery, SMTP TLS sender | Approved public domain, transactional SMTP credentials/deliverability, real auth/security UAT |
 | Roles | Server role ceilings, stored grant matrix, seed-permissions CLI, owner/superadmin permission editor | Whole-endpoint object-level penetration matrix and policy/tenant ownership verification |
-| Property portfolio | Properties, buildings, floors, room placement and auditable status history, backward-compatible legacy rooms | Advanced resource editing/search, owner-reviewed property/floor metadata and multi-device UAT |
+| Property portfolio | Properties, buildings, floors, room placement, bounded search, auditable editing of listing/property metadata; backward-compatible legacy rooms | Owner-reviewed actual portfolio records, comprehensive archival/merge policies and multi-device UAT |
 | Tenant onboarding | Owner invitations instead of emailed passwords, tenant user linking, scoped tenant account, private documents | Active mail provider, verified account ownership, actual legacy data import |
 | Leases and inspection | Lease creation, renewals, effective-dated rent, scoped inspections, termination safeguards | Signed-lease terms, inspection photo/evidence storage, owner acceptance |
 | Rent billing | Monthly idempotent full-month invoicing, line items, credit notes, manual proration preview and confirmed issuance | Lease-specific calendar-day policy approval, edge-case UAT and payment-provider acceptance |
@@ -26,6 +26,6 @@
 
 ## Outstanding code-level caveats
 
-This is **not** purely a third-party/infrastructure checklist yet. Rich property editing/search, full signed document workflows, provider-specific EFRIS/fiscal-credit adapter requirements, bank refund/disbursement implementation, SMS/email notification delivery workers, exhaustive security/end-to-end coverage and detailed contractor/bank reconciliation remain incomplete or unverified. Some depend on provider specs and contractual decisions, but until implemented and tested they are not ready to be certified 100%.
+This is **not** purely a third-party/infrastructure checklist yet. Portfolio archival/bulk editing, full signed document workflows, provider-specific EFRIS/fiscal-credit adapter requirements, bank refund/disbursement implementation, SMS/email notification delivery workers, exhaustive security/end-to-end coverage and detailed contractor/bank reconciliation remain incomplete or unverified. Some depend on provider specs and contractual decisions, but until implemented and tested they are not ready to be certified 100%.
 
 No test result is a guarantee of error-free operation. When integrations are disabled the app must continue operating in a visibly non-settled, non-fiscal mode. Consult GO_LIVE_CHECKLIST.md before accepting real money or issuing official fiscal documents.
