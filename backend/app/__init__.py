@@ -93,10 +93,12 @@ def create_app(test_config=None):
         return jsonify(error={"code": "INTERNAL_ERROR", "message": "Unexpected server error"}), 500
 
     @app.get("/healthz")
+    @limiter.exempt
     def health():
         return jsonify(status="ok")
 
     @app.get("/readyz")
+    @limiter.exempt
     def ready():
         db.session.execute(text("SELECT 1"))
         return jsonify(status="ready")
