@@ -12,7 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from .extensions import db, limiter
 from .models import (
-    User, RefreshSession, Property, Room, RoomStateHistory, Tenant, Lease,
+    User, RefreshSession, Permission, Role, RolePermission, Property, Room, RoomStateHistory, Tenant, Lease,
     Invoice, InvoiceLine, CreditNote, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog, CaretakerAssignment, Inspection
 )
 
@@ -67,6 +67,11 @@ def current_user():
     return user
 
 def roles(*allowed):
+    """Enforce statutory app ceiling plus mutable DB role grants.
+
+    Each decorated route has a role permission seeded by the CLI. Once a route
+    permission exists, revocation takes effect without redeployment.
+    """
     def decorator(fn):
         @wraps(fn)
         @jwt_required()
@@ -74,7 +79,15 @@ def roles(*allowed):
             user = current_user()
             if user.role not in allowed:
                 abort(403)
+            permission_name = "route:" + str(request.endpoint)
+            rule = db.session.get(Permission, permission_name)
+            if rule is None:
+                if os.getenv("APP_ENV") == "production":
+                    abort(403, description="Permission registry not initialized")
+            elif not db.session.get(RolePermission,(user.role, permission_name)):
+                abort(403, description="Role permission revoked")
             return fn(user, *args, **kwargs)
+        wrapped.__allowed_roles__ = tuple(allowed)
         return wrapped
     return decorator
 
@@ -1233,3 +1246,47 @@ def tenant_profile(user):
     if not tenant:
         return jsonify(tenant=None)
     return jsonify(tenant=serialize(tenant, "id", "full_name", "phone", "email"))
+
+
+@api.get("/admin/permissions")
+@roles("OWNER","SUPER_ADMIN")
+def list_permission_matrix(user):
+    permissions=db.session.query(Permission).order_by(Permission.name).all()
+    grants=db.session.query(RolePermission).all()
+    by_permission={}
+    for g in grants:
+        by_permission.setdefault(g.permission_name,[]).append(g.role_name)
+    return jsonify(items=[{"name":p.name,"description":p.description,
+                           "granted_roles":sorted(by_permission.get(p.name,[]))}
+                          for p in permissions])
+
+@api.put("/admin/permissions/<path:name>/roles/<role>")
+@roles("SUPER_ADMIN")
+def update_permission_grant(user,name,role):
+    if role not in {"OWNER","MANAGER","ACCOUNTANT","CARETAKER","TENANT","SUPER_ADMIN"}:
+        return fail("Invalid role")
+    rule=db.session.get(Permission,name)
+    if not rule:
+        abort(404)
+    # Core super-admin management and auth must never be lockable via this endpoint.
+    if name.endswith("admin_permission_grant") or name.endswith("update_permission_grant"):
+        return fail("Permission management cannot be disabled",403)
+    desired=data().get("allowed")
+    if type(desired) is not bool:
+        return fail("allowed must be a boolean")
+    rule_endpoint=name.removeprefix("route:")
+    from flask import current_app
+    view=current_app.view_functions.get(rule_endpoint)
+    if view is None:
+        return fail("Unknown permission endpoint")
+    ceiling=getattr(view,"__allowed_roles__",())
+    if role not in ceiling and desired:
+        return fail("Role cannot exceed the route security ceiling",403)
+    grant=db.session.get(RolePermission,(role,name))
+    if desired and not grant:
+        db.session.add(RolePermission(role_name=role,permission_name=name))
+    elif not desired and grant:
+        db.session.delete(grant)
+    audit(user,"permission.update","permission",user.id,permission=name,role=role,allowed=desired)
+    db.session.commit()
+    return jsonify(permission=name,role=role,allowed=desired)
