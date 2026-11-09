@@ -511,3 +511,11 @@ def tenant_dashboard(user):
     ).filter(Invoice.tenant_id == tenant_id).one()
     return jsonify(total_ugx=int(total), paid_ugx=int(paid),
                    outstanding_ugx=int(total - paid), invoices=int(count))
+
+
+@api.post("/billing/generate-monthly")
+@roles("OWNER", "MANAGER", "SUPER_ADMIN")
+def generate_rent_for_month(user):
+    from .billing import generate_monthly_rent
+    month = parse_date(data().get("month"))
+    return jsonify(result=generate_monthly_rent(month, actor=user))
