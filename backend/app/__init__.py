@@ -70,6 +70,8 @@ def create_app(test_config=None):
     app.register_blueprint(proration_api, url_prefix="/api/v1")
     from .analytics import analytics_api
     app.register_blueprint(analytics_api, url_prefix="/api/v1")
+    from .portfolio_edit import portfolio_api
+    app.register_blueprint(portfolio_api, url_prefix="/api/v1")
     from .report_exports import report_api
     app.register_blueprint(report_api, url_prefix="/api/v1")
     from .cli import register_commands
