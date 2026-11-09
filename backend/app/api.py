@@ -1,0 +1,482 @@
+from datetime import date
+from functools import wraps
+import os
+from flask import Blueprint, abort, jsonify, request
+from flask_jwt_extended import (
+    create_access_token, create_refresh_token, get_jwt_identity,
+    jwt_required, set_access_cookies, set_refresh_cookies, unset_jwt_cookies
+)
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, VerificationError
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+from .extensions import db, limiter
+from .models import (
+    User, Property, Room, RoomStateHistory, Tenant, Lease,
+    Invoice, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog
+)
+
+api = Blueprint("api", __name__)
+hasher = PasswordHasher()
+STAFF = {"SUPER_ADMIN", "OWNER", "MANAGER", "ACCOUNTANT"}
+OPERATIONS = {"SUPER_ADMIN", "OWNER", "MANAGER"}
+ROOM_STATES = {"VACANT", "OCCUPIED", "RESERVED", "NOTICE_GIVEN", "CLEANING", "MAINTENANCE", "UNAVAILABLE", "DISPUTE", "ARCHIVED"}
+
+def fail(message, status=400):
+    return jsonify(error={"code": "REQUEST_REJECTED", "message": message}), status
+
+def data():
+    value = request.get_json(silent=True)
+    if not isinstance(value, dict):
+        abort(400, description="JSON object required")
+    return value
+
+def required_string(obj, key, max_length=250):
+    value = obj.get(key)
+    if not isinstance(value, str) or not value.strip() or len(value) > max_length:
+        abort(400, description=key + " is required and must be text")
+    return value.strip()
+
+def ugx(value, positive=False):
+    if type(value) is not int or value < (1 if positive else 0) or value > 10**15:
+        abort(400, description="Amount must be a non-negative integer UGX value")
+    return value
+
+def parse_date(value):
+    try:
+        return date.fromisoformat(value)
+    except (TypeError, ValueError):
+        abort(400, description="Invalid date; expected YYYY-MM-DD")
+
+def serialize(obj, *names):
+    result = {}
+    for name in names:
+        value = getattr(obj, name)
+        result[name] = value.isoformat() if isinstance(value, date) else value
+    return result
+
+def audit(actor, action, target, target_id, **details):
+    db.session.add(AuditLog(actor_id=actor.id, action=action, target_type=target, target_id=target_id, details=details))
+
+def current_user():
+    user = db.session.get(User, get_jwt_identity())
+    if not user or not user.is_active:
+        abort(403)
+    return user
+
+def roles(*allowed):
+    def decorator(fn):
+        @wraps(fn)
+        @jwt_required()
+        def wrapped(*args, **kwargs):
+            user = current_user()
+            if user.role not in allowed:
+                abort(403)
+            return fn(user, *args, **kwargs)
+        return wrapped
+    return decorator
+
+def list_page(model, query):
+    try:
+        page = min(max(int(request.args.get("page", 1)), 1), 100000)
+        size = min(max(int(request.args.get("page_size", 25)), 1), 100)
+    except ValueError:
+        abort(400)
+    return query.paginate(page=page, per_page=size, error_out=False)
+
+@api.post("/auth/register")
+@limiter.limit("5 per hour")
+def register():
+    if os.getenv("PUBLIC_REGISTRATION_ENABLED", "false").lower() != "true":
+        return fail("Registration is invitation-only", 403)
+    obj = data()
+    email = required_string(obj, "email").lower()
+    name = required_string(obj, "full_name", 160)
+    password = required_string(obj, "password", 256)
+    if len(password) < 12 or "@" not in email:
+        return fail("Valid email and password of at least 12 characters required")
+    if db.session.query(User.id).filter_by(email=email).first():
+        return fail("Account already exists", 409)
+    user = User(email=email, full_name=name, password_hash=hasher.hash(password), role="TENANT")
+    db.session.add(user)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("Account already exists", 409)
+    return jsonify(user=serialize(user, "id", "full_name", "role")), 201
+
+@api.post("/auth/login")
+@limiter.limit("10 per minute")
+def login():
+    obj = data()
+    email = required_string(obj, "email").lower()
+    password = required_string(obj, "password", 256)
+    user = db.session.query(User).filter_by(email=email).first()
+    try:
+        valid = bool(user and user.is_active and hasher.verify(user.password_hash, password))
+    except (VerifyMismatchError, VerificationError):
+        valid = False
+    if not valid:
+        return fail("Invalid email or password", 401)
+    response = jsonify(user=serialize(user, "id", "full_name", "role"))
+    set_access_cookies(response, create_access_token(identity=user.id))
+    set_refresh_cookies(response, create_refresh_token(identity=user.id))
+    return response
+
+@api.post("/auth/refresh")
+@jwt_required(refresh=True)
+def refresh():
+    user = current_user()
+    response = jsonify(user=serialize(user, "id", "full_name", "role"))
+    set_access_cookies(response, create_access_token(identity=user.id))
+    return response
+
+@api.post("/auth/logout")
+def logout():
+    response = jsonify(message="Signed out")
+    unset_jwt_cookies(response)
+    return response
+
+@api.get("/auth/me")
+@jwt_required()
+def me():
+    user = current_user()
+    return jsonify(user=serialize(user, "id", "full_name", "role"))
+
+@api.get("/public/landing-content")
+def landing_content():
+    return jsonify(title="Manage your rentals, collect rent, and stay compliant.",
+                   currency="UGX", provider_status="not configured")
+
+@api.get("/properties")
+@roles(*STAFF)
+def properties(user):
+    results = list_page(Property, db.session.query(Property).order_by(Property.name))
+    return jsonify(items=[serialize(p, "id", "name", "address", "district") for p in results.items], total=results.total, page=results.page)
+
+@api.post("/properties")
+@roles(*OPERATIONS)
+def add_property(user):
+    obj = data()
+    p = Property(name=required_string(obj, "name", 200), address=required_string(obj, "address", 400), district=required_string(obj, "district", 120))
+    db.session.add(p)
+    db.session.flush()
+    audit(user, "property.create", "property", p.id)
+    db.session.commit()
+    return jsonify(property=serialize(p, "id", "name", "address", "district")), 201
+
+@api.get("/rooms")
+@roles(*STAFF)
+def rooms(user):
+    query = db.session.query(Room)
+    if request.args.get("property_id"):
+        query = query.filter_by(property_id=request.args["property_id"])
+    results = list_page(Room, query.order_by(Room.number))
+    return jsonify(items=[serialize(r, "id", "property_id", "number", "status", "rent_ugx", "deposit_ugx") for r in results.items], total=results.total)
+
+@api.post("/rooms")
+@roles(*OPERATIONS)
+def add_room(user):
+    obj = data()
+    property_id = required_string(obj, "property_id")
+    if not db.session.get(Property, property_id):
+        abort(404)
+    room = Room(property_id=property_id, number=required_string(obj, "number", 60), rent_ugx=ugx(obj.get("rent_ugx")), deposit_ugx=ugx(obj.get("deposit_ugx", 0)))
+    db.session.add(room)
+    try:
+        db.session.flush()
+        audit(user, "room.create", "room", room.id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("Room number already exists for the property", 409)
+    return jsonify(room=serialize(room, "id", "number", "status", "rent_ugx", "property_id")), 201
+
+@api.post("/rooms/<room_id>/status")
+@roles(*OPERATIONS)
+def change_room_status(user, room_id):
+    obj = data()
+    room = db.session.get(Room, room_id)
+    if not room:
+        abort(404)
+    new_status = required_string(obj, "status")
+    reason = required_string(obj, "reason", 500)
+    if new_status not in ROOM_STATES:
+        return fail("Unknown room state")
+    if db.session.query(Lease.id).filter_by(room_id=room_id, status="ACTIVE").first() and new_status == "VACANT":
+        return fail("Cannot mark a leased room vacant", 409)
+    old = room.status
+    room.status = new_status
+    db.session.add(RoomStateHistory(room_id=room.id, old_status=old, new_status=new_status, reason=reason, actor_id=user.id))
+    audit(user, "room.status", "room", room.id, previous=old, new=new_status)
+    db.session.commit()
+    return jsonify(room=serialize(room, "id", "status"))
+
+@api.get("/tenants")
+@roles(*STAFF)
+def tenants(user):
+    results = list_page(Tenant, db.session.query(Tenant).order_by(Tenant.full_name))
+    return jsonify(items=[serialize(t, "id", "full_name", "phone", "email") for t in results.items], total=results.total)
+
+@api.post("/tenants")
+@roles(*OPERATIONS)
+def add_tenant(user):
+    obj = data()
+    tenant = Tenant(full_name=required_string(obj, "full_name", 160), phone=required_string(obj, "phone", 30), email=obj.get("email"))
+    if obj.get("user_id"):
+        account = db.session.get(User, obj["user_id"])
+        if not account or account.role != "TENANT":
+            return fail("Linked user must have tenant role")
+        tenant.user_id = account.id
+    db.session.add(tenant)
+    try:
+        db.session.flush()
+        audit(user, "tenant.create", "tenant", tenant.id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("Account already linked to a tenant", 409)
+    return jsonify(tenant=serialize(tenant, "id", "full_name", "phone")), 201
+
+@api.get("/leases")
+@roles(*STAFF)
+def leases(user):
+    results = list_page(Lease, db.session.query(Lease).order_by(Lease.start_date.desc()))
+    return jsonify(items=[serialize(lease, "id", "room_id", "tenant_id", "start_date", "end_date", "status", "rent_ugx") for lease in results.items], total=results.total)
+
+@api.post("/leases")
+@roles(*OPERATIONS)
+def add_lease(user):
+    obj = data()
+    room = db.session.get(Room, required_string(obj, "room_id"))
+    tenant = db.session.get(Tenant, required_string(obj, "tenant_id"))
+    if not room or not tenant:
+        abort(404)
+    if room.status != "VACANT":
+        return fail("Room must be vacant", 409)
+    start, end = parse_date(obj.get("start_date")), parse_date(obj.get("end_date"))
+    if end <= start:
+        return fail("Lease end must follow start")
+    lease = Lease(room_id=room.id, tenant_id=tenant.id, start_date=start, end_date=end,
+                  rent_ugx=ugx(obj.get("rent_ugx"), positive=True), deposit_ugx=ugx(obj.get("deposit_ugx", 0)),
+                  due_day=obj.get("due_day", 1))
+    if type(lease.due_day) is not int or not 1 <= lease.due_day <= 28:
+        return fail("Due day must be an integer between 1 and 28")
+    db.session.add(lease)
+    room.status = "OCCUPIED"
+    try:
+        db.session.flush()
+        db.session.add(RoomStateHistory(room_id=room.id, old_status="VACANT", new_status="OCCUPIED",
+                                        reason="Lease started", actor_id=user.id))
+        audit(user, "lease.create", "lease", lease.id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("Conflicting active lease", 409)
+    return jsonify(lease=serialize(lease, "id", "room_id", "tenant_id", "status")), 201
+
+@api.get("/invoices")
+@jwt_required()
+def invoices():
+    user = current_user()
+    query = db.session.query(Invoice)
+    if user.role == "TENANT":
+        linked = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        if linked is None:
+            return jsonify(items=[], total=0)
+        query = query.filter_by(tenant_id=linked)
+    elif user.role not in STAFF:
+        abort(403)
+    results = list_page(Invoice, query.order_by(Invoice.created_at.desc()))
+    fields = ("id", "invoice_number", "lease_id", "tenant_id", "period_start", "period_end", "due_date", "total_ugx", "paid_ugx", "status")
+    return jsonify(items=[serialize(inv, *fields) for inv in results.items], total=results.total)
+
+@api.post("/invoices")
+@roles(*STAFF)
+def add_invoice(user):
+    obj = data()
+    lease = db.session.get(Lease, required_string(obj, "lease_id"))
+    if not lease or lease.status != "ACTIVE":
+        return fail("Active lease required")
+    start, end, due = [parse_date(obj.get(key)) for key in ("period_start", "period_end", "due_date")]
+    if end < start or start < lease.start_date or end > lease.end_date:
+        return fail("Billing period outside lease bounds")
+    total = ugx(obj.get("total_ugx"), positive=True)
+    from .models import new_id
+    invoice = Invoice(lease_id=lease.id, tenant_id=lease.tenant_id, period_start=start, period_end=end,
+                      due_date=due, total_ugx=total, invoice_number="KATS-" + new_id()[:12].upper())
+    db.session.add(invoice)
+    try:
+        db.session.flush()
+        db.session.add(LedgerEntry(invoice_id=invoice.id, event="INVOICE_ISSUED", amount_ugx=total))
+        audit(user, "invoice.issue", "invoice", invoice.id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("Invoice already exists for billing period", 409)
+    return jsonify(invoice=serialize(invoice, "id", "invoice_number", "total_ugx", "status")), 201
+
+@api.get("/payments")
+@jwt_required()
+def payments():
+    user = current_user()
+    query = db.session.query(Payment).join(Invoice, Invoice.id == Payment.invoice_id)
+    if user.role == "TENANT":
+        linked = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        if linked is None:
+            return jsonify(items=[], total=0)
+        query = query.filter(Invoice.tenant_id == linked)
+    elif user.role not in STAFF:
+        abort(403)
+    results = list_page(Payment, query.order_by(Payment.created_at.desc()))
+    return jsonify(items=[serialize(p, "id", "invoice_id", "amount_ugx", "method", "status", "created_at") for p in results.items], total=results.total)
+
+@api.post("/payments/manual")
+@roles(*STAFF)
+def record_manual_payment(user):
+    obj = data()
+    method = required_string(obj, "method").upper()
+    if method not in ("CASH", "BANK_TRANSFER"):
+        return fail("Only cash and bank proof are accepted here")
+    invoice = db.session.get(Invoice, required_string(obj, "invoice_id"))
+    if not invoice or invoice.status in ("VOID", "PAID"):
+        return fail("Open invoice required")
+    key = required_string(obj, "idempotency_key", 128)
+    existing = db.session.query(Payment).filter_by(idempotency_key=key).first()
+    if existing:
+        return jsonify(payment=serialize(existing, "id", "status", "amount_ugx")), 200
+    amount = ugx(obj.get("amount_ugx"), positive=True)
+    if amount > invoice.total_ugx - invoice.paid_ugx:
+        return fail("Payment is greater than outstanding invoice balance")
+    reference = obj.get("reference")
+    if method == "BANK_TRANSFER":
+        if not isinstance(reference, str) or not reference.strip():
+            return fail("Bank transfer requires a reference")
+    payment = Payment(invoice_id=invoice.id, amount_ugx=amount, method=method,
+                      reference=reference, idempotency_key=key, created_by=user.id,
+                      status="PENDING_REVIEW")
+    db.session.add(payment)
+    try:
+        db.session.flush()
+        audit(user, "payment.record_unverified", "payment", payment.id, method=method)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("Duplicate reference or idempotency key", 409)
+    return jsonify(payment=serialize(payment, "id", "status", "amount_ugx")), 201
+
+@api.post("/payments/<payment_id>/approve")
+@roles(*STAFF)
+def approve_payment(user, payment_id):
+    if user.role == "TENANT":
+        abort(403)
+    payment = db.session.query(Payment).filter_by(id=payment_id).with_for_update().first()
+    if not payment:
+        abort(404)
+    if payment.status == "RECONCILED":
+        return jsonify(payment=serialize(payment, "id", "status")), 200
+    if payment.status != "PENDING_REVIEW":
+        return fail("Payment is not awaiting review", 409)
+    if payment.created_by == user.id:
+        return fail("Payment must be approved by a different staff member", 403)
+    invoice = db.session.query(Invoice).filter_by(id=payment.invoice_id).with_for_update().first()
+    if invoice.status == "VOID" or payment.amount_ugx > invoice.total_ugx - invoice.paid_ugx:
+        return fail("Payment conflicts with current invoice balance", 409)
+    invoice.paid_ugx += payment.amount_ugx
+    invoice.status = "PAID" if invoice.paid_ugx == invoice.total_ugx else "PARTIALLY_PAID"
+    payment.status = "RECONCILED"
+    payment.reviewed_by = user.id
+    db.session.add(LedgerEntry(invoice_id=invoice.id, payment_id=payment.id,
+                               event="PAYMENT_RECEIVED", amount_ugx=payment.amount_ugx))
+    audit(user, "payment.approve", "payment", payment.id)
+    db.session.commit()
+    return jsonify(payment=serialize(payment, "id", "status"), invoice=serialize(invoice, "id", "status", "paid_ugx"))
+
+@api.get("/maintenance")
+@jwt_required()
+def maintenance_list():
+    user = current_user()
+    query = db.session.query(MaintenanceRequest)
+    if user.role == "TENANT":
+        tenant_id = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        if not tenant_id:
+            return jsonify(items=[], total=0)
+        query = query.filter_by(tenant_id=tenant_id)
+    elif user.role not in STAFF:
+        abort(403)
+    results = list_page(MaintenanceRequest, query.order_by(MaintenanceRequest.created_at.desc()))
+    return jsonify(items=[serialize(m, "id", "room_id", "title", "priority", "status") for m in results.items], total=results.total)
+
+@api.post("/maintenance")
+@jwt_required()
+def maintenance_create():
+    user = current_user()
+    obj = data()
+    room = db.session.get(Room, required_string(obj, "room_id"))
+    if not room:
+        abort(404)
+    tenant_id = None
+    if user.role == "TENANT":
+        tenant_id = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        if not tenant_id or not db.session.query(Lease.id).filter_by(tenant_id=tenant_id, room_id=room.id, status="ACTIVE").first():
+            abort(403)
+    elif user.role not in STAFF:
+        abort(403)
+    priority = str(obj.get("priority", "MEDIUM")).upper()
+    if priority not in ("LOW", "MEDIUM", "HIGH", "URGENT"):
+        return fail("Invalid priority")
+    req = MaintenanceRequest(room_id=room.id, tenant_id=tenant_id, title=required_string(obj, "title", 160),
+                             description=required_string(obj, "description", 3000), priority=priority)
+    db.session.add(req)
+    db.session.flush()
+    audit(user, "maintenance.create", "maintenance", req.id)
+    db.session.commit()
+    return jsonify(request=serialize(req, "id", "status", "title")), 201
+
+@api.get("/expenses")
+@roles(*STAFF)
+def expenses(user):
+    results = list_page(Expense, db.session.query(Expense).order_by(Expense.incurred_on.desc()))
+    return jsonify(items=[serialize(e, "id", "property_id", "category", "amount_ugx", "incurred_on") for e in results.items], total=results.total)
+
+@api.post("/expenses")
+@roles(*STAFF)
+def add_expense(user):
+    obj = data()
+    prop = db.session.get(Property, required_string(obj, "property_id"))
+    if not prop:
+        abort(404)
+    expense = Expense(property_id=prop.id, category=required_string(obj, "category", 80),
+                      description=required_string(obj, "description", 500),
+                      amount_ugx=ugx(obj.get("amount_ugx")),
+                      incurred_on=parse_date(obj.get("incurred_on")), created_by=user.id)
+    db.session.add(expense)
+    db.session.flush()
+    audit(user, "expense.record", "expense", expense.id)
+    db.session.commit()
+    return jsonify(expense=serialize(expense, "id", "amount_ugx")), 201
+
+@api.get("/dashboard")
+@roles(*STAFF)
+def dashboard(user):
+    rooms_count = db.session.query(func.count(Room.id)).scalar() or 0
+    occupied = db.session.query(func.count(Room.id)).filter(Room.status == "OCCUPIED").scalar() or 0
+    expected = db.session.query(func.coalesce(func.sum(Invoice.total_ugx), 0)).scalar() or 0
+    paid = db.session.query(func.coalesce(func.sum(Invoice.paid_ugx), 0)).scalar() or 0
+    open_maintenance = db.session.query(func.count(MaintenanceRequest.id)).filter(MaintenanceRequest.status == "OPEN").scalar() or 0
+    return jsonify(rooms=rooms_count, occupied_rooms=occupied, vacant_rooms=max(0, rooms_count - occupied),
+                   expected_ugx=int(expected), collected_ugx=int(paid), outstanding_ugx=int(expected - paid),
+                   open_maintenance=open_maintenance)
+
+@api.get("/integrations")
+@roles(*STAFF)
+def integrations(user):
+    # Intentionally never claim connected based on mere presence of a flag.
+    return jsonify(mtn_momo="NOT_VERIFIED", airtel_money="NOT_VERIFIED", efris="NOT_VERIFIED")
+
+@api.get("/audit")
+@roles("OWNER", "SUPER_ADMIN")
+def audit_entries(user):
+    results = list_page(AuditLog, db.session.query(AuditLog).order_by(AuditLog.created_at.desc()))
+    return jsonify(items=[serialize(a, "id", "actor_id", "action", "target_type", "target_id", "created_at") for a in results.items], total=results.total)
