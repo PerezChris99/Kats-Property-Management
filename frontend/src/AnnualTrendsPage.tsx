@@ -26,8 +26,6 @@ export function AnnualTrendsPage(){
     p.net_invoiced_ugx,p.verified_collections_ugx,p.approved_expenses_incurred_ugx]))
   const height=(v:number)=>Math.max(0,(H-TOP-BOTTOM)*v/max)
   const y=(v:number)=>H-BOTTOM-height(v)
-  const coordinates=(key:keyof Pick<Monthly,'verified_collections_ugx'|'net_invoiced_ugx'|'approved_expenses_incurred_ugx'>)=>
-    points.map((p,i)=>(LEFT+i*GROUP+32)+','+(y(p[key])+height(p[key])/2)).join(' ')
   return <section className="page">
     <span className="eyebrow">FINANCIAL PERFORMANCE</span><h1>Annual performance trends</h1>
     <p>Dynamic verified collections, net invoiced rent and independently approved expenses. These are separate accounting measures, not a cashflow statement.</p>
