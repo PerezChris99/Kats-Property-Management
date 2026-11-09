@@ -50,6 +50,7 @@ def create_app(test_config=None):
         return jsonify(status="ready")
 
     from . import models  # noqa: F401
+    from . import extra_models  # noqa: F401
     from .api import api
     app.register_blueprint(api, url_prefix="/api/v1")
     from .cli import register_commands
