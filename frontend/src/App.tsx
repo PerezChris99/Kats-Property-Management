@@ -1,3 +1,4 @@
+import { api, csrfToken } from './lib/api'
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Building2, CreditCard, LayoutDashboard, Menu, ShieldCheck, Wrench, LogOut } from 'lucide-react'
@@ -42,43 +43,6 @@ RESOURCES.assignments = {title:'Caretaker assignments',path:'caretaker/assignmen
   {name:'room_id',label:'Room ID',required:true}]}
 const roles = ['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN']
 const formats = (key: string, value: string | number | boolean | null) => key.endsWith('_ugx') && typeof value === 'number' ? 'UGX ' + value.toLocaleString('en-UG') : String(value ?? '—')
-function cookie(name:string) {
-  return document.cookie.split('; ').find(c=>c.startsWith(name+'='))?.split('=').slice(1).join('=')||''
-}
-function csrfToken() {return cookie('csrf_access_token')}
-let refreshing:Promise<boolean>|null = null
-async function refreshAccess() {
-  if(!refreshing) {
-    refreshing = (async()=>{
-      const token = cookie('csrf_refresh_token')
-      if(!token)return false
-      try {
-        const response = await fetch('/api/v1/auth/refresh',{
-          method:'POST',credentials:'same-origin',cache:'no-store',
-          headers:{'X-CSRF-TOKEN':token}
-        })
-        return response.ok
-      } catch{return false}
-    })().finally(()=>{refreshing=null})
-  }
-  return refreshing
-}
-async function api(path: string, opts: RequestInit = {}) {
-  const perform=()=>{
-    const headers = new Headers(opts.headers)
-    if (opts.body) headers.set('Content-Type', 'application/json')
-    if (opts.method && opts.method !== 'GET') headers.set('X-CSRF-TOKEN', csrfToken())
-    return fetch('/api/v1/' + path, {...opts, headers, credentials:'same-origin', cache:'no-store'})
-  }
-  let response=await perform()
-  if(response.status===401 && !['auth/login','auth/refresh'].includes(path)) {
-    if(await refreshAccess()) response=await perform()
-    else window.dispatchEvent(new Event('kats:session-expired'))
-  }
-  const payload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(payload.error?.message || 'Request failed (' + response.status + ')')
-  return payload
-}
 function Header({user, logout}: {user:User|null;logout?:()=>void}) {
   return <header className="site-header"><Link to="/" className="brand"><Building2 size={24} aria-hidden="true"/> Kats <small>Property Management</small></Link>
   <nav aria-label="Main navigation">{user ? <><Link to="/dashboard">Workspace</Link><button className="link-button" onClick={logout}>Sign out</button></> : <><Link to="/features">Features</Link><Link to="/contact">Contact</Link><Link className="button small" to="/login">Sign in</Link></>}</nav></header>
