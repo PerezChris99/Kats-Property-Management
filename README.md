@@ -48,3 +48,18 @@ See [delivery register](docs/DELIVERY_STATUS.md), [HostWares runbook](docs/HOSTW
 ## Branching
 
 Commit on `perez`, use reviewed PRs to merge into `main`. A successful PR merge means code is integrated, **not** that the product has been deployed or passed real-money and tax acceptance. Do not cut a production release tag before launch signoff.
+
+## Property hierarchy, onboarding and financial workflows (November 2026)
+
+- **Buildings / floors:** Create buildings under a property, create ground/basement/upper floors, place and move rooms with a reason. Cross-property room placements are rejected. Existing rooms without floors stay valid.
+- **Account security:** In production the user console never shares an initial password. An owner sends a one-time email invitation; the user sets a password through `/account/activate`. Existing users can request a non-enumerating 30-minute recovery link at `/forgot-password`. Outbound email requires `SMTP_HOST`, `SMTP_PORT` (465/587 only), `SMTP_USERNAME`, `SMTP_PASSWORD`, `MAIL_FROM`, and an approved `PUBLIC_APP_URL` (HTTPS outside localhost). Without email configuration, invitations fail closed.
+- **Permission controls:** `/permissions` lists the persisted role permission matrix. Only a super administrator can change grants; no grant can exceed a server-side role ceiling. Run `flask --app wsgi seed-permissions` after introducing new protected routes.
+- **Proration:** `/proration` previews actual-calendar-day rent with effective dated renewals. A finance officer must confirm that the contractual terms permit that policy before invoice issuance. Partial months are never automatically charged using an assumed formula.
+- **Expense checks:** Expenses are `PENDING_APPROVAL` until a different authorized person approves or rejects the claim. Approved accounting expenses can be reversed by a distinct reviewer; reverse entries are immutable, and this does not send bank money. Previous expenses migrated from an unreviewed schema become `REVIEW_REQUIRED` rather than silently approved.
+- **Annual trends:** `/trends` shows 12 months of verified settled collections, net invoices and approved expenses (incurred date), with accessible charts and a source-data table. Undated historical settlements are disclosed separately; these metrics are **not** a cashflow statement.
+
+### Verification checks
+
+Use `python -m pytest -q` for the SQLite-backed unit and API tests. The CI backend job also applies and rolls back all PostgreSQL migrations and then executes `tests/test_postgres_invariants.py` against a **disposable migrated PostgreSQL 16 database** via `TEST_POSTGRES_URL`; those tests verify PostgreSQL audit triggers and concurrent payment approval. The frontend job compiles React/TypeScript and performs a production build.
+
+This is development verification. Never substitute green CI for legally approved leases, MTN/Airtel/URA onboarding, external malware checks, real backup restores, third-party callbacks, real-device accessibility, or operational UAT.
