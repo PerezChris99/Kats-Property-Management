@@ -1,4 +1,6 @@
 import { api, csrfToken } from './lib/api'
+import {ForgotPasswordPage, CompleteAccountLinkPage, InvitationsPage, PermissionMatrixPage,
+  RoomPlacementPage} from './AccountScreens'
 import {NotificationsPage, InspectionsPage, MobileMoneyPage, FiscalPage, LegalAdminPage,
   PublicLegalPage, DocumentsPage, SecurityPage, AuditPage,
   RenewalsPage, DepositsPage, WorkOrdersPage, SettingsAdminPage,
@@ -41,11 +43,8 @@ const CARETAKER_RESOURCES:Record<string,Resource> = {
     writable:['CARETAKER']},
   maintenance: {...RESOURCES.maintenance,path:'caretaker/maintenance',writable:['CARETAKER']}
 }
-RESOURCES.users = {title:'Users and roles',path:'admin/users',columns:['full_name','email','role','is_active'],
-  writable:['OWNER','SUPER_ADMIN'],fields:[{name:'full_name',label:'Full name',required:true},
-  {name:'email',label:'Email',type:'email',required:true},
-  {name:'role',label:'Role',options:['MANAGER','CARETAKER','ACCOUNTANT','TENANT'],required:true},
-  {name:'password',label:'Initial password (12+ chars)',type:'password',required:true}]}
+RESOURCES.users = {title:'User accounts',path:'admin/users',columns:['full_name','email','role','is_active'],
+  writable:[],fields:[]}
 RESOURCES.assignments = {title:'Caretaker assignments',path:'caretaker/assignments',
   columns:['caretaker_user_id','room_id','assigned_at'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
   fields:[{name:'caretaker_user_id',label:'Caretaker user ID',required:true},
@@ -84,7 +83,7 @@ function Login({onSuccess}: {onSuccess:(user:User)=>void}) {
     catch(err) {setError(err instanceof Error?err.message:'Unable to sign in')}
     finally {setBusy(false)}
   }
-  return <div className="auth-layout"><div className="auth-card"><Link to="/" className="brand"><Building2/> Kats</Link><h1>Sign in</h1><p>Secure access for authorized users.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/></label>{error&&<p role="alert" className="error">{error}</p>}<button className="button full" disabled={busy}>{busy?'Signing in…':'Continue'}</button></form><Link to="/" className="back">Back to website</Link></div></div>
+  return <div className="auth-layout"><div className="auth-card"><Link to="/" className="brand"><Building2/> Kats</Link><h1>Sign in</h1><p>Secure access for authorized users.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/></label>{error&&<p role="alert" className="error">{error}</p>}<button className="button full" disabled={busy}>{busy?'Signing in…':'Continue'}</button></form><Link to="/forgot-password" className="back">Forgot your password?</Link> <Link to="/" className="back">Back to website</Link></div></div>
 }
 function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   const [rows,setRows]=useState<Row[]>([])
@@ -236,7 +235,7 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
   const location=useLocation()
   const page=location.pathname.slice(1)
   const canOperate=roles.includes(user.role)
-  const nav = canOperate?['dashboard','properties','buildings','floors','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports','statements','receipts','mobile-money','efris','inspections','renewals','deposits','work-orders','documents','notifications','security',...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['settings']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['users','legal','audit','inquiries']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'||user.role==='MANAGER'?['assignments']:[])]:user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance','work-orders','inspections','documents','notifications','security','receipts']:['dashboard','invoices','payments','statements','receipts','deposits','maintenance','inspections','documents','mobile-money','notifications','security']
+  const nav = canOperate?['dashboard','properties','buildings','floors','rooms','room-placement','tenants','leases','invoices','payments','maintenance','expenses','reports','statements','receipts','mobile-money','efris','inspections','renewals','deposits','work-orders','documents','notifications','security',...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['settings']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['users','invitations','permissions','legal','audit','inquiries']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'||user.role==='MANAGER'?['assignments']:[])]:user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance','work-orders','inspections','documents','notifications','security','receipts']:['dashboard','invoices','payments','statements','receipts','deposits','maintenance','inspections','documents','mobile-money','notifications','security']
   const viewResource=user.role==='CARETAKER'?CARETAKER_RESOURCES[page]:RESOURCES[page]
   return <div className="portal"><aside className="side"><Link to="/" className="brand">Kats</Link><div className="role">{user.role.replaceAll('_',' ')}</div><nav aria-label="Workspace">{nav.map(key=><Link key={key} className={page===key?'active':''} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</nav><button className="link-button logout" onClick={logout}><LogOut size={16}/> Sign out</button></aside>
   <div className="portal-main"><header className="portal-bar"><span>Kats Property Management</span><span>{user.full_name}</span></header><main>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='statements'&&nav.includes(page)?(user.role==='TENANT'?<TenantStatementSelfPage/>:<TenantStatementsPage/>):
@@ -245,6 +244,9 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
     page==='mobile-money'&&nav.includes(page)?<MobileMoneyPage/>:page==='efris'&&nav.includes(page)?<FiscalPage/>:
     page==='documents'&&nav.includes(page)?<DocumentsPage/>:page==='legal'&&nav.includes(page)?<LegalAdminPage/>:
     page==='audit'&&nav.includes(page)?<AuditPage/>:page==='inquiries'&&nav.includes(page)?<ContactInboxPage/>:
+    page==='invitations'&&nav.includes(page)?<InvitationsPage/>:
+    page==='permissions'&&nav.includes(page)?<PermissionMatrixPage user={user}/>:
+    page==='room-placement'&&nav.includes(page)?<RoomPlacementPage/>:
     page==='renewals'&&nav.includes(page)?<RenewalsPage/>:page==='deposits'&&nav.includes(page)?<DepositsPage user={user}/>:
     page==='work-orders'&&nav.includes(page)?<WorkOrdersPage user={user}/>:
     page==='settings'&&nav.includes(page)?<SettingsAdminPage/>:page==='security'&&nav.includes(page)?<SecurityPage onSignedOut={logout}/>:
@@ -268,10 +270,13 @@ export default function App() {
   return <>{!online&&<div className="offline" role="status">Offline. Reconnect to view private records.</div>}<Routes>
     <Route path="/" element={<Landing user={user} logout={logout}/>}/>
     <Route path="/login" element={user?<Navigate to="/dashboard" replace/>:<Login onSuccess={setUser}/>}/>
+    <Route path="/forgot-password" element={<ForgotPasswordPage/>}/>
+    <Route path="/reset-password" element={<CompleteAccountLinkPage kind="reset"/>}/>
+    <Route path="/account/activate" element={<CompleteAccountLinkPage kind="invitation"/>}/>
     <Route path="/features" element={<TextPage title="Features" body="Manage units, leases, invoices, verified manual payments, maintenance and expenses. MTN/Airtel and EFRIS require provider verification." user={user} logout={logout}/>}/>
     <Route path="/contact" element={<ContactPage/>}/>
     {['privacy','terms','cookies','refund'].map(slug=><Route key={slug} path={'/'+slug} element={<PublicLegalPage slug={slug}/>}/>)}
-    {['dashboard','properties','buildings','floors','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports','statements','receipts','users','assignments','notifications','inspections','renewals','deposits','work-orders','settings','mobile-money','efris','documents','legal','audit','inquiries','security','more'].map(path=><Route key={path} path={'/'+path} element={user?<Portal user={user} logout={logout}/>:<Navigate to="/login" replace/>}/>)}
+    {['dashboard','properties','buildings','floors','rooms','room-placement','tenants','leases','invoices','payments','maintenance','expenses','reports','statements','receipts','users','invitations','permissions','assignments','notifications','inspections','renewals','deposits','work-orders','settings','mobile-money','efris','documents','legal','audit','inquiries','security','more'].map(path=><Route key={path} path={'/'+path} element={user?<Portal user={user} logout={logout}/>:<Navigate to="/login" replace/>}/>)}
     {['dashboard','payments','invoices','receipts','maintenance','lease','profile'].map(path=>
       <Route key={'tenant-'+path} path={'/tenant/'+path} element={<Navigate to={path==='lease'?'/dashboard':path==='profile'?'/security':'/'+path} replace/>}/>)}
     {['dashboard','rooms','maintenance','inspections','payments','profile'].map(path=>
@@ -279,7 +284,7 @@ export default function App() {
     {['users','roles','permissions','integrations','efris','payments','audit-logs','legal-pages','system-settings'].map(path=>
       <Route key={'admin-'+path} path={'/admin/'+path} element={<Navigate to={
         path==='audit-logs'?'/audit':path==='legal-pages'?'/legal':path==='system-settings'?'/security':
-        path==='integrations'?'/efris':path==='roles'||path==='permissions'?'/users':'/'+path
+        path==='integrations'?'/efris':path==='roles'||path==='permissions'?'/permissions':'/'+path
       } replace/>}/>)}
     <Route path="/how-it-works" element={<TextPage title="How it works" body="Create properties and rooms, onboard tenants and leases, issue rent invoices, verify collections, track maintenance and review reports." user={user} logout={logout}/>}/>
     <Route path="/pricing" element={<TextPage title="Pricing" body="Contact the property owner for deployment and service pricing." user={user} logout={logout}/>}/>
