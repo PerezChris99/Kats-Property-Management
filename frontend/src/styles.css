@@ -306,6 +306,14 @@ input[type="file"] { padding: 8px; height: auto }
 .module-card small, .caption { color: var(--muted); font-size: 12px; line-height: 1.7 }
 .module-card .button, .module-card .outline-button { margin: 5px 7px 0 0 }
 .module-card .actions { margin-top: 14px }
+.record-toolbar {
+  display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between;
+  gap: 12px; margin: 16px 0 12px;
+}
+.record-filter { width: min(100%, 360px); font-size: 13px }
+.record-filter input { min-height: 40px; font-size: 14px; background: white }
+.record-toolbar > span { color: var(--muted); font-size: 12px; padding-bottom: 9px; }
+.data-loading { background: white; border: 1px solid var(--line); padding: 26px; border-radius: 6px }
 .data-table-wrap {
   width: 100%; overflow: auto; overscroll-behavior-x: contain;
   background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
