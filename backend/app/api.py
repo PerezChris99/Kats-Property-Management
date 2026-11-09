@@ -744,3 +744,55 @@ def admin_user_status(user, account_id):
     audit(user, "user.status", "user", account.id, previous=previous, active=value)
     db.session.commit()
     return jsonify(user=serialize(account, "id", "full_name", "email", "role", "is_active"))
+
+
+@api.post("/payments/<payment_id>/reverse")
+@roles("OWNER", "ACCOUNTANT", "SUPER_ADMIN")
+def reverse_payment(user, payment_id):
+    """Accounting reversal only. This does not instruct a provider or bank to refund funds."""
+    obj = data()
+    reason = required_string(obj, "reason", 500)
+    payment = db.session.query(Payment).filter_by(id=payment_id).with_for_update().first()
+    if not payment:
+        abort(404)
+    if payment.status == "REVERSED":
+        return jsonify(payment=serialize(payment, "id", "status")), 200
+    if payment.status != "RECONCILED":
+        return fail("Only reconciled payments can be reversed", 409)
+    invoice = db.session.query(Invoice).filter_by(id=payment.invoice_id).with_for_update().first()
+    if invoice.paid_ugx < payment.amount_ugx:
+        return fail("Invoice balance and payment records are inconsistent", 409)
+    invoice.paid_ugx -= payment.amount_ugx
+    invoice.status = "ISSUED" if invoice.paid_ugx == 0 else "PARTIALLY_PAID"
+    payment.status = "REVERSED"
+    db.session.add(LedgerEntry(
+        invoice_id=invoice.id, payment_id=payment.id,
+        event="PAYMENT_REVERSED", amount_ugx=-payment.amount_ugx
+    ))
+    audit(user, "payment.reverse", "payment", payment.id,
+          reason=reason, amount_ugx=payment.amount_ugx)
+    db.session.commit()
+    return jsonify(payment=serialize(payment, "id", "status"),
+                   invoice=serialize(invoice, "id", "status", "paid_ugx"),
+                   warning="Accounting adjustment recorded. No cash or provider refund executed.")
+
+@api.post("/invoices/<invoice_id>/void")
+@roles("OWNER", "ACCOUNTANT", "SUPER_ADMIN")
+def void_invoice(user, invoice_id):
+    reason = required_string(data(), "reason", 500)
+    invoice = db.session.query(Invoice).filter_by(id=invoice_id).with_for_update().first()
+    if not invoice:
+        abort(404)
+    if invoice.status == "VOID":
+        return jsonify(invoice=serialize(invoice, "id", "status")), 200
+    if invoice.paid_ugx != 0:
+        return fail("Paid invoices require financial credit-note review", 409)
+    if invoice.status not in ("ISSUED", "OVERDUE"):
+        return fail("Cannot void this invoice state", 409)
+    invoice.status = "VOID"
+    db.session.add(LedgerEntry(
+        invoice_id=invoice.id, event="INVOICE_VOIDED", amount_ugx=-invoice.total_ugx
+    ))
+    audit(user, "invoice.void", "invoice", invoice.id, reason=reason)
+    db.session.commit()
+    return jsonify(invoice=serialize(invoice, "id", "status"))
