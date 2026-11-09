@@ -53,6 +53,8 @@ def create_app(test_config=None):
     from . import extra_models  # noqa: F401
     from .api import api
     app.register_blueprint(api, url_prefix="/api/v1")
+    from .extra_api import extra_api
+    app.register_blueprint(extra_api, url_prefix="/api/v1")
     from .cli import register_commands
     register_commands(app)
     return app
