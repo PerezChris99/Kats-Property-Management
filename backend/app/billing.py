@@ -9,7 +9,7 @@ from flask import current_app
 from sqlalchemy.exc import IntegrityError
 
 from .extensions import db
-from .models import User, Lease, Invoice, LedgerEntry, AuditLog, new_id
+from .models import User, Lease, Invoice, InvoiceLine, LedgerEntry, AuditLog, new_id
 
 SYSTEM_ACTOR_ID = "00000000-0000-4000-8000-000000000001"
 
@@ -64,6 +64,9 @@ def generate_monthly_rent(target_month: date, actor: User | None = None):
         )
         db.session.add(invoice)
         db.session.flush()
+        db.session.add(InvoiceLine(invoice_id=invoice.id, description="Monthly rent",
+                                   charge_type="RENT", quantity=1,
+                                   unit_price_ugx=invoice.total_ugx, amount_ugx=invoice.total_ugx))
         db.session.add(LedgerEntry(invoice_id=invoice.id, event="INVOICE_ISSUED", amount_ugx=invoice.total_ugx))
         db.session.add(AuditLog(
             actor_id=actor.id, action="billing.monthly_invoice_issued",
