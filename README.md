@@ -1,5 +1,9 @@
 # KATS Property Management
 
+**© 2026 Kats Properties. All rights reserved. Proprietary software — NOT open source.**
+
+> Unauthorized copying, distribution, hosting, resale, or reuse is prohibited without written permission from Kats Properties. Available legal remedies, including claims for damages, depend on applicable law; this notice does not create automatic charges. See [LICENSE](LICENSE) and [NOTICE](NOTICE.md).
+
 **A unified platform for rental properties, tenants, verified collections, maintenance, and financial oversight in Uganda.**
 
 KATS is a mobile-first management application for **one property-management business** (not a multi-tenant SaaS platform). It brings everyday rental operations into one accountable workspace. Monetary amounts are represented as whole **Ugandan shillings (UGX)**.
@@ -7,7 +11,7 @@ KATS is a mobile-first management application for **one property-management busi
 > [!IMPORTANT]
 > **Release status: implementation is not production acceptance.** Automated backend, frontend, and PostgreSQL checks exist. MTN/Airtel money settlement, URA EFRIS fiscal documents, production storage, email/SMS providers, HostWares deployment, legal approval, and customer/device testing still need independent validation. Successful CI does not authorize processing live money.
 
-[Architecture](docs/ARCHITECTURE.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [HostWares deployment](docs/HOSTWARES_DEPLOYMENT.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
+[Architecture](docs/ARCHITECTURE.md) · [Production security](docs/PRODUCTION_SECURITY.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [HostWares deployment](docs/HOSTWARES_DEPLOYMENT.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
 
 ---
 
@@ -327,6 +331,12 @@ flowchart LR
 
 Use the existing **perez → main** workflow. Do not add unnecessary branches or leave orphaned commits. A merged commit confirms code integration, not deployment.
 
+## Production hardening and ownership
+
+**© 2026 Kats Properties. All rights reserved.** This repository is proprietary and **not open source**. No public permission to copy, fork, distribute, host, sublicense or commercialize is granted. See [LICENSE](LICENSE) and [NOTICE](NOTICE.md). Legal remedies require applicable law and are not automatic charges.
+
+The current security baseline and its limits are documented in the [production security/capacity checklist](docs/PRODUCTION_SECURITY.md). Implemented controls include Redis rate limits, strict CORS/CSRF and secure cookies, request size guards, non-cacheable private API data, Nginx CSP and backpressure, SQL pool limits, targeted PostgreSQL indexes, RBAC/permission grants, and FORCE RLS specifically for private documents. **Other financial/tenant tables are protected by application authorization, not a universal RLS policy.** Production acceptance still requires external penetration/load testing, the real trusted-proxy/TLS chain, least-privilege database credentials, backup-restore drills and approved integrations.
+
 ## 10. Documentation and launch gates
 
 | Reference | Purpose |
@@ -337,8 +347,10 @@ Use the existing **perez → main** workflow. Do not add unnecessary branches or
 | [HostWares deployment](docs/HOSTWARES_DEPLOYMENT.md) | Staging/production checklist and failure recovery |
 | [Go-live checklist](docs/GO_LIVE_CHECKLIST.md) | Evidence-based acceptance before launch |
 
+**Security and efficiency baseline:** API requests are rate-limited through Redis in production; PostgreSQL uses bounded pools, query timeouts, targeted indexes, and limited pagination. Private documents additionally enforce PostgreSQL row-level security. Run `flask --app wsgi security-preflight` using the **restricted production application database role** after migrations. For benchmarks, an explicitly approved HTTPS staging target can be tested with `KATS_LOAD_TEST_APPROVED=yes BASE_URL=https://<staging-host> k6 run ops/load-test.js`. Never run load tests against live payment providers or unapproved production hosts. Full configuration and limitations are described in [Production security](docs/PRODUCTION_SECURITY.md).
+
 **Still outstanding:** actual MTN/Airtel merchant and URA approvals, provider-specific fiscal credit/refund behavior, real bank disbursement, email/SMS delivery activation, private storage and malware scanning, signed document and advanced operational workflows, deployment/TLS, backups and restore drills, penetration/load tests, legal review, and real-device UAT. Consult the delivery register; do not relabel all remaining work as infrastructure-only.
 
 ---
 
-**KATS Property Management** · Organized property operations, verified financial records, and accountable access.
+**KATS Property Management** · Owned exclusively by **Kats Properties**. © 2026 Kats Properties. All rights reserved.

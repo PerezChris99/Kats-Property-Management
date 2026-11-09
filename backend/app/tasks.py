@@ -34,6 +34,10 @@ celery_app.conf.update(
             "task": "app.tasks.poll_mobile_transactions",
             "schedule": crontab(minute="*/5"),
         },
+        "prune-temporary-credentials-daily": {
+            "task": "app.tasks.prune_ephemeral_tokens",
+            "schedule": crontab(minute=40, hour=3),
+        },
     },
 )
 
@@ -105,3 +109,13 @@ def poll_mobile_transactions():
             verify_and_post(attempt.payment_id)
             attempted+=1
         return {"checked":attempted}
+
+
+@celery_app.task(name="app.tasks.prune_ephemeral_tokens",
+                 autoretry_for=(Exception,), retry_backoff=True,
+                 retry_kwargs={"max_retries": 2})
+def prune_ephemeral_tokens():
+    from app import create_app
+    from app.retention import prune_ephemeral_credentials
+    with create_app().app_context():
+        return prune_ephemeral_credentials()

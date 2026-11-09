@@ -1,16 +1,33 @@
 import { api, csrfToken } from './lib/api'
 import { WorkspaceNavigation } from './WorkspaceNavigation'
-import {ProrationPage} from './ProrationPage'
-import {AnnualTrendsPage} from './AnnualTrendsPage'
-import {PortfolioEditPage} from './PortfolioEditPage'
-import {ExpenseApprovalsPage} from './ExpenseApprovalsPage'
-import {ForgotPasswordPage, CompleteAccountLinkPage, InvitationsPage, PermissionMatrixPage,
-  RoomPlacementPage} from './AccountScreens'
-import {NotificationsPage, InspectionsPage, MobileMoneyPage, FiscalPage, LegalAdminPage,
-  PublicLegalPage, DocumentsPage, SecurityPage, AuditPage,
-  RenewalsPage, DepositsPage, WorkOrdersPage, SettingsAdminPage,
-  ReceiptsPage, TenantStatementsPage, TenantStatementSelfPage, ContactPage, ContactInboxPage} from './Modules'
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+const ProrationPage = lazy(() => import('./ProrationPage').then(m => ({default: m.ProrationPage})))
+const AnnualTrendsPage = lazy(() => import('./AnnualTrendsPage').then(m => ({default: m.AnnualTrendsPage})))
+const PortfolioEditPage = lazy(() => import('./PortfolioEditPage').then(m => ({default: m.PortfolioEditPage})))
+const ExpenseApprovalsPage = lazy(() => import('./ExpenseApprovalsPage').then(m => ({default: m.ExpenseApprovalsPage})))
+const ForgotPasswordPage = lazy(() => import('./AccountScreens').then(m => ({default: m.ForgotPasswordPage})))
+const CompleteAccountLinkPage = lazy(() => import('./AccountScreens').then(m => ({default: m.CompleteAccountLinkPage})))
+const InvitationsPage = lazy(() => import('./AccountScreens').then(m => ({default: m.InvitationsPage})))
+const PermissionMatrixPage = lazy(() => import('./AccountScreens').then(m => ({default: m.PermissionMatrixPage})))
+const RoomPlacementPage = lazy(() => import('./AccountScreens').then(m => ({default: m.RoomPlacementPage})))
+const NotificationsPage = lazy(() => import('./Modules').then(m => ({default: m.NotificationsPage})))
+const InspectionsPage = lazy(() => import('./Modules').then(m => ({default: m.InspectionsPage})))
+const MobileMoneyPage = lazy(() => import('./Modules').then(m => ({default: m.MobileMoneyPage})))
+const FiscalPage = lazy(() => import('./Modules').then(m => ({default: m.FiscalPage})))
+const LegalAdminPage = lazy(() => import('./Modules').then(m => ({default: m.LegalAdminPage})))
+const PublicLegalPage = lazy(() => import('./Modules').then(m => ({default: m.PublicLegalPage})))
+const DocumentsPage = lazy(() => import('./Modules').then(m => ({default: m.DocumentsPage})))
+const SecurityPage = lazy(() => import('./Modules').then(m => ({default: m.SecurityPage})))
+const AuditPage = lazy(() => import('./Modules').then(m => ({default: m.AuditPage})))
+const RenewalsPage = lazy(() => import('./Modules').then(m => ({default: m.RenewalsPage})))
+const DepositsPage = lazy(() => import('./Modules').then(m => ({default: m.DepositsPage})))
+const WorkOrdersPage = lazy(() => import('./Modules').then(m => ({default: m.WorkOrdersPage})))
+const SettingsAdminPage = lazy(() => import('./Modules').then(m => ({default: m.SettingsAdminPage})))
+const ReceiptsPage = lazy(() => import('./Modules').then(m => ({default: m.ReceiptsPage})))
+const TenantStatementsPage = lazy(() => import('./Modules').then(m => ({default: m.TenantStatementsPage})))
+const TenantStatementSelfPage = lazy(() => import('./Modules').then(m => ({default: m.TenantStatementSelfPage})))
+const ContactPage = lazy(() => import('./Modules').then(m => ({default: m.ContactPage})))
+const ContactInboxPage = lazy(() => import('./Modules').then(m => ({default: m.ContactInboxPage})))
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Building2, CreditCard, LayoutDashboard, ShieldCheck, Wrench } from 'lucide-react'
 
@@ -75,7 +92,7 @@ function Header({user, logout}: {user:User|null;logout?:()=>void}) {
   return <header className="site-header"><Link to="/" className="brand"><Building2 size={24} aria-hidden="true"/> Kats <small>Property Management</small></Link>
   <nav aria-label="Main navigation">{user ? <><Link to="/dashboard">Workspace</Link><button className="link-button" onClick={logout}>Sign out</button></> : <><Link to="/features">Features</Link><Link to="/contact">Contact</Link><Link className="button small" to="/login">Sign in</Link></>}</nav></header>
 }
-function Footer() {return <footer><span>© {new Date().getFullYear()} Kats Property Management</span><nav aria-label="Legal"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/cookies">Cookies</Link><Link to="/contact">Support</Link></nav></footer>}
+function Footer() {return <footer><span>© {new Date().getFullYear()} Kats Properties. All rights reserved. Proprietary software.</span><nav aria-label="Legal"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/cookies">Cookies</Link><Link to="/contact">Support</Link></nav></footer>}
 function Landing({user,logout}: {user:User|null;logout:()=>void}) {
   const features = [{icon:Building2,title:'Property oversight',body:'Know which units are occupied and what rent is due.'},
     {icon:CreditCard,title:'Verified collections',body:'Review cash and bank records before counting them as collected.'},
@@ -107,6 +124,9 @@ function Login({onSuccess}: {onSuccess:(user:User)=>void}) {
 }
 function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   const [rows,setRows]=useState<Row[]>([])
+  const [page,setPage]=useState(1)
+  const [pageSize,setPageSize]=useState(25)
+  const [total,setTotal]=useState<number|null>(null)
   const [filter,setFilter]=useState('')
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
@@ -121,11 +141,17 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
     String(value??'').toLowerCase().includes(search))):rows
   const load=useCallback(async()=>{
     setLoading(true);setError('')
-    try {const payload=await api(resource.path);setRows(payload.items||[])}
+    try {
+      const join=resource.path.includes('?')?'&':'?'
+      const payload=await api(resource.path+join+'page='+page+'&page_size='+pageSize+'&include_total=0')
+      setRows(payload.items||[])
+      setTotal(typeof payload.total==='number'?payload.total:null)
+    }
     catch(err) {setError(err instanceof Error?err.message:'Could not load')}
     finally {setLoading(false)}
-  },[resource.path])
+  },[resource.path,page,pageSize])
   useEffect(()=>{void load()},[load])
+  useEffect(()=>{setPage(1);setFilter('')},[resource.path])
   useEffect(()=>{
     if(!editing)return
     const entities:Record<string,string>={property_id:'properties',building_id:'buildings',floor_id:'floors',room_id:'rooms',tenant_id:'tenants',lease_id:'leases',invoice_id:'invoices',caretaker_user_id:'caretaker/roster',user_id:'tenants/accounts'}
@@ -139,7 +165,10 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
     event.preventDefault();setBusy(true);setError('')
     const body:Record<string,string|number>={}
     for(const field of resource.fields) {
-      const value=field.name==='idempotency_key'?idempotencyKey:(values[field.name]||'')
+      const value=field.name==='idempotency_key'?idempotencyKey:(values[field.name]||'').trim()
+      if(field.type==='number' && value && !/^-?\d+$/.test(value)){
+        setError(field.label+' must be a whole number.');setBusy(false);return
+      }
       if(value || field.required) body[field.name]=field.type==='number'?Number(value):value
     }
     try {await api(resource.path==='payments'?'payments/manual':resource.path,{method:'POST',body:JSON.stringify(body)});setEditing(false);setValues({});setIdempotencyKey(crypto.randomUUID());await load()}
@@ -197,8 +226,22 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
     {resource.path==='caretaker/rooms'&&<td><button className="outline-button" disabled={busy} onClick={()=>caretakerRoomStatus(String(item.id),'MAINTENANCE')}>Needs repair</button> <button className="outline-button" disabled={busy} onClick={()=>caretakerRoomStatus(String(item.id),'CLEANING')}>Cleaning</button></td>}
     {resource.path==='caretaker/assignments'&&<td><button className="outline-button" disabled={busy} onClick={()=>unassign(String(item.id))}>Unassign</button></td>}
     {resource.path==='admin/users'&&<td><button className="outline-button" disabled={busy} onClick={()=>toggleAccess(String(item.id),Boolean(item.is_active))}>{item.is_active?'Disable':'Enable'}</button></td>}</tr>)}</tbody></table></div>}
+    {!loading && rows.length>0&&<div className="pagination-controls" aria-label="Record pages">
+      <div className="page-size"><label>Rows per page
+        <select value={pageSize} onChange={event=>{setPageSize(Number(event.target.value));setPage(1)}}>
+          <option value={10}>10</option><option value={25}>25</option><option value={50}>50</option>
+        </select></label></div>
+      <span aria-live="polite">Page {page}{total!==null?' of '+Math.max(1,Math.ceil(total/pageSize)):''}</span>
+      <div className="actions">
+        <button className="outline-button" type="button" disabled={page<=1||loading}
+          onClick={()=>setPage(p=>Math.max(1,p-1))}>Previous</button>
+        <button className="outline-button" type="button"
+          disabled={loading||page>=200||(total!==null?page*pageSize>=total:rows.length<pageSize)}
+          onClick={()=>setPage(p=>p+1)}>Next</button>
+      </div>
+    </div>}
     {resource.path==='payments'&&<p className="note">*Approval requires another staff member to verify source evidence. Approval credits the invoice; authorized owners or accountants can post an auditable accounting reversal. Reversal never automatically refunds cash.</p>}
-    <p className="note">Access is enforced by the server. Table search filters only the currently loaded records.</p></section>
+    <p className="note">Access is enforced by the server. Search filters this page only; use Previous / Next to browse more records.</p></section>
 }
 function Dashboard({user}: {user:User}) {
   const [summary,setSummary]=useState<Record<string,number>|null>(null)
@@ -281,7 +324,7 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
           <span><strong>{user.full_name}</strong><small>{user.role.replaceAll('_', ' ')}</small></span>
         </div>
       </header>
-      <main className="portal-content" key={page}>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='statements'&&nav.includes(page)?(user.role==='TENANT'?<TenantStatementSelfPage/>:<TenantStatementsPage/>):
+      <main className="portal-content" key={page}><Suspense fallback={<p className="data-loading" role="status">Opening workspace…</p>}>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='statements'&&nav.includes(page)?(user.role==='TENANT'?<TenantStatementSelfPage/>:<TenantStatementsPage/>):
     page==='receipts'&&nav.includes(page)?<ReceiptsPage/>:
     page==='notifications'&&nav.includes(page)?<NotificationsPage/>:page==='inspections'&&nav.includes(page)?<InspectionsPage user={user}/>:
     page==='mobile-money'&&nav.includes(page)?<MobileMoneyPage/>:page==='efris'&&nav.includes(page)?<FiscalPage/>:
@@ -297,7 +340,7 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
     page==='renewals'&&nav.includes(page)?<RenewalsPage/>:page==='deposits'&&nav.includes(page)?<DepositsPage user={user}/>:
     page==='work-orders'&&nav.includes(page)?<WorkOrdersPage user={user}/>:
     page==='settings'&&nav.includes(page)?<SettingsAdminPage/>:page==='security'&&nav.includes(page)?<SecurityPage onSignedOut={logout}/>:
-    page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main>
+    page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</Suspense></main>
     </div>
   </div>
 }
@@ -316,7 +359,7 @@ export default function App() {
   function logout(){api('auth/logout',{method:'POST'}).catch(()=>{}).finally(()=>{setUser(null);navigate('/')})}
   if(!ready)return <div className="loading">Loading Kats…</div>
   
-  return <>{!online&&<div className="offline" role="status">Offline. Reconnect to view private records.</div>}<Routes>
+  return <>{!online&&<div className="offline" role="status">Offline. Reconnect to view private records.</div>}<Suspense fallback={<div className="loading" role="status">Opening page…</div>}><Routes>
     <Route path="/" element={<Landing user={user} logout={logout}/>}/>
     <Route path="/login" element={user?<Navigate to="/dashboard" replace/>:<Login onSuccess={setUser}/>}/>
     <Route path="/forgot-password" element={<ForgotPasswordPage/>}/>
@@ -338,5 +381,5 @@ export default function App() {
     <Route path="/how-it-works" element={<TextPage title="How it works" body="Create properties and rooms, onboard tenants and leases, issue rent invoices, verify collections, track maintenance and review reports." user={user} logout={logout}/>}/>
     <Route path="/pricing" element={<TextPage title="Pricing" body="Contact the property owner for deployment and service pricing." user={user} logout={logout}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/>
-  </Routes></>
+  </Routes></Suspense></>
 }

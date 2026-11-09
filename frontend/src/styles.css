@@ -314,6 +314,18 @@ input[type="file"] { padding: 8px; height: auto }
 .record-filter input { min-height: 40px; font-size: 14px; background: white }
 .record-toolbar > span { color: var(--muted); font-size: 12px; padding-bottom: 9px; }
 .data-loading { background: white; border: 1px solid var(--line); padding: 26px; border-radius: 6px }
+.pagination-controls {
+  display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap;
+  gap:16px; margin:15px 0 28px; color:var(--muted); font-size:13px;
+}
+.pagination-controls .actions { margin:0; gap:8px }
+.page-size label { display:flex; flex-direction:row; align-items:center; gap:8px; font-size:12px }
+.page-size select { min-height:36px; width:auto; font-size:13px; padding:6px 26px 6px 8px }
+.pagination-controls button { min-height:36px }
+@media(max-width:650px){
+  .pagination-controls {justify-content:space-between}
+  .pagination-controls .actions {width:100%; justify-content:space-between}
+}
 .data-table-wrap {
   width: 100%; overflow: auto; overscroll-behavior-x: contain;
   background: #fff; border: 1px solid var(--line); border-radius: var(--radius);

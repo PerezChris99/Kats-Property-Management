@@ -29,6 +29,8 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: pip install -r requirements.txt
+      - name: Check tracked files for committed secret signatures
+        run: cd .. && python ops/check-secrets.py
       - run: python -m pytest -q
         env:
           APP_ENV: testing
@@ -46,6 +48,22 @@ jobs:
         env:
           APP_ENV: testing
           TEST_POSTGRES_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
+      - name: Configure restricted row-security test user
+        run: |
+          python - <<'PY'
+          import psycopg
+          with psycopg.connect("postgresql://kats_ci:ci_only_password@localhost:5432/kats_ci") as conn:
+              conn.execute("CREATE ROLE kats_rls_test LOGIN PASSWORD 'rls_ci_password'")
+              conn.execute("GRANT USAGE ON SCHEMA public TO kats_rls_test")
+              conn.execute("GRANT SELECT ON documents TO kats_rls_test")
+              conn.execute("GRANT SELECT ON caretaker_assignments TO kats_rls_test")
+          PY
+      - name: PostgreSQL document RLS isolation
+        run: python -m pytest -q tests/test_postgres_document_rls.py
+        env:
+          APP_ENV: testing
+          TEST_POSTGRES_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
+          TEST_DOCUMENT_RLS_URL: postgresql://kats_rls_test:rls_ci_password@localhost:5432/kats_ci
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -57,3 +75,5 @@ jobs:
         with: {node-version: '22'}
       - run: npm install --no-audit --no-fund
       - run: npm run build
+      - name: Validate Nginx edge configuration
+        run: docker run --rm --add-host api:127.0.0.1 -v "$PWD/nginx.conf:/etc/nginx/conf.d/default.conf:ro" nginx:stable-alpine nginx -t

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+*.log
+.git/
+.vscode/
+.idea/

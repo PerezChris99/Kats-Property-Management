@@ -5,6 +5,10 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///local-dev.sqlite3")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+    # Pool bounds are applied dynamically in create_app only for PostgreSQL.
+    # Avoid adding pooling kwargs to SQLite in lightweight unit tests.
+    JSON_MAX_BYTES = int(os.getenv("JSON_MAX_BYTES", "262144"))
+    RATELIMIT_HEADERS_ENABLED = True
     SECRET_KEY = os.getenv("SECRET_KEY", "development-only-unsafe-secret")
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "development-only-not-a-real-jwt-secret-use-env")
     JWT_TOKEN_LOCATION = ["cookies"]
@@ -14,9 +18,10 @@ class Config:
     JWT_COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
     JWT_COOKIE_SAMESITE = "Lax"
     JWT_REFRESH_COOKIE_PATH = "/api/v1/auth"
-    RATELIMIT_STORAGE_URI = os.getenv("REDIS_URL", "memory://")
+    RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI") or os.getenv("REDIS_URL", "memory://")
     MAX_CONTENT_LENGTH = 8 * 1024 * 1024
     SQLALCHEMY_ECHO = False
+    PROPAGATE_EXCEPTIONS = False
 
 def validate_production_config():
     if os.getenv("APP_ENV", "development") != "production":
@@ -44,3 +49,19 @@ def validate_production_config():
             raise RuntimeError("Production CORS origins must be explicit HTTPS hosts without paths or wildcards")
     if os.getenv("PUBLIC_REGISTRATION_ENABLED", "false").lower() == "true":
         raise RuntimeError("Public self-registration requires a verified-email workflow; use invitations")
+    storage = os.getenv("RATELIMIT_STORAGE_URI") or os.getenv("REDIS_URL", "")
+    if not storage.startswith(("redis://", "rediss://")):
+        raise RuntimeError("Production rate limiting requires Redis; memory storage is not safe across workers")
+    if os.getenv("RATELIMIT_ENABLED", "true").lower() == "false":
+        raise RuntimeError("Production cannot disable API rate limiting")
+    if os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true" and os.getenv("APP_BEHIND_TRUSTED_PROXY", "false").lower() != "true":
+        raise RuntimeError("Only trust X-Forwarded headers behind a verified and sanitizing reverse proxy")
+    try:
+        pool = int(os.getenv("DB_POOL_SIZE", "5"))
+        overflow = int(os.getenv("DB_MAX_OVERFLOW", "2"))
+        timeout = int(os.getenv("DB_POOL_TIMEOUT", "10"))
+        if not 1 <= pool <= 30 or not 0 <= overflow <= 15 or not 1 <= timeout <= 60:
+            raise ValueError()
+    except ValueError:
+        raise RuntimeError("Database pool limits out of safe bounds") from None
+

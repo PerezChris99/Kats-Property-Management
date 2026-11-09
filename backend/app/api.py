@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+import unicodedata
 from functools import wraps
 import os
 from flask import Blueprint, abort, jsonify, request
@@ -29,12 +30,45 @@ def data():
     value = request.get_json(silent=True)
     if not isinstance(value, dict):
         abort(400, description="JSON object required")
+    # Bound nested structured input so attackers cannot exhaust CPU/DB memory
+    # with oversized array/map allocations. Preserve literal HTML as inert
+    # text: escaping belongs to the display context, never SQL concatenation.
+    remaining = [5000]
+    def validate(item, depth=0):
+        remaining[0] -= 1
+        if remaining[0] < 0 or depth > 12:
+            abort(400, description="JSON structure is too complex")
+        if isinstance(item, str):
+            if len(item) > 100000 or any(
+                (unicodedata.category(ch) in ("Cc", "Cs") and ch not in ("\n", "\t"))
+                or unicodedata.bidirectional(ch) in ("RLO", "LRO", "RLE", "LRE", "PDF")
+                for ch in item
+            ):
+                abort(400, description="Invalid text or control characters")
+        elif isinstance(item, dict):
+            if len(item) > 100:
+                abort(400, description="Too many JSON object fields")
+            for key, child in item.items():
+                if not isinstance(key, str) or len(key) > 120:
+                    abort(400, description="Invalid JSON field name")
+                validate(child, depth + 1)
+        elif isinstance(item, list):
+            if len(item) > 1000:
+                abort(400, description="Too many JSON list items")
+            for child in item:
+                validate(child, depth + 1)
+    validate(value)
     return value
 
 def required_string(obj, key, max_length=250):
     value = obj.get(key)
     if not isinstance(value, str) or not value.strip() or len(value) > max_length:
         abort(400, description=key + " is required and must be text")
+    # Reject control bytes and text-direction overrides. React escapes text;
+    # do not run a lossy HTML sanitizer on legitimate literal descriptions.
+    if any((unicodedata.category(ch) in ("Cc", "Cs") and ch not in ("\n", "\t")) or
+           unicodedata.bidirectional(ch) in ("RLO", "LRO", "RLE", "LRE", "PDF") for ch in value):
+        abort(400, description=key + " contains forbidden control characters")
     return value.strip()
 
 def ugx(value, positive=False):
@@ -93,11 +127,14 @@ def roles(*allowed):
 
 def list_page(model, query):
     try:
-        page = min(max(int(request.args.get("page", 1)), 1), 100000)
-        size = min(max(int(request.args.get("page_size", 25)), 1), 100)
-    except ValueError:
-        abort(400)
-    return query.paginate(page=page, per_page=size, error_out=False)
+        page = int(request.args.get("page", 1))
+        size = int(request.args.get("page_size", 25))
+    except (TypeError, ValueError):
+        abort(400, description="Invalid pagination parameters")
+    if not 1 <= page <= 200 or not 1 <= size <= 100 or (page - 1) * size > 10000:
+        abort(400, description="Pagination exceeds bounded offset; narrow the query")
+    count = request.args.get("include_total", "1") != "0"
+    return query.paginate(page=page, per_page=size, error_out=False, count=count)
 
 @api.post("/auth/register")
 @limiter.limit("5 per hour")

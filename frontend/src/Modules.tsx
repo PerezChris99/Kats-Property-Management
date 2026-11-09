@@ -137,8 +137,16 @@ export function DocumentsPage() {
       setMessage('Document uploaded and verified privately');setFile(null);await load()
     }catch(e){setError(err(e))}finally{setBusy(false)}
   }
-  async function download(id:string){try{const r=await api('documents/'+id+'/download');window.open(r.url,'_blank','noopener,noreferrer')}
-    catch(e){setError(err(e))}
+  async function download(id:string){
+    try{
+      const r=await api('documents/'+encodeURIComponent(id)+'/download')
+      if(typeof r.url!=='string')throw new Error('Document URL unavailable')
+      const parsed=new URL(r.url)
+      if(parsed.protocol!=='https:'||!parsed.hostname||parsed.username||parsed.password){
+        throw new Error('Document download URL is not a secure HTTPS URL')
+      }
+      window.open(parsed.href,'_blank','noopener,noreferrer')
+    }catch(e){setError(err(e))}
   }
   return <section className="page"><span className="eyebrow">PRIVATE STORAGE</span><h1>Documents</h1><p>PDF/JPG/PNG/WebP, maximum 8 MB. Signed uploads and downloads require configured private object storage.</p><Notice error={error}/>{message&&<p role="status">{message}</p>}
     <form className="resource-form" onSubmit={upload}><h2>Upload secure document</h2><div className="fields">
