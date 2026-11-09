@@ -468,7 +468,7 @@ def dashboard(user):
     occupied = db.session.query(func.count(Room.id)).filter(Room.status == "OCCUPIED").scalar() or 0
     expected = db.session.query(func.coalesce(func.sum(Invoice.total_ugx), 0)).scalar() or 0
     paid = db.session.query(func.coalesce(func.sum(Invoice.paid_ugx), 0)).scalar() or 0
-    open_maintenance = db.session.query(func.count(MaintenanceRequest.id)).filter(MaintenanceRequest.status == "OPEN").scalar() or 0
+    open_maintenance = db.session.query(func.count(MaintenanceRequest.id)).filter(MaintenanceRequest.status.in_(["OPEN","ASSIGNED","IN_PROGRESS","ON_HOLD"])).scalar() or 0
     return jsonify(rooms=rooms_count, occupied_rooms=occupied, vacant_rooms=max(0, rooms_count - occupied),
                    expected_ugx=int(expected), collected_ugx=int(paid), outstanding_ugx=int(expected - paid),
                    open_maintenance=open_maintenance)
@@ -968,4 +968,91 @@ def terminate_lease(user, lease_id):
         lease=serialize(lease, "id", "status"),
         room=serialize(room, "id", "status"),
         warning="Deposit settlement and any outstanding balance require separate approval."
+    )
+
+
+@api.post("/maintenance/<request_id>/status")
+@jwt_required()
+def update_maintenance_status(request_id):
+    user = current_user()
+    obj = data()
+    target = required_string(obj, "status").upper()
+    reason = required_string(obj, "reason", 500)
+    job = db.session.query(MaintenanceRequest).filter_by(id=request_id).with_for_update().first()
+    if not job:
+        abort(404)
+    if user.role == "CARETAKER":
+        ensure_assigned(user, job.room_id)
+        if target not in ("IN_PROGRESS", "ON_HOLD"):
+            abort(403)
+    elif user.role not in OPERATIONS:
+        abort(403)
+    transitions = {
+        "OPEN": {"ASSIGNED", "IN_PROGRESS", "REJECTED", "CANCELLED"},
+        "ASSIGNED": {"IN_PROGRESS", "ON_HOLD", "CANCELLED"},
+        "IN_PROGRESS": {"COMPLETED", "ON_HOLD"},
+        "ON_HOLD": {"IN_PROGRESS", "CANCELLED"},
+        "COMPLETED": {"OPEN"},
+        "REJECTED": {"OPEN"},
+        "CANCELLED": {"OPEN"},
+    }
+    if target == job.status:
+        return jsonify(request=serialize(job, "id", "status"))
+    if target not in transitions.get(job.status, set()):
+        return fail("Invalid maintenance status transition", 409)
+    previous = job.status
+    job.status = target
+    audit(user, "maintenance.status", "maintenance", job.id,
+          previous=previous, new=target, reason=reason)
+    db.session.commit()
+    return jsonify(request=serialize(job, "id", "status"))
+
+@api.get("/receipts")
+@jwt_required()
+def receipts():
+    user = current_user()
+    query = db.session.query(Payment).join(Invoice, Payment.invoice_id == Invoice.id).filter(
+        Payment.status.in_(["RECONCILED", "REVERSED"]))
+    if user.role == "TENANT":
+        tenant_id = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        if not tenant_id:
+            return jsonify(items=[], total=0)
+        query = query.filter(Invoice.tenant_id == tenant_id)
+    elif user.role == "CARETAKER":
+        query = query.filter(Payment.created_by == user.id)
+    elif user.role not in STAFF:
+        abort(403)
+    results = list_page(Payment, query.order_by(Payment.created_at.desc()))
+    return jsonify(items=[
+        dict(receipt_number="KATS-REC-" + p.id[:12].upper(),
+             payment_id=p.id, invoice_id=p.invoice_id,
+             amount_ugx=p.amount_ugx,
+             valid=p.status == "RECONCILED", fiscal_status="NOT_FISCALIZED")
+        for p in results.items
+    ], total=results.total)
+
+@api.get("/receipts/<payment_id>")
+@jwt_required()
+def receipt_detail(payment_id):
+    user = current_user()
+    payment = db.session.get(Payment, payment_id)
+    if not payment or payment.status not in ("RECONCILED", "REVERSED"):
+        abort(404)
+    invoice = db.session.get(Invoice, payment.invoice_id)
+    if user.role == "TENANT":
+        linked = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        if linked is None or invoice.tenant_id != linked:
+            abort(404)
+    elif user.role == "CARETAKER":
+        if payment.created_by != user.id:
+            abort(404)
+    elif user.role not in STAFF:
+        abort(403)
+    return jsonify(
+        receipt_number="KATS-REC-" + payment.id[:12].upper(),
+        payment_id=payment.id, invoice_number=invoice.invoice_number,
+        amount_ugx=payment.amount_ugx, method=payment.method,
+        recorded_at=payment.created_at.isoformat(),
+        valid=payment.status == "RECONCILED", fiscal_status="NOT_FISCALIZED",
+        notice="Internal payment acknowledgement only. Not a URA EFRIS fiscal receipt or proof of a bank transfer."
     )
