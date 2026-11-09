@@ -147,7 +147,15 @@ class Expense(db.Model):
     amount_ugx = db.Column(db.BigInteger, nullable=False)
     incurred_on = db.Column(db.Date, nullable=False)
     created_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
-    __table_args__ = (CheckConstraint("amount_ugx >= 0", name="ck_expense_nonnegative"),)
+    idempotency_key = db.Column(db.String(128), nullable=True, unique=True)
+    status = db.Column(db.String(24), nullable=False, default="PENDING_APPROVAL")
+    reviewed_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
+    reviewed_at = db.Column(db.DateTime(timezone=True))
+    reversal_reason = db.Column(db.String(500))
+    __table_args__ = (
+        CheckConstraint("amount_ugx >= 0", name="ck_expense_nonnegative"),
+        CheckConstraint("status IN ('PENDING_APPROVAL','REVIEW_REQUIRED','APPROVED','REJECTED','REVERSED')", name="ck_expense_state"),
+    )
 
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
@@ -301,3 +309,15 @@ class Floor(db.Model):
         db.UniqueConstraint("building_id", "level", name="uq_building_floor_level"),
         CheckConstraint("level BETWEEN -10 AND 300", name="ck_floor_level"),
     )
+
+
+class ExpenseEvent(db.Model):
+    __tablename__="expense_events"
+    id=db.Column(db.String(36),primary_key=True,default=new_id)
+    expense_id=db.Column(db.String(36),db.ForeignKey("expenses.id",ondelete="RESTRICT"),nullable=False,index=True)
+    event=db.Column(db.String(30),nullable=False)
+    amount_ugx=db.Column(db.BigInteger,nullable=False)
+    actor_id=db.Column(db.String(36),db.ForeignKey("users.id",ondelete="RESTRICT"),nullable=False)
+    reason=db.Column(db.String(500),nullable=False)
+    created_at=db.Column(db.DateTime(timezone=True),nullable=False,default=utcnow)
+    __table_args__=(db.UniqueConstraint("expense_id","event",name="uq_expense_event_once"),)
