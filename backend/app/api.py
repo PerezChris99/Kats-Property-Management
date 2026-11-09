@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from .extensions import db, limiter
 from .models import (
     User, RefreshSession, Property, Room, RoomStateHistory, Tenant, Lease,
-    Invoice, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog, CaretakerAssignment, Inspection
+    Invoice, InvoiceLine, CreditNote, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog, CaretakerAssignment, Inspection
 )
 
 api = Blueprint("api", __name__)
@@ -347,7 +347,7 @@ def invoices():
     elif user.role not in STAFF:
         abort(403)
     results = list_page(Invoice, query.order_by(Invoice.created_at.desc()))
-    fields = ("id", "invoice_number", "lease_id", "tenant_id", "period_start", "period_end", "due_date", "total_ugx", "paid_ugx", "status")
+    fields = ("id", "invoice_number", "lease_id", "tenant_id", "period_start", "period_end", "due_date", "total_ugx", "paid_ugx", "credit_ugx", "status")
     return jsonify(items=[serialize(inv, *fields) for inv in results.items], total=results.total)
 
 @api.post("/invoices")
@@ -360,13 +360,44 @@ def add_invoice(user):
     start, end, due = [parse_date(obj.get(key)) for key in ("period_start", "period_end", "due_date")]
     if end < start or start < lease.start_date or end > lease.end_date:
         return fail("Billing period outside lease bounds")
-    total = ugx(obj.get("total_ugx"), positive=True)
+    supplied_lines = obj.get("lines")
+    prepared = []
+    if supplied_lines is not None:
+        if not isinstance(supplied_lines, list) or not 1 <= len(supplied_lines) <= 30:
+            return fail("Invoice must contain between one and thirty lines")
+        for line in supplied_lines:
+            if not isinstance(line, dict):
+                return fail("Invoice line must be an object")
+            quantity = line.get("quantity", 1)
+            if type(quantity) is not int or not 1 <= quantity <= 100000:
+                return fail("Line quantity must be a positive integer")
+            price = ugx(line.get("unit_price_ugx"))
+            kind = required_string(line, "charge_type", 40).upper()
+            if kind not in {"RENT","WATER","ELECTRICITY","GARBAGE","PARKING","CLEANING","DAMAGE","LATE_FEE","MISCELLANEOUS"}:
+                return fail("Unsupported invoice charge type")
+            description = required_string(line, "description", 300)
+            amount = quantity * price
+            if amount > 10**15:
+                return fail("Invoice line amount exceeds allowable limit")
+            prepared.append((kind, description, quantity, price, amount))
+        total = sum(entry[4] for entry in prepared)
+        ugx(total, positive=True)
+        if "total_ugx" in obj and ugx(obj["total_ugx"]) != total:
+            return fail("Invoice total must equal the sum of its lines")
+    else:
+        total = ugx(obj.get("total_ugx"), positive=True)
+        prepared = [("RENT", "Rent and approved charges", 1, total, total)]
     from .models import new_id
     invoice = Invoice(lease_id=lease.id, tenant_id=lease.tenant_id, period_start=start, period_end=end,
                       due_date=due, total_ugx=total, invoice_number="KATS-" + new_id()[:12].upper())
     db.session.add(invoice)
     try:
         db.session.flush()
+        db.session.add_all([
+            InvoiceLine(invoice_id=invoice.id, charge_type=kind, description=description,
+                        quantity=qty, unit_price_ugx=price, amount_ugx=amount)
+            for kind, description, qty, price, amount in prepared
+        ])
         db.session.add(LedgerEntry(invoice_id=invoice.id, event="INVOICE_ISSUED", amount_ugx=total))
         audit(user, "invoice.issue", "invoice", invoice.id)
         db.session.commit()
@@ -398,7 +429,7 @@ def record_manual_payment(user):
     if method not in ("CASH", "BANK_TRANSFER"):
         return fail("Only cash and bank proof are accepted here")
     invoice = db.session.get(Invoice, required_string(obj, "invoice_id"))
-    if not invoice or invoice.status in ("VOID", "PAID"):
+    if not invoice or invoice.status in ("VOID", "PAID", "CREDITED"):
         return fail("Open invoice required")
     key = required_string(obj, "idempotency_key", 128)
     existing = db.session.query(Payment).filter_by(idempotency_key=key).first()
@@ -409,7 +440,7 @@ def record_manual_payment(user):
             return fail("Idempotency key already used for a different payment", 409)
         return jsonify(payment=serialize(existing, "id", "status", "amount_ugx")), 200
     amount = ugx(obj.get("amount_ugx"), positive=True)
-    if amount > invoice.total_ugx - invoice.paid_ugx:
+    if amount > invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx:
         return fail("Payment is greater than outstanding invoice balance")
     reference = obj.get("reference")
     if method == "BANK_TRANSFER":
@@ -443,10 +474,10 @@ def approve_payment(user, payment_id):
     if payment.created_by == user.id:
         return fail("Payment must be approved by a different staff member", 403)
     invoice = db.session.query(Invoice).filter_by(id=payment.invoice_id).with_for_update().first()
-    if invoice.status == "VOID" or payment.amount_ugx > invoice.total_ugx - invoice.paid_ugx:
+    if invoice.status == "VOID" or payment.amount_ugx > invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx:
         return fail("Payment conflicts with current invoice balance", 409)
     invoice.paid_ugx += payment.amount_ugx
-    invoice.status = "PAID" if invoice.paid_ugx == invoice.total_ugx else "PARTIALLY_PAID"
+    invoice.status = "PAID" if invoice.paid_ugx + invoice.credit_ugx == invoice.total_ugx else "PARTIALLY_PAID"
     payment.status = "RECONCILED"
     payment.reviewed_by = user.id
     db.session.add(LedgerEntry(invoice_id=invoice.id, payment_id=payment.id,
@@ -524,8 +555,8 @@ def add_expense(user):
 def dashboard(user):
     rooms_count = db.session.query(func.count(Room.id)).scalar() or 0
     occupied = db.session.query(func.count(Room.id)).filter(Room.status == "OCCUPIED").scalar() or 0
-    expected = db.session.query(func.coalesce(func.sum(Invoice.total_ugx), 0)).scalar() or 0
-    paid = db.session.query(func.coalesce(func.sum(Invoice.paid_ugx), 0)).scalar() or 0
+    expected = db.session.query(func.coalesce(func.sum(Invoice.total_ugx - Invoice.credit_ugx), 0)).filter(Invoice.status != "VOID").scalar() or 0
+    paid = db.session.query(func.coalesce(func.sum(Invoice.paid_ugx), 0)).filter(Invoice.status != "VOID").scalar() or 0
     open_maintenance = db.session.query(func.count(MaintenanceRequest.id)).filter(MaintenanceRequest.status.in_(["OPEN","ASSIGNED","IN_PROGRESS","ON_HOLD"])).scalar() or 0
     return jsonify(rooms=rooms_count, occupied_rooms=occupied, vacant_rooms=max(0, rooms_count - occupied),
                    expected_ugx=int(expected), collected_ugx=int(paid), outstanding_ugx=int(expected - paid),
@@ -715,12 +746,12 @@ def caretaker_payments(user):
 def caretaker_record_cash(user):
     obj = data()
     invoice = db.session.get(Invoice, required_string(obj, "invoice_id"))
-    if not invoice or invoice.status in ("PAID", "VOID"):
+    if not invoice or invoice.status in ("PAID", "VOID", "CREDITED"):
         return fail("Open invoice required")
     lease = db.session.get(Lease, invoice.lease_id)
     ensure_assigned(user, lease.room_id)
     amount = ugx(obj.get("amount_ugx"), positive=True)
-    if amount > invoice.total_ugx - invoice.paid_ugx:
+    if amount > invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx:
         return fail("Cash exceeds outstanding balance")
     key = required_string(obj, "idempotency_key", 128)
     existing = db.session.query(Payment).filter_by(idempotency_key=key).first()
@@ -848,8 +879,8 @@ def void_invoice(user, invoice_id):
         abort(404)
     if invoice.status == "VOID":
         return jsonify(invoice=serialize(invoice, "id", "status")), 200
-    if invoice.paid_ugx != 0:
-        return fail("Paid invoices require financial credit-note review", 409)
+    if invoice.paid_ugx != 0 or invoice.credit_ugx != 0:
+        return fail("Invoices with payments or credits cannot be voided", 409)
     if invoice.status not in ("ISSUED", "OVERDUE"):
         return fail("Cannot void this invoice state", 409)
     invoice.status = "VOID"
@@ -874,8 +905,9 @@ def report_summary(user):
         return fail("month must use YYYY-MM")
     month_start = month.replace(day=1)
     month_end = date(month_start.year, month_start.month, calendar.monthrange(month_start.year, month_start.month)[1])
-    billed, applied, invoice_count = db.session.query(
+    billed, credited, applied, invoice_count = db.session.query(
         func.coalesce(func.sum(Invoice.total_ugx), 0),
+        func.coalesce(func.sum(Invoice.credit_ugx), 0),
         func.coalesce(func.sum(Invoice.paid_ugx), 0),
         func.count(Invoice.id),
     ).filter(Invoice.period_start >= month_start, Invoice.period_start <= month_end,
@@ -887,9 +919,10 @@ def report_summary(user):
     occupied = db.session.query(func.count(Room.id)).filter(Room.status == "OCCUPIED").scalar() or 0
     return jsonify(
         month=month_start.isoformat(), billed_ugx=int(billed),
-        applied_to_invoices_ugx=int(applied), outstanding_on_invoices_ugx=int(billed-applied),
+        credited_ugx=int(credited), net_billed_ugx=int(billed - credited),
+        applied_to_invoices_ugx=int(applied), outstanding_on_invoices_ugx=int(billed-credited-applied),
         expenses_in_period_ugx=int(expenses or 0),
-        gross_invoice_margin_ugx=int(billed) - int(expenses or 0),
+        gross_invoice_margin_ugx=int(billed - credited) - int(expenses or 0),
         invoices=int(invoice_count), units=int(rooms_total), occupied_units=int(occupied),
         occupancy_percent=round((occupied/rooms_total)*100, 2) if rooms_total else 0,
         methodology="Invoice cohort balances, not a cashflow or profit and loss statement."
@@ -902,7 +935,7 @@ def report_arrears(user):
     from zoneinfo import ZoneInfo
     now = datetime.now(ZoneInfo("Africa/Kampala")).date()
     invoices = db.session.query(Invoice).filter(
-        Invoice.due_date < now, Invoice.paid_ugx < Invoice.total_ugx,
+        Invoice.due_date < now, Invoice.paid_ugx + Invoice.credit_ugx < Invoice.total_ugx,
         Invoice.status.in_(["ISSUED", "PARTIALLY_PAID", "OVERDUE"])
     ).all()
     buckets = {"1_30_days": 0, "31_60_days": 0, "61_90_days": 0, "over_90_days": 0}
@@ -910,7 +943,7 @@ def report_arrears(user):
     for invoice in invoices:
         age = (now - invoice.due_date).days
         bucket = "1_30_days" if age <= 30 else "31_60_days" if age <= 60 else "61_90_days" if age <= 90 else "over_90_days"
-        buckets[bucket] += invoice.total_ugx - invoice.paid_ugx
+        buckets[bucket] += invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx
         count += 1
     return jsonify(as_of=now.isoformat(), overdue_invoices=count,
                    total_ugx=sum(buckets.values()), ageing_ugx=buckets)
@@ -924,7 +957,7 @@ def export_invoices(user):
     stream = io.StringIO()
     writer = csv.writer(stream)
     writer.writerow(["Invoice number", "Tenant reference", "Period start", "Period end",
-                     "Due date", "Status", "Billed UGX", "Applied UGX", "Outstanding UGX"])
+                     "Due date", "Status", "Billed UGX", "Credited UGX", "Applied UGX", "Outstanding UGX"])
     records = db.session.query(Invoice).order_by(Invoice.created_at.desc()).limit(5000).all()
     for invoice in records:
         # Invoice numbers and references are server-generated UUIDs/IDs; never export arbitrary
@@ -932,8 +965,8 @@ def export_invoices(user):
         writer.writerow([invoice.invoice_number, invoice.tenant_id,
                          invoice.period_start.isoformat(), invoice.period_end.isoformat(),
                          invoice.due_date.isoformat(), invoice.status,
-                         invoice.total_ugx, invoice.paid_ugx,
-                         invoice.total_ugx-invoice.paid_ugx])
+                         invoice.total_ugx, invoice.credit_ugx, invoice.paid_ugx,
+                         invoice.total_ugx-invoice.credit_ugx-invoice.paid_ugx])
     response = Response(stream.getvalue(), mimetype="text/csv; charset=utf-8")
     response.headers["Content-Disposition"] = "attachment; filename=kats-invoices.csv"
     response.headers["Cache-Control"] = "no-store"
