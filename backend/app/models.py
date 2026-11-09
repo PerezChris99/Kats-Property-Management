@@ -33,6 +33,7 @@ class Room(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=new_id)
     property_id = db.Column(db.String(36), db.ForeignKey("properties.id", ondelete="RESTRICT"), nullable=False, index=True)
     number = db.Column(db.String(60), nullable=False)
+    floor_id = db.Column(db.String(36), db.ForeignKey("floors.id", ondelete="RESTRICT"), nullable=True, index=True)
     status = db.Column(db.String(30), nullable=False, default="VACANT")
     rent_ugx = db.Column(db.BigInteger, nullable=False)
     deposit_ugx = db.Column(db.BigInteger, nullable=False, default=0)
@@ -109,6 +110,8 @@ class Payment(db.Model):
     idempotency_key = db.Column(db.String(128), nullable=False, unique=True)
     created_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     reviewed_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
+    settled_at = db.Column(db.DateTime(timezone=True))
+    reversed_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     __table_args__ = (CheckConstraint("amount_ugx > 0", name="ck_payment_positive"),)
 
@@ -146,7 +149,15 @@ class Expense(db.Model):
     amount_ugx = db.Column(db.BigInteger, nullable=False)
     incurred_on = db.Column(db.Date, nullable=False)
     created_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
-    __table_args__ = (CheckConstraint("amount_ugx >= 0", name="ck_expense_nonnegative"),)
+    idempotency_key = db.Column(db.String(128), nullable=True, unique=True)
+    status = db.Column(db.String(24), nullable=False, default="PENDING_APPROVAL")
+    reviewed_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
+    reviewed_at = db.Column(db.DateTime(timezone=True))
+    reversal_reason = db.Column(db.String(500))
+    __table_args__ = (
+        CheckConstraint("amount_ugx >= 0", name="ck_expense_nonnegative"),
+        CheckConstraint("status IN ('PENDING_APPROVAL','REVIEW_REQUIRED','APPROVED','REJECTED','REVERSED')", name="ck_expense_state"),
+    )
 
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
@@ -278,3 +289,37 @@ class RolePermission(db.Model):
     role_name = db.Column(db.String(30), db.ForeignKey("roles.name", ondelete="CASCADE"), primary_key=True)
     permission_name = db.Column(db.String(160), db.ForeignKey("permissions.name", ondelete="CASCADE"), primary_key=True)
     granted_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class Building(db.Model):
+    __tablename__ = "buildings"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    property_id = db.Column(db.String(36), db.ForeignKey("properties.id", ondelete="RESTRICT"), nullable=False, index=True)
+    name = db.Column(db.String(160), nullable=False)
+    description = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (db.UniqueConstraint("property_id", "name", name="uq_property_building_name"),)
+
+class Floor(db.Model):
+    __tablename__ = "floors"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    building_id = db.Column(db.String(36), db.ForeignKey("buildings.id", ondelete="RESTRICT"), nullable=False, index=True)
+    level = db.Column(db.Integer, nullable=False)
+    label = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (
+        db.UniqueConstraint("building_id", "level", name="uq_building_floor_level"),
+        CheckConstraint("level BETWEEN -10 AND 300", name="ck_floor_level"),
+    )
+
+
+class ExpenseEvent(db.Model):
+    __tablename__="expense_events"
+    id=db.Column(db.String(36),primary_key=True,default=new_id)
+    expense_id=db.Column(db.String(36),db.ForeignKey("expenses.id",ondelete="RESTRICT"),nullable=False,index=True)
+    event=db.Column(db.String(30),nullable=False)
+    amount_ugx=db.Column(db.BigInteger,nullable=False)
+    actor_id=db.Column(db.String(36),db.ForeignKey("users.id",ondelete="RESTRICT"),nullable=False)
+    reason=db.Column(db.String(500),nullable=False)
+    created_at=db.Column(db.DateTime(timezone=True),nullable=False,default=utcnow)
+    __table_args__=(db.UniqueConstraint("expense_id","event",name="uq_expense_event_once"),)

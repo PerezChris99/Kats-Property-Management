@@ -51,6 +51,7 @@ def create_app(test_config=None):
 
     from . import models  # noqa: F401
     from . import extra_models  # noqa: F401
+    from . import account_models  # noqa: F401
     from .api import api
     app.register_blueprint(api, url_prefix="/api/v1")
     from .extra_api import extra_api
@@ -61,6 +62,16 @@ def create_app(test_config=None):
     app.register_blueprint(mobile_api, url_prefix="/api/v1")
     from .leases_deposits import lifecycle_api
     app.register_blueprint(lifecycle_api, url_prefix="/api/v1")
+    from .property_hierarchy import hierarchy_api
+    app.register_blueprint(hierarchy_api, url_prefix="/api/v1")
+    from .account_recovery import recovery_api
+    app.register_blueprint(recovery_api, url_prefix="/api/v1")
+    from .proration import proration_api
+    app.register_blueprint(proration_api, url_prefix="/api/v1")
+    from .analytics import analytics_api
+    app.register_blueprint(analytics_api, url_prefix="/api/v1")
+    from .portfolio_edit import portfolio_api
+    app.register_blueprint(portfolio_api, url_prefix="/api/v1")
     from .report_exports import report_api
     app.register_blueprint(report_api, url_prefix="/api/v1")
     from .cli import register_commands

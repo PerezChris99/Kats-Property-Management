@@ -1,4 +1,10 @@
 import { api, csrfToken } from './lib/api'
+import {ProrationPage} from './ProrationPage'
+import {AnnualTrendsPage} from './AnnualTrendsPage'
+import {PortfolioEditPage} from './PortfolioEditPage'
+import {ExpenseApprovalsPage} from './ExpenseApprovalsPage'
+import {ForgotPasswordPage, CompleteAccountLinkPage, InvitationsPage, PermissionMatrixPage,
+  RoomPlacementPage} from './AccountScreens'
 import {NotificationsPage, InspectionsPage, MobileMoneyPage, FiscalPage, LegalAdminPage,
   PublicLegalPage, DocumentsPage, SecurityPage, AuditPage,
   RenewalsPage, DepositsPage, WorkOrdersPage, SettingsAdminPage,
@@ -14,8 +20,12 @@ type Resource = { title: string; path: string; fields: Field[]; columns: string[
 const RESOURCES: Record<string, Resource> = {
   properties: {title:'Properties',path:'properties', columns:['name','address','district'], writable:['OWNER','MANAGER','SUPER_ADMIN'],
     fields:[{name:'name',label:'Property name',required:true},{name:'address',label:'Address',required:true},{name:'district',label:'District',required:true}]},
-  rooms: {title:'Rooms',path:'rooms',columns:['number','status','rent_ugx','deposit_ugx'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
-    fields:[{name:'property_id',label:'Property ID',required:true},{name:'number',label:'Room number',required:true},{name:'rent_ugx',label:'Monthly rent (UGX)',type:'number',required:true},{name:'deposit_ugx',label:'Deposit (UGX)',type:'number'}]},
+  buildings: {title:'Buildings',path:'buildings',columns:['name','property_id','description'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
+    fields:[{name:'property_id',label:'Property',required:true},{name:'name',label:'Building name',required:true},{name:'description',label:'Notes'}]},
+  floors: {title:'Floors',path:'floors',columns:['building_id','level','label'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
+    fields:[{name:'building_id',label:'Building',required:true},{name:'level',label:'Floor level (0 is ground, negative for basements)',type:'number',required:true},{name:'label',label:'Floor label',required:true}]},
+  rooms: {title:'Rooms',path:'rooms',columns:['number','floor_id','status','rent_ugx','deposit_ugx'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
+    fields:[{name:'property_id',label:'Property',required:true},{name:'floor_id',label:'Floor (optional)'},{name:'number',label:'Room number',required:true},{name:'rent_ugx',label:'Monthly rent (UGX)',type:'number',required:true},{name:'deposit_ugx',label:'Deposit (UGX)',type:'number'}]},
   tenants: {title:'Tenants',path:'tenants',columns:['full_name','phone','email'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
     fields:[{name:'full_name',label:'Full name',required:true},{name:'phone',label:'Phone',required:true},{name:'email',label:'Email',type:'email'},{name:'user_id',label:'Linked tenant account'}]},
   leases: {title:'Leases',path:'leases',columns:['room_id','tenant_id','start_date','end_date','rent_ugx','status'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
@@ -27,8 +37,8 @@ const RESOURCES: Record<string, Resource> = {
   maintenance: {title:'Maintenance',path:'maintenance',columns:['title','room_id','priority','status'],writable:['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN','TENANT'],
     fields:[{name:'room_id',label:'Room ID',required:true},{name:'title',label:'Issue',required:true},{name:'description',label:'Description',required:true},{name:'priority',label:'Priority',options:['LOW','MEDIUM','HIGH','URGENT']}]},
   receipts: {title:'Non-fiscal receipts',path:'receipts',columns:['receipt_number','amount_ugx','valid','fiscal_status'],writable:[],fields:[]},
-  expenses: {title:'Expenses',path:'expenses',columns:['property_id','category','amount_ugx','incurred_on'],writable:['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN'],
-    fields:[{name:'property_id',label:'Property ID',required:true},{name:'category',label:'Category',required:true},{name:'description',label:'Description',required:true},{name:'amount_ugx',label:'Amount (UGX)',type:'number',required:true},{name:'incurred_on',label:'Date',type:'date',required:true}]}
+  expenses: {title:'Expenses',path:'expenses',columns:['property_id','category','amount_ugx','incurred_on','status'],writable:['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN'],
+    fields:[{name:'property_id',label:'Property ID',required:true},{name:'category',label:'Category',required:true},{name:'description',label:'Description',required:true},{name:'amount_ugx',label:'Amount (UGX)',type:'number',required:true},{name:'incurred_on',label:'Date',type:'date',required:true},{name:'idempotency_key',label:'Unique command reference',required:true}]}
 }
 const CARETAKER_RESOURCES:Record<string,Resource> = {
   rooms: {...RESOURCES.rooms,path:'caretaker/rooms',columns:['number','status'],fields:[],writable:[]},
@@ -37,11 +47,8 @@ const CARETAKER_RESOURCES:Record<string,Resource> = {
     writable:['CARETAKER']},
   maintenance: {...RESOURCES.maintenance,path:'caretaker/maintenance',writable:['CARETAKER']}
 }
-RESOURCES.users = {title:'Users and roles',path:'admin/users',columns:['full_name','email','role','is_active'],
-  writable:['OWNER','SUPER_ADMIN'],fields:[{name:'full_name',label:'Full name',required:true},
-  {name:'email',label:'Email',type:'email',required:true},
-  {name:'role',label:'Role',options:['MANAGER','CARETAKER','ACCOUNTANT','TENANT'],required:true},
-  {name:'password',label:'Initial password (12+ chars)',type:'password',required:true}]}
+RESOURCES.users = {title:'User accounts',path:'admin/users',columns:['full_name','email','role','is_active'],
+  writable:[],fields:[]}
 RESOURCES.assignments = {title:'Caretaker assignments',path:'caretaker/assignments',
   columns:['caretaker_user_id','room_id','assigned_at'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
   fields:[{name:'caretaker_user_id',label:'Caretaker user ID',required:true},
@@ -80,7 +87,7 @@ function Login({onSuccess}: {onSuccess:(user:User)=>void}) {
     catch(err) {setError(err instanceof Error?err.message:'Unable to sign in')}
     finally {setBusy(false)}
   }
-  return <div className="auth-layout"><div className="auth-card"><Link to="/" className="brand"><Building2/> Kats</Link><h1>Sign in</h1><p>Secure access for authorized users.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/></label>{error&&<p role="alert" className="error">{error}</p>}<button className="button full" disabled={busy}>{busy?'Signing in…':'Continue'}</button></form><Link to="/" className="back">Back to website</Link></div></div>
+  return <div className="auth-layout"><div className="auth-card"><Link to="/" className="brand"><Building2/> Kats</Link><h1>Sign in</h1><p>Secure access for authorized users.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/></label>{error&&<p role="alert" className="error">{error}</p>}<button className="button full" disabled={busy}>{busy?'Signing in…':'Continue'}</button></form><Link to="/forgot-password" className="back">Forgot your password?</Link> <Link to="/" className="back">Back to website</Link></div></div>
 }
 function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   const [rows,setRows]=useState<Row[]>([])
@@ -101,7 +108,7 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   useEffect(()=>{void load()},[load])
   useEffect(()=>{
     if(!editing)return
-    const entities:Record<string,string>={property_id:'properties',room_id:'rooms',tenant_id:'tenants',lease_id:'leases',invoice_id:'invoices',caretaker_user_id:'caretaker/roster',user_id:'tenants/accounts'}
+    const entities:Record<string,string>={property_id:'properties',building_id:'buildings',floor_id:'floors',room_id:'rooms',tenant_id:'tenants',lease_id:'leases',invoice_id:'invoices',caretaker_user_id:'caretaker/roster',user_id:'tenants/accounts'}
     const related=resource.fields.filter(field=>entities[field.name])
     Promise.all(related.map(async field=>{
       try {const endpoint=user.role==='CARETAKER'&&field.name==='room_id'?'caretaker/rooms':user.role==='TENANT'&&field.name==='room_id'?'tenant/rooms':user.role==='CARETAKER'&&field.name==='invoice_id'?'caretaker/invoices':entities[field.name];const payload=await api(endpoint);const items=field.name==='caretaker_user_id'?(payload.items||[]).filter((item:Row)=>item.role==='CARETAKER'):(payload.items||[]);return [field.name,items] as const}
@@ -157,7 +164,7 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   }
   return <section className="page"><div className="page-head"><div><span className="eyebrow">OPERATIONS</span><h1>{resource.title}</h1></div>{canWrite&&<button className="button" onClick={()=>setEditing(!editing)}>{editing?'Cancel':'Add '+resource.title.toLowerCase()}</button>}</div>
     {error&&<p role="alert" className="error">{error}</p>}
-    {editing&&canWrite&&<form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.filter(field=>field.name!=='idempotency_key').map(field=><label key={field.name}>{field.label}{field.options?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select</option>{field.options.map(option=><option key={option}>{option}</option>)}</select>:references[field.name]?.length?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select a record</option>{references[field.name].map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name||row.number||row.full_name||row.invoice_number||row.email||row.title||row.id)}</option>)}</select>:<input required={field.required} type={field.type||'text'} min={field.type==='number'?'0':undefined} value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})}/>}</label>)}</div><button className="button" disabled={busy}>{busy?'Saving…':'Save record'}</button></form>}
+    {editing&&canWrite&&<form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.filter(field=>field.name!=='idempotency_key').map(field=><label key={field.name}>{field.label}{field.options?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select</option>{field.options.map(option=><option key={option}>{option}</option>)}</select>:references[field.name]?.length?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select a record</option>{references[field.name].map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name||row.number||row.full_name||row.invoice_number||row.email||row.title||row.id)}</option>)}</select>:<input required={field.required} type={field.type||'text'} min={field.type==='number'?(field.name==='level'?'-10':'0'):undefined} value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})}/>}</label>)}</div><button className="button" disabled={busy}>{busy?'Saving…':'Save record'}</button></form>}
     {loading?<p role="status">Loading records…</p>:rows.length===0?<div className="empty"><h2>No records yet</h2><p>Authorized records will appear here after they are created.</p></div>:<div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col=><th key={col}>{col.replaceAll('_',' ')}</th>)}{resource.path==='payments'&&canWrite&&<th>Review</th>}{(resource.path==='payments'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)||resource.path==='invoices'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)||resource.path==='caretaker/rooms'||resource.path==='caretaker/assignments'||resource.path==='admin/users')&&<th>Actions</th>}</tr></thead><tbody>{rows.map((item,i)=><tr key={String(item.id||i)}>{resource.columns.map(col=><td key={col}>{formats(col,item[col])}</td>)}{resource.path==='payments'&&canWrite&&<td>{item.status==='PENDING_REVIEW'?<button className="outline-button" disabled={busy} onClick={()=>approve(String(item.id))}>Approve*</button>:<span>—</span>}</td>}
     {resource.path==='payments'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)&&<td>{item.status==='RECONCILED'?<button className="outline-button" disabled={busy} onClick={()=>financeAction('payments/'+String(item.id)+'/reverse')}>Reverse</button>:'—'}</td>}
     {resource.path==='invoices'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)&&<td>{item.status==='ISSUED'&&Number(item.paid_ugx)===0?<button className="outline-button" disabled={busy} onClick={()=>financeAction('invoices/'+String(item.id)+'/void')}>Void</button>:'—'}</td>}
@@ -232,7 +239,7 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
   const location=useLocation()
   const page=location.pathname.slice(1)
   const canOperate=roles.includes(user.role)
-  const nav = canOperate?['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports','statements','receipts','mobile-money','efris','inspections','renewals','deposits','work-orders','documents','notifications','security',...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['settings']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['users','legal','audit','inquiries']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'||user.role==='MANAGER'?['assignments']:[])]:user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance','work-orders','inspections','documents','notifications','security','receipts']:['dashboard','invoices','payments','statements','receipts','deposits','maintenance','inspections','documents','mobile-money','notifications','security']
+  const nav = canOperate?['dashboard','properties','buildings','floors','rooms','room-placement','portfolio-editor','tenants','leases','proration','invoices','payments','maintenance','expenses','expense-approvals','reports','trends','statements','receipts','mobile-money','efris','inspections','renewals','deposits','work-orders','documents','notifications','security',...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['settings']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['users','invitations','permissions','legal','audit','inquiries']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'||user.role==='MANAGER'?['assignments']:[])]:user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance','work-orders','inspections','documents','notifications','security','receipts']:['dashboard','invoices','payments','statements','receipts','deposits','maintenance','inspections','documents','mobile-money','notifications','security']
   const viewResource=user.role==='CARETAKER'?CARETAKER_RESOURCES[page]:RESOURCES[page]
   return <div className="portal"><aside className="side"><Link to="/" className="brand">Kats</Link><div className="role">{user.role.replaceAll('_',' ')}</div><nav aria-label="Workspace">{nav.map(key=><Link key={key} className={page===key?'active':''} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</nav><button className="link-button logout" onClick={logout}><LogOut size={16}/> Sign out</button></aside>
   <div className="portal-main"><header className="portal-bar"><span>Kats Property Management</span><span>{user.full_name}</span></header><main>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='statements'&&nav.includes(page)?(user.role==='TENANT'?<TenantStatementSelfPage/>:<TenantStatementsPage/>):
@@ -241,6 +248,13 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
     page==='mobile-money'&&nav.includes(page)?<MobileMoneyPage/>:page==='efris'&&nav.includes(page)?<FiscalPage/>:
     page==='documents'&&nav.includes(page)?<DocumentsPage/>:page==='legal'&&nav.includes(page)?<LegalAdminPage/>:
     page==='audit'&&nav.includes(page)?<AuditPage/>:page==='inquiries'&&nav.includes(page)?<ContactInboxPage/>:
+    page==='invitations'&&nav.includes(page)?<InvitationsPage/>:
+    page==='proration'&&nav.includes(page)?<ProrationPage role={user.role}/>:
+    page==='expense-approvals'&&nav.includes(page)?<ExpenseApprovalsPage role={user.role}/>:
+    page==='trends'&&nav.includes(page)?<AnnualTrendsPage/>:
+    page==='permissions'&&nav.includes(page)?<PermissionMatrixPage user={user}/>:
+    page==='room-placement'&&nav.includes(page)?<RoomPlacementPage/>:
+    page==='portfolio-editor'&&nav.includes(page)?<PortfolioEditPage/>:
     page==='renewals'&&nav.includes(page)?<RenewalsPage/>:page==='deposits'&&nav.includes(page)?<DepositsPage user={user}/>:
     page==='work-orders'&&nav.includes(page)?<WorkOrdersPage user={user}/>:
     page==='settings'&&nav.includes(page)?<SettingsAdminPage/>:page==='security'&&nav.includes(page)?<SecurityPage onSignedOut={logout}/>:
@@ -264,10 +278,13 @@ export default function App() {
   return <>{!online&&<div className="offline" role="status">Offline. Reconnect to view private records.</div>}<Routes>
     <Route path="/" element={<Landing user={user} logout={logout}/>}/>
     <Route path="/login" element={user?<Navigate to="/dashboard" replace/>:<Login onSuccess={setUser}/>}/>
+    <Route path="/forgot-password" element={<ForgotPasswordPage/>}/>
+    <Route path="/reset-password" element={<CompleteAccountLinkPage kind="reset"/>}/>
+    <Route path="/account/activate" element={<CompleteAccountLinkPage kind="invitation"/>}/>
     <Route path="/features" element={<TextPage title="Features" body="Manage units, leases, invoices, verified manual payments, maintenance and expenses. MTN/Airtel and EFRIS require provider verification." user={user} logout={logout}/>}/>
     <Route path="/contact" element={<ContactPage/>}/>
     {['privacy','terms','cookies','refund'].map(slug=><Route key={slug} path={'/'+slug} element={<PublicLegalPage slug={slug}/>}/>)}
-    {['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports','statements','receipts','users','assignments','notifications','inspections','renewals','deposits','work-orders','settings','mobile-money','efris','documents','legal','audit','inquiries','security','more'].map(path=><Route key={path} path={'/'+path} element={user?<Portal user={user} logout={logout}/>:<Navigate to="/login" replace/>}/>)}
+    {['dashboard','properties','buildings','floors','rooms','room-placement','portfolio-editor','tenants','leases','proration','invoices','payments','maintenance','expenses','expense-approvals','reports','trends','statements','receipts','users','invitations','permissions','assignments','notifications','inspections','renewals','deposits','work-orders','settings','mobile-money','efris','documents','legal','audit','inquiries','security','more'].map(path=><Route key={path} path={'/'+path} element={user?<Portal user={user} logout={logout}/>:<Navigate to="/login" replace/>}/>)}
     {['dashboard','payments','invoices','receipts','maintenance','lease','profile'].map(path=>
       <Route key={'tenant-'+path} path={'/tenant/'+path} element={<Navigate to={path==='lease'?'/dashboard':path==='profile'?'/security':'/'+path} replace/>}/>)}
     {['dashboard','rooms','maintenance','inspections','payments','profile'].map(path=>
@@ -275,7 +292,7 @@ export default function App() {
     {['users','roles','permissions','integrations','efris','payments','audit-logs','legal-pages','system-settings'].map(path=>
       <Route key={'admin-'+path} path={'/admin/'+path} element={<Navigate to={
         path==='audit-logs'?'/audit':path==='legal-pages'?'/legal':path==='system-settings'?'/security':
-        path==='integrations'?'/efris':path==='roles'||path==='permissions'?'/users':'/'+path
+        path==='integrations'?'/efris':path==='roles'||path==='permissions'?'/permissions':'/'+path
       } replace/>}/>)}
     <Route path="/how-it-works" element={<TextPage title="How it works" body="Create properties and rooms, onboard tenants and leases, issue rent invoices, verify collections, track maintenance and review reports." user={user} logout={logout}/>}/>
     <Route path="/pricing" element={<TextPage title="Pricing" body="Contact the property owner for deployment and service pricing." user={user} logout={logout}/>}/>

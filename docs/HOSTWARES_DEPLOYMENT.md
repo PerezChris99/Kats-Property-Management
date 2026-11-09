@@ -31,3 +31,13 @@ If a deployment fails, stop writes where needed, preserve a forensic and encrypt
 ## Monitoring
 
 Configure real uptime, logs, error and resource alerts for API, PostgreSQL, Redis, Celery queues, disk capacity, TLS expiry, failed logins, payment reconciliation and EFRIS submission. All must be tested on real infrastructure. Documentation is not proof that any monitor or alert exists.
+
+## Account and permission activation
+
+Before onboarding any users on staging, configure `PUBLIC_APP_URL=https://<approved-domain>`, set all `SMTP_*` values and `MAIL_FROM` for a verified transactional SMTP sender, and keep `PUBLIC_REGISTRATION_ENABLED=false`. Production rejects self-registration and owner-provided shared initial passwords. Verify mail domain DNS (SPF, DKIM, DMARC), onboarding link expiry, resend, password recovery, account suspension and logout invalidation.
+
+After every application migration, run `flask --app wsgi seed-permissions`; permission grants are persisted and the server refuses unknown protected routes in production until seeded. Preserve current grants and audit changes with an authorized super administrator.
+
+## Financial acceptance gate
+
+Check the staff expense reviewer queue before relying on margin reports: legacy migrated expense rows are `REVIEW_REQUIRED` until independently rechecked. Calendar-day rent proration must be legally and contractually approved before a finance officer issues any such invoice. Annual trends derive collections from verified settlement timestamps, not payment creation time; historical payments without trusted settlement timestamps require separate reconciliation.

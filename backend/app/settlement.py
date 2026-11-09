@@ -60,6 +60,7 @@ def verify_and_post(payment_id):
             invoice.paid_ugx += payment.amount_ugx
             invoice.status = "PAID" if invoice.paid_ugx + invoice.credit_ugx == invoice.total_ugx else "PARTIALLY_PAID"
             payment.status = "RECONCILED"
+            payment.settled_at = datetime.now(timezone.utc)
             attempt.provider_transaction_id = result.transaction_id
             db.session.add(LedgerEntry(invoice_id=invoice.id, payment_id=payment.id,
                                        event="PAYMENT_RECEIVED", amount_ugx=payment.amount_ugx))
