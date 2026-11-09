@@ -682,3 +682,65 @@ def caretaker_record_cash(user):
         db.session.rollback()
         return fail("Duplicate cash submission", 409)
     return jsonify(payment=serialize(payment, "id", "status", "amount_ugx")), 201
+
+
+@api.get("/caretaker/invoices")
+@roles("CARETAKER")
+def caretaker_invoices(user):
+    query = db.session.query(Invoice).join(Lease, Invoice.lease_id == Lease.id).join(
+        CaretakerAssignment, CaretakerAssignment.room_id == Lease.room_id
+    ).filter(CaretakerAssignment.caretaker_user_id == user.id).order_by(Invoice.created_at.desc())
+    results = list_page(Invoice, query)
+    return jsonify(items=[serialize(i, "id", "invoice_number", "total_ugx", "paid_ugx", "status", "due_date")
+                          for i in results.items], total=results.total)
+
+@api.get("/admin/users")
+@roles("OWNER", "SUPER_ADMIN")
+def admin_users(user):
+    results = list_page(User, db.session.query(User).filter(
+        User.role != "SERVICE").order_by(User.created_at.desc()))
+    return jsonify(items=[serialize(account, "id", "full_name", "email", "role", "is_active")
+                          for account in results.items], total=results.total)
+
+@api.post("/admin/users")
+@roles("OWNER", "SUPER_ADMIN")
+def admin_create_user(user):
+    obj = data()
+    role = required_string(obj, "role").upper()
+    if role not in ("MANAGER", "CARETAKER", "ACCOUNTANT", "TENANT"):
+        return fail("This role cannot be created through the owner console", 403)
+    email = required_string(obj, "email", 254).lower()
+    name = required_string(obj, "full_name", 160)
+    password = required_string(obj, "password", 256)
+    if len(password) < 12 or "@" not in email:
+        return fail("Provide a valid email and a 12+ character initial password")
+    account = User(full_name=name, email=email, role=role,
+                   password_hash=hasher.hash(password))
+    db.session.add(account)
+    try:
+        db.session.flush()
+        audit(user, "user.create", "user", account.id, role=role)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("This email already belongs to an account", 409)
+    return jsonify(user=serialize(account, "id", "full_name", "email", "role")), 201
+
+@api.post("/admin/users/<account_id>/status")
+@roles("OWNER", "SUPER_ADMIN")
+def admin_user_status(user, account_id):
+    account = db.session.get(User, account_id)
+    if not account or account.role == "SERVICE":
+        abort(404)
+    if account.id == user.id:
+        return fail("You cannot deactivate your own session", 403)
+    if account.role in ("SUPER_ADMIN", "OWNER") and user.role != "SUPER_ADMIN":
+        abort(403)
+    value = data().get("is_active")
+    if type(value) is not bool:
+        return fail("is_active must be a boolean")
+    previous = account.is_active
+    account.is_active = value
+    audit(user, "user.status", "user", account.id, previous=previous, active=value)
+    db.session.commit()
+    return jsonify(user=serialize(account, "id", "full_name", "email", "role", "is_active"))
