@@ -66,6 +66,8 @@ def create_app(test_config=None):
     app.register_blueprint(hierarchy_api, url_prefix="/api/v1")
     from .account_recovery import recovery_api
     app.register_blueprint(recovery_api, url_prefix="/api/v1")
+    from .proration import proration_api
+    app.register_blueprint(proration_api, url_prefix="/api/v1")
     from .report_exports import report_api
     app.register_blueprint(report_api, url_prefix="/api/v1")
     from .cli import register_commands
