@@ -1,16 +1,33 @@
 import { api, csrfToken } from './lib/api'
 import { WorkspaceNavigation } from './WorkspaceNavigation'
-import {ProrationPage} from './ProrationPage'
-import {AnnualTrendsPage} from './AnnualTrendsPage'
-import {PortfolioEditPage} from './PortfolioEditPage'
-import {ExpenseApprovalsPage} from './ExpenseApprovalsPage'
-import {ForgotPasswordPage, CompleteAccountLinkPage, InvitationsPage, PermissionMatrixPage,
-  RoomPlacementPage} from './AccountScreens'
-import {NotificationsPage, InspectionsPage, MobileMoneyPage, FiscalPage, LegalAdminPage,
-  PublicLegalPage, DocumentsPage, SecurityPage, AuditPage,
-  RenewalsPage, DepositsPage, WorkOrdersPage, SettingsAdminPage,
-  ReceiptsPage, TenantStatementsPage, TenantStatementSelfPage, ContactPage, ContactInboxPage} from './Modules'
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+const ProrationPage = lazy(() => import('./ProrationPage').then(m => ({default: m.ProrationPage})))
+const AnnualTrendsPage = lazy(() => import('./AnnualTrendsPage').then(m => ({default: m.AnnualTrendsPage})))
+const PortfolioEditPage = lazy(() => import('./PortfolioEditPage').then(m => ({default: m.PortfolioEditPage})))
+const ExpenseApprovalsPage = lazy(() => import('./ExpenseApprovalsPage').then(m => ({default: m.ExpenseApprovalsPage})))
+const ForgotPasswordPage = lazy(() => import('./AccountScreens').then(m => ({default: m.ForgotPasswordPage})))
+const CompleteAccountLinkPage = lazy(() => import('./AccountScreens').then(m => ({default: m.CompleteAccountLinkPage})))
+const InvitationsPage = lazy(() => import('./AccountScreens').then(m => ({default: m.InvitationsPage})))
+const PermissionMatrixPage = lazy(() => import('./AccountScreens').then(m => ({default: m.PermissionMatrixPage})))
+const RoomPlacementPage = lazy(() => import('./AccountScreens').then(m => ({default: m.RoomPlacementPage})))
+const NotificationsPage = lazy(() => import('./Modules').then(m => ({default: m.NotificationsPage})))
+const InspectionsPage = lazy(() => import('./Modules').then(m => ({default: m.InspectionsPage})))
+const MobileMoneyPage = lazy(() => import('./Modules').then(m => ({default: m.MobileMoneyPage})))
+const FiscalPage = lazy(() => import('./Modules').then(m => ({default: m.FiscalPage})))
+const LegalAdminPage = lazy(() => import('./Modules').then(m => ({default: m.LegalAdminPage})))
+const PublicLegalPage = lazy(() => import('./Modules').then(m => ({default: m.PublicLegalPage})))
+const DocumentsPage = lazy(() => import('./Modules').then(m => ({default: m.DocumentsPage})))
+const SecurityPage = lazy(() => import('./Modules').then(m => ({default: m.SecurityPage})))
+const AuditPage = lazy(() => import('./Modules').then(m => ({default: m.AuditPage})))
+const RenewalsPage = lazy(() => import('./Modules').then(m => ({default: m.RenewalsPage})))
+const DepositsPage = lazy(() => import('./Modules').then(m => ({default: m.DepositsPage})))
+const WorkOrdersPage = lazy(() => import('./Modules').then(m => ({default: m.WorkOrdersPage})))
+const SettingsAdminPage = lazy(() => import('./Modules').then(m => ({default: m.SettingsAdminPage})))
+const ReceiptsPage = lazy(() => import('./Modules').then(m => ({default: m.ReceiptsPage})))
+const TenantStatementsPage = lazy(() => import('./Modules').then(m => ({default: m.TenantStatementsPage})))
+const TenantStatementSelfPage = lazy(() => import('./Modules').then(m => ({default: m.TenantStatementSelfPage})))
+const ContactPage = lazy(() => import('./Modules').then(m => ({default: m.ContactPage})))
+const ContactInboxPage = lazy(() => import('./Modules').then(m => ({default: m.ContactInboxPage})))
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Building2, CreditCard, LayoutDashboard, ShieldCheck, Wrench } from 'lucide-react'
 
@@ -307,7 +324,7 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
           <span><strong>{user.full_name}</strong><small>{user.role.replaceAll('_', ' ')}</small></span>
         </div>
       </header>
-      <main className="portal-content" key={page}>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='statements'&&nav.includes(page)?(user.role==='TENANT'?<TenantStatementSelfPage/>:<TenantStatementsPage/>):
+      <main className="portal-content" key={page}><Suspense fallback={<p className="data-loading" role="status">Opening workspace…</p>}>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='statements'&&nav.includes(page)?(user.role==='TENANT'?<TenantStatementSelfPage/>:<TenantStatementsPage/>):
     page==='receipts'&&nav.includes(page)?<ReceiptsPage/>:
     page==='notifications'&&nav.includes(page)?<NotificationsPage/>:page==='inspections'&&nav.includes(page)?<InspectionsPage user={user}/>:
     page==='mobile-money'&&nav.includes(page)?<MobileMoneyPage/>:page==='efris'&&nav.includes(page)?<FiscalPage/>:
@@ -323,7 +340,7 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
     page==='renewals'&&nav.includes(page)?<RenewalsPage/>:page==='deposits'&&nav.includes(page)?<DepositsPage user={user}/>:
     page==='work-orders'&&nav.includes(page)?<WorkOrdersPage user={user}/>:
     page==='settings'&&nav.includes(page)?<SettingsAdminPage/>:page==='security'&&nav.includes(page)?<SecurityPage onSignedOut={logout}/>:
-    page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main>
+    page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</Suspense></main>
     </div>
   </div>
 }
@@ -342,7 +359,7 @@ export default function App() {
   function logout(){api('auth/logout',{method:'POST'}).catch(()=>{}).finally(()=>{setUser(null);navigate('/')})}
   if(!ready)return <div className="loading">Loading Kats…</div>
   
-  return <>{!online&&<div className="offline" role="status">Offline. Reconnect to view private records.</div>}<Routes>
+  return <>{!online&&<div className="offline" role="status">Offline. Reconnect to view private records.</div>}<Suspense fallback={<div className="loading" role="status">Opening page…</div>}><Routes>
     <Route path="/" element={<Landing user={user} logout={logout}/>}/>
     <Route path="/login" element={user?<Navigate to="/dashboard" replace/>:<Login onSuccess={setUser}/>}/>
     <Route path="/forgot-password" element={<ForgotPasswordPage/>}/>
@@ -364,5 +381,5 @@ export default function App() {
     <Route path="/how-it-works" element={<TextPage title="How it works" body="Create properties and rooms, onboard tenants and leases, issue rent invoices, verify collections, track maintenance and review reports." user={user} logout={logout}/>}/>
     <Route path="/pricing" element={<TextPage title="Pricing" body="Contact the property owner for deployment and service pricing." user={user} logout={logout}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/>
-  </Routes></>
+  </Routes></Suspense></>
 }
