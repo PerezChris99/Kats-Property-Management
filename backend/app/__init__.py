@@ -57,6 +57,8 @@ def create_app(test_config=None):
     app.register_blueprint(extra_api, url_prefix="/api/v1")
     from .documents import documents_api
     app.register_blueprint(documents_api, url_prefix="/api/v1")
+    from .mobile_payments import mobile_api
+    app.register_blueprint(mobile_api, url_prefix="/api/v1")
     from .cli import register_commands
     register_commands(app)
     return app

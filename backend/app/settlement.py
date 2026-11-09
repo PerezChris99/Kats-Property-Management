@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from .extensions import db
 from .models import Invoice, Payment, LedgerEntry, AuditLog
 from .extra_models import ProviderAttempt
+from .billing import system_actor
 from .providers import provider, ProviderError
 
 class SettlementError(RuntimeError):
@@ -62,7 +63,7 @@ def verify_and_post(payment_id):
             attempt.provider_transaction_id = result.transaction_id
             db.session.add(LedgerEntry(invoice_id=invoice.id, payment_id=payment.id,
                                        event="PAYMENT_RECEIVED", amount_ugx=payment.amount_ugx))
-            db.session.add(AuditLog(actor_id=payment.created_by, action="provider.payment_verified",
+            db.session.add(AuditLog(actor_id=system_actor().id, action="provider.payment_verified",
                                     target_type="payment", target_id=payment.id,
                                     details={"provider":attempt.provider,
                                              "reference":attempt.reference,
