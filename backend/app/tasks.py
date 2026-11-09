@@ -18,6 +18,22 @@ celery_app.conf.update(
             "task": "app.tasks.generate_rent_invoices",
             "schedule": crontab(minute=10, hour=1, day_of_month=1),
         },
+        "rent-reminders-daily": {
+            "task": "app.tasks.generate_rent_reminders",
+            "schedule": crontab(minute=0, hour=9),
+        },
+        "lease-expiry-daily": {
+            "task": "app.tasks.generate_lease_expiries",
+            "schedule": crontab(minute=10, hour=9),
+        },
+        "fiscal-outbox-poll": {
+            "task": "app.tasks.poll_fiscal_submissions",
+            "schedule": crontab(minute="*/15"),
+        },
+        "mobile-money-reconciliation": {
+            "task": "app.tasks.poll_mobile_transactions",
+            "schedule": crontab(minute="*/5"),
+        },
     },
 )
 
@@ -34,3 +50,58 @@ def generate_rent_invoices():
         return generate_monthly_rent(datetime.now(ZoneInfo("Africa/Kampala")).date())
 
 # No payment or fiscal task is enabled without a verified provider.
+
+
+@celery_app.task(name="app.tasks.generate_rent_reminders",
+                 autoretry_for=(Exception,), retry_backoff=True,
+                 retry_kwargs={"max_retries": 3})
+def generate_rent_reminders():
+    from app import create_app
+    from app.notifications import rent_reminder_run
+    with create_app().app_context():
+        return rent_reminder_run()
+
+@celery_app.task(name="app.tasks.generate_lease_expiries",
+                 autoretry_for=(Exception,), retry_backoff=True,
+                 retry_kwargs={"max_retries": 3})
+def generate_lease_expiries():
+    from app import create_app
+    from app.notifications import expiring_lease_run
+    with create_app().app_context():
+        return expiring_lease_run()
+
+
+@celery_app.task(name="app.tasks.poll_fiscal_submissions",
+                 autoretry_for=(Exception,), retry_backoff=True,
+                 retry_kwargs={"max_retries": 3})
+def poll_fiscal_submissions():
+    from app import create_app
+    from app.efris_gateway import run_fiscal_batch
+    with create_app().app_context():
+        return run_fiscal_batch()
+
+@celery_app.task(name="app.tasks.poll_mobile_transactions",
+                 autoretry_for=(Exception,), retry_backoff=True,
+                 retry_kwargs={"max_retries": 3})
+def poll_mobile_transactions():
+    from app import create_app
+    from app.extra_models import ProviderAttempt
+    from app.settlement import verify_and_post
+    from app.providers import ProviderError
+    from app.extensions import db
+    with create_app().app_context():
+        pending=db.session.query(ProviderAttempt).filter(
+            ProviderAttempt.status.in_(["INITIATED","PENDING","RETRYING","UNVERIFIED"])
+        ).order_by(ProviderAttempt.created_at).limit(30).all()
+        attempted=0
+        for attempt in pending:
+            if os.getenv(attempt.provider+"_ENABLED","false").lower()!="true":
+                continue
+            if attempt.verification_attempts>=40:
+                attempt.status="MANUAL_REVIEW"
+                attempt.last_error_code="POLL_LIMIT_EXCEEDED"
+                db.session.commit()
+                continue
+            verify_and_post(attempt.payment_id)
+            attempted+=1
+        return {"checked":attempted}

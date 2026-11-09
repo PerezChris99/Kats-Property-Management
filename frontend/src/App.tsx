@@ -1,3 +1,8 @@
+import { api, csrfToken } from './lib/api'
+import {NotificationsPage, InspectionsPage, MobileMoneyPage, FiscalPage, LegalAdminPage,
+  PublicLegalPage, DocumentsPage, SecurityPage, AuditPage,
+  RenewalsPage, DepositsPage, WorkOrdersPage, SettingsAdminPage,
+  ReceiptsPage, TenantStatementsPage, TenantStatementSelfPage, ContactPage, ContactInboxPage} from './Modules'
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Building2, CreditCard, LayoutDashboard, Menu, ShieldCheck, Wrench, LogOut } from 'lucide-react'
@@ -12,7 +17,7 @@ const RESOURCES: Record<string, Resource> = {
   rooms: {title:'Rooms',path:'rooms',columns:['number','status','rent_ugx','deposit_ugx'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
     fields:[{name:'property_id',label:'Property ID',required:true},{name:'number',label:'Room number',required:true},{name:'rent_ugx',label:'Monthly rent (UGX)',type:'number',required:true},{name:'deposit_ugx',label:'Deposit (UGX)',type:'number'}]},
   tenants: {title:'Tenants',path:'tenants',columns:['full_name','phone','email'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
-    fields:[{name:'full_name',label:'Full name',required:true},{name:'phone',label:'Phone',required:true},{name:'email',label:'Email',type:'email'}]},
+    fields:[{name:'full_name',label:'Full name',required:true},{name:'phone',label:'Phone',required:true},{name:'email',label:'Email',type:'email'},{name:'user_id',label:'Linked tenant account'}]},
   leases: {title:'Leases',path:'leases',columns:['room_id','tenant_id','start_date','end_date','rent_ugx','status'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
     fields:[{name:'room_id',label:'Room ID',required:true},{name:'tenant_id',label:'Tenant ID',required:true},{name:'start_date',label:'Start date',type:'date',required:true},{name:'end_date',label:'End date',type:'date',required:true},{name:'rent_ugx',label:'Rent (UGX)',type:'number',required:true},{name:'deposit_ugx',label:'Deposit (UGX)',type:'number'}]},
   invoices: {title:'Rent invoices',path:'invoices',columns:['invoice_number','due_date','total_ugx','paid_ugx','status'],writable:['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN'],
@@ -21,6 +26,7 @@ const RESOURCES: Record<string, Resource> = {
     fields:[{name:'invoice_id',label:'Invoice ID',required:true},{name:'method',label:'Method',required:true,options:['CASH','BANK_TRANSFER']},{name:'amount_ugx',label:'Amount (UGX)',type:'number',required:true},{name:'reference',label:'Bank transaction reference'},{name:'idempotency_key',label:'Unique command reference',required:true}]},
   maintenance: {title:'Maintenance',path:'maintenance',columns:['title','room_id','priority','status'],writable:['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN','TENANT'],
     fields:[{name:'room_id',label:'Room ID',required:true},{name:'title',label:'Issue',required:true},{name:'description',label:'Description',required:true},{name:'priority',label:'Priority',options:['LOW','MEDIUM','HIGH','URGENT']}]},
+  receipts: {title:'Non-fiscal receipts',path:'receipts',columns:['receipt_number','amount_ugx','valid','fiscal_status'],writable:[],fields:[]},
   expenses: {title:'Expenses',path:'expenses',columns:['property_id','category','amount_ugx','incurred_on'],writable:['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN'],
     fields:[{name:'property_id',label:'Property ID',required:true},{name:'category',label:'Category',required:true},{name:'description',label:'Description',required:true},{name:'amount_ugx',label:'Amount (UGX)',type:'number',required:true},{name:'incurred_on',label:'Date',type:'date',required:true}]}
 }
@@ -42,16 +48,6 @@ RESOURCES.assignments = {title:'Caretaker assignments',path:'caretaker/assignmen
   {name:'room_id',label:'Room ID',required:true}]}
 const roles = ['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN']
 const formats = (key: string, value: string | number | boolean | null) => key.endsWith('_ugx') && typeof value === 'number' ? 'UGX ' + value.toLocaleString('en-UG') : String(value ?? '—')
-function csrfToken() {return document.cookie.split('; ').find(c => c.startsWith('csrf_access_token='))?.split('=')[1] ?? ''}
-async function api(path: string, opts: RequestInit = {}) {
-  const headers = new Headers(opts.headers)
-  if (opts.body) headers.set('Content-Type', 'application/json')
-  if (opts.method && opts.method !== 'GET') headers.set('X-CSRF-TOKEN', csrfToken())
-  const response = await fetch('/api/v1/' + path, {...opts, headers, credentials:'same-origin', cache:'no-store'})
-  const payload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(payload.error?.message || 'Request failed (' + response.status + ')')
-  return payload
-}
 function Header({user, logout}: {user:User|null;logout?:()=>void}) {
   return <header className="site-header"><Link to="/" className="brand"><Building2 size={24} aria-hidden="true"/> Kats <small>Property Management</small></Link>
   <nav aria-label="Main navigation">{user ? <><Link to="/dashboard">Workspace</Link><button className="link-button" onClick={logout}>Sign out</button></> : <><Link to="/features">Features</Link><Link to="/contact">Contact</Link><Link className="button small" to="/login">Sign in</Link></>}</nav></header>
@@ -92,6 +88,7 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   const [error,setError]=useState('')
   const [editing,setEditing]=useState(false)
   const [values,setValues]=useState<Record<string,string>>({})
+  const [idempotencyKey,setIdempotencyKey]=useState(()=>crypto.randomUUID())
   const [busy,setBusy]=useState(false)
   const [references,setReferences]=useState<Record<string,Row[]>>({})
   const canWrite=resource.writable?.includes(user.role)??false
@@ -104,10 +101,10 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   useEffect(()=>{void load()},[load])
   useEffect(()=>{
     if(!editing)return
-    const entities:Record<string,string>={property_id:'properties',room_id:'rooms',tenant_id:'tenants',lease_id:'leases',invoice_id:'invoices',caretaker_user_id:'admin/users'}
+    const entities:Record<string,string>={property_id:'properties',room_id:'rooms',tenant_id:'tenants',lease_id:'leases',invoice_id:'invoices',caretaker_user_id:'caretaker/roster',user_id:'tenants/accounts'}
     const related=resource.fields.filter(field=>entities[field.name])
     Promise.all(related.map(async field=>{
-      try {const endpoint=user.role==='CARETAKER'&&field.name==='room_id'?'caretaker/rooms':user.role==='CARETAKER'&&field.name==='invoice_id'?'caretaker/invoices':entities[field.name];const payload=await api(endpoint);const items=field.name==='caretaker_user_id'?(payload.items||[]).filter((item:Row)=>item.role==='CARETAKER'):(payload.items||[]);return [field.name,items] as const}
+      try {const endpoint=user.role==='CARETAKER'&&field.name==='room_id'?'caretaker/rooms':user.role==='TENANT'&&field.name==='room_id'?'tenant/rooms':user.role==='CARETAKER'&&field.name==='invoice_id'?'caretaker/invoices':entities[field.name];const payload=await api(endpoint);const items=field.name==='caretaker_user_id'?(payload.items||[]).filter((item:Row)=>item.role==='CARETAKER'):(payload.items||[]);return [field.name,items] as const}
       catch{return [field.name,[]] as const}
     })).then(result=>setReferences(Object.fromEntries(result)))
   },[editing,resource.fields])
@@ -115,10 +112,10 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
     event.preventDefault();setBusy(true);setError('')
     const body:Record<string,string|number>={}
     for(const field of resource.fields) {
-      const value=values[field.name]||''
+      const value=field.name==='idempotency_key'?idempotencyKey:(values[field.name]||'')
       if(value || field.required) body[field.name]=field.type==='number'?Number(value):value
     }
-    try {await api(resource.path==='payments'?'payments/manual':resource.path,{method:'POST',body:JSON.stringify(body)});setEditing(false);setValues({});await load()}
+    try {await api(resource.path==='payments'?'payments/manual':resource.path,{method:'POST',body:JSON.stringify(body)});setEditing(false);setValues({});setIdempotencyKey(crypto.randomUUID());await load()}
     catch(err) {setError(err instanceof Error?err.message:'Could not save')}
     finally {setBusy(false)}
   }
@@ -160,7 +157,7 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   }
   return <section className="page"><div className="page-head"><div><span className="eyebrow">OPERATIONS</span><h1>{resource.title}</h1></div>{canWrite&&<button className="button" onClick={()=>setEditing(!editing)}>{editing?'Cancel':'Add '+resource.title.toLowerCase()}</button>}</div>
     {error&&<p role="alert" className="error">{error}</p>}
-    {editing&&canWrite&&<form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.map(field=><label key={field.name}>{field.label}{field.options?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select</option>{field.options.map(option=><option key={option}>{option}</option>)}</select>:references[field.name]?.length?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select a record</option>{references[field.name].map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name||row.number||row.full_name||row.invoice_number||row.email||row.title||row.id)}</option>)}</select>:<input required={field.required} type={field.type||'text'} min={field.type==='number'?'0':undefined} value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})}/>}</label>)}</div><button className="button" disabled={busy}>{busy?'Saving…':'Save record'}</button></form>}
+    {editing&&canWrite&&<form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.filter(field=>field.name!=='idempotency_key').map(field=><label key={field.name}>{field.label}{field.options?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select</option>{field.options.map(option=><option key={option}>{option}</option>)}</select>:references[field.name]?.length?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select a record</option>{references[field.name].map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name||row.number||row.full_name||row.invoice_number||row.email||row.title||row.id)}</option>)}</select>:<input required={field.required} type={field.type||'text'} min={field.type==='number'?'0':undefined} value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})}/>}</label>)}</div><button className="button" disabled={busy}>{busy?'Saving…':'Save record'}</button></form>}
     {loading?<p role="status">Loading records…</p>:rows.length===0?<div className="empty"><h2>No records yet</h2><p>Authorized records will appear here after they are created.</p></div>:<div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col=><th key={col}>{col.replaceAll('_',' ')}</th>)}{resource.path==='payments'&&canWrite&&<th>Review</th>}{(resource.path==='payments'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)||resource.path==='invoices'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)||resource.path==='caretaker/rooms'||resource.path==='caretaker/assignments'||resource.path==='admin/users')&&<th>Actions</th>}</tr></thead><tbody>{rows.map((item,i)=><tr key={String(item.id||i)}>{resource.columns.map(col=><td key={col}>{formats(col,item[col])}</td>)}{resource.path==='payments'&&canWrite&&<td>{item.status==='PENDING_REVIEW'?<button className="outline-button" disabled={busy} onClick={()=>approve(String(item.id))}>Approve*</button>:<span>—</span>}</td>}
     {resource.path==='payments'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)&&<td>{item.status==='RECONCILED'?<button className="outline-button" disabled={busy} onClick={()=>financeAction('payments/'+String(item.id)+'/reverse')}>Reverse</button>:'—'}</td>}
     {resource.path==='invoices'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)&&<td>{item.status==='ISSUED'&&Number(item.paid_ugx)===0?<button className="outline-button" disabled={busy} onClick={()=>financeAction('invoices/'+String(item.id)+'/void')}>Void</button>:'—'}</td>}
@@ -200,7 +197,7 @@ function ReportsPage() {
     </div><p className="note">{String(summary.methodology)}</p></>:<p role="status">Loading financial report…</p>}
     {arrears&&<div className="quick"><h2>Overdue rent</h2><p>{arrears.overdue_invoices} overdue invoice(s) · UGX {arrears.total_ugx.toLocaleString('en-UG')}</p>
       <div className="stat-grid">{Object.entries(arrears.ageing_ugx).map(([label,value])=><div className="stat" key={label}><small>{label.replaceAll('_',' ')}</small><strong>UGX {value.toLocaleString('en-UG')}</strong></div>)}</div></div>}
-    <div className="quick"><h2>Exports</h2><a className="button" href="/api/v1/reports/export/invoices.csv">Download invoice CSV</a></div>
+    <div className="quick"><h2>Exports</h2><a className="button" href="/api/v1/reports/export/invoices.csv">Download invoice CSV</a> <a className="button" href="/api/v1/reports/export/invoices.xlsx">Download invoice Excel</a> <Link to="/statements" className="button">Tenant statements</Link></div>
   </section>
 }
 
@@ -235,10 +232,19 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
   const location=useLocation()
   const page=location.pathname.slice(1)
   const canOperate=roles.includes(user.role)
-  const nav = canOperate?['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports',...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['users']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'||user.role==='MANAGER'?['assignments']:[])]:user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance']
+  const nav = canOperate?['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports','statements','receipts','mobile-money','efris','inspections','renewals','deposits','work-orders','documents','notifications','security',...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['settings']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['users','legal','audit','inquiries']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'||user.role==='MANAGER'?['assignments']:[])]:user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance','work-orders','inspections','documents','notifications','security','receipts']:['dashboard','invoices','payments','statements','receipts','deposits','maintenance','inspections','documents','mobile-money','notifications','security']
   const viewResource=user.role==='CARETAKER'?CARETAKER_RESOURCES[page]:RESOURCES[page]
   return <div className="portal"><aside className="side"><Link to="/" className="brand">Kats</Link><div className="role">{user.role.replaceAll('_',' ')}</div><nav aria-label="Workspace">{nav.map(key=><Link key={key} className={page===key?'active':''} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</nav><button className="link-button logout" onClick={logout}><LogOut size={16}/> Sign out</button></aside>
-  <div className="portal-main"><header className="portal-bar"><span>Kats Property Management</span><span>{user.full_name}</span></header><main>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main></div><nav className="mobile-nav" aria-label="Mobile workspace navigation">{(canOperate?['dashboard','rooms','payments','maintenance']:(user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance'])).map((key,i)=>{const Icon=[LayoutDashboard,Building2,CreditCard,Wrench][i];return <Link key={key} to={'/'+key} className={page===key?'active':''}><Icon size={20}/><span>{key[0].toUpperCase()+key.slice(1)}</span></Link>})}<Link to="/more"><Menu size={20}/><span>More</span></Link></nav></div>
+  <div className="portal-main"><header className="portal-bar"><span>Kats Property Management</span><span>{user.full_name}</span></header><main>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='statements'&&nav.includes(page)?(user.role==='TENANT'?<TenantStatementSelfPage/>:<TenantStatementsPage/>):
+    page==='receipts'&&nav.includes(page)?<ReceiptsPage/>:
+    page==='notifications'&&nav.includes(page)?<NotificationsPage/>:page==='inspections'&&nav.includes(page)?<InspectionsPage user={user}/>:
+    page==='mobile-money'&&nav.includes(page)?<MobileMoneyPage/>:page==='efris'&&nav.includes(page)?<FiscalPage/>:
+    page==='documents'&&nav.includes(page)?<DocumentsPage/>:page==='legal'&&nav.includes(page)?<LegalAdminPage/>:
+    page==='audit'&&nav.includes(page)?<AuditPage/>:page==='inquiries'&&nav.includes(page)?<ContactInboxPage/>:
+    page==='renewals'&&nav.includes(page)?<RenewalsPage/>:page==='deposits'&&nav.includes(page)?<DepositsPage user={user}/>:
+    page==='work-orders'&&nav.includes(page)?<WorkOrdersPage user={user}/>:
+    page==='settings'&&nav.includes(page)?<SettingsAdminPage/>:page==='security'&&nav.includes(page)?<SecurityPage onSignedOut={logout}/>:
+    page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main></div><nav className="mobile-nav" aria-label="Mobile workspace navigation">{(canOperate?['dashboard','rooms','payments','maintenance']:(user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance'])).map((key,i)=>{const Icon=[LayoutDashboard,Building2,CreditCard,Wrench][i];return <Link key={key} to={'/'+key} className={page===key?'active':''}><Icon size={20}/><span>{key[0].toUpperCase()+key.slice(1)}</span></Link>})}<Link to="/more"><Menu size={20}/><span>More</span></Link></nav></div>
 }
 export default function App() {
   const [user,setUser]=useState<User|null>(null)
@@ -246,17 +252,33 @@ export default function App() {
   const [online,setOnline]=useState(navigator.onLine)
   const navigate=useNavigate()
   useEffect(()=>{api('auth/me').then(p=>setUser(p.user)).catch(()=>{}).finally(()=>setReady(true))},[])
+  useEffect(()=>{
+    const expired=()=>setUser(null)
+    window.addEventListener('kats:session-expired',expired)
+    return ()=>window.removeEventListener('kats:session-expired',expired)
+  },[])
   useEffect(()=>{const update=()=>setOnline(navigator.onLine);window.addEventListener('online',update);window.addEventListener('offline',update);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}},[])
   function logout(){api('auth/logout',{method:'POST'}).catch(()=>{}).finally(()=>{setUser(null);navigate('/')})}
   if(!ready)return <div className="loading">Loading Kats…</div>
-  const legal:Record<string,string>={privacy:'Privacy policy requires client and legal review before launch. This system is not yet deployed for public customer use.',terms:'Terms of service are pending customer approval. Financial and EFRIS services are not yet live.',cookies:'Essential secure session cookies are used for authenticated access. Additional processing will be documented before deployment.'}
+  
   return <>{!online&&<div className="offline" role="status">Offline. Reconnect to view private records.</div>}<Routes>
     <Route path="/" element={<Landing user={user} logout={logout}/>}/>
     <Route path="/login" element={user?<Navigate to="/dashboard" replace/>:<Login onSuccess={setUser}/>}/>
     <Route path="/features" element={<TextPage title="Features" body="Manage units, leases, invoices, verified manual payments, maintenance and expenses. MTN/Airtel and EFRIS require provider verification." user={user} logout={logout}/>}/>
-    <Route path="/contact" element={<TextPage title="Contact and support" body="Contact details and demo-booking workflow will be published before launch. No payment is accepted through this page." user={user} logout={logout}/>}/>
-    {Object.entries(legal).map(([slug,body])=><Route key={slug} path={'/'+slug} element={<TextPage title={slug[0].toUpperCase()+slug.slice(1)} body={body} user={user} logout={logout}/>}/>)}
-    {['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports','users','assignments','more'].map(path=><Route key={path} path={'/'+path} element={user?<Portal user={user} logout={logout}/>:<Navigate to="/login" replace/>}/>)}
+    <Route path="/contact" element={<ContactPage/>}/>
+    {['privacy','terms','cookies','refund'].map(slug=><Route key={slug} path={'/'+slug} element={<PublicLegalPage slug={slug}/>}/>)}
+    {['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports','statements','receipts','users','assignments','notifications','inspections','renewals','deposits','work-orders','settings','mobile-money','efris','documents','legal','audit','inquiries','security','more'].map(path=><Route key={path} path={'/'+path} element={user?<Portal user={user} logout={logout}/>:<Navigate to="/login" replace/>}/>)}
+    {['dashboard','payments','invoices','receipts','maintenance','lease','profile'].map(path=>
+      <Route key={'tenant-'+path} path={'/tenant/'+path} element={<Navigate to={path==='lease'?'/dashboard':path==='profile'?'/security':'/'+path} replace/>}/>)}
+    {['dashboard','rooms','maintenance','inspections','payments','profile'].map(path=>
+      <Route key={'caretaker-'+path} path={'/caretaker/'+path} element={<Navigate to={path==='profile'?'/security':'/'+path} replace/>}/>)}
+    {['users','roles','permissions','integrations','efris','payments','audit-logs','legal-pages','system-settings'].map(path=>
+      <Route key={'admin-'+path} path={'/admin/'+path} element={<Navigate to={
+        path==='audit-logs'?'/audit':path==='legal-pages'?'/legal':path==='system-settings'?'/security':
+        path==='integrations'?'/efris':path==='roles'||path==='permissions'?'/users':'/'+path
+      } replace/>}/>)}
+    <Route path="/how-it-works" element={<TextPage title="How it works" body="Create properties and rooms, onboard tenants and leases, issue rent invoices, verify collections, track maintenance and review reports." user={user} logout={logout}/>}/>
+    <Route path="/pricing" element={<TextPage title="Pricing" body="Contact the property owner for deployment and service pricing." user={user} logout={logout}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/>
   </Routes></>
 }

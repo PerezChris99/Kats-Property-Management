@@ -33,7 +33,7 @@ def auth_client(app, user):
     client = app.test_client()
     with app.app_context():
         response = app.response_class()
-        set_access_cookies(response, create_access_token(identity=user.id))
+        set_access_cookies(response, create_access_token(identity=user.id, additional_claims={"sv":user.session_version}))
         for cookie in response.headers.getlist("Set-Cookie"):
             client.set_cookie(cookie.split("=", 1)[0], cookie.split("=", 1)[1].split(";", 1)[0])
     return client

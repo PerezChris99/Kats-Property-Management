@@ -1,9 +1,9 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from functools import wraps
 import os
 from flask import Blueprint, abort, jsonify, request
 from flask_jwt_extended import (
-    create_access_token, create_refresh_token, get_jwt_identity,
+    create_access_token, create_refresh_token, get_jwt_identity, get_jwt, decode_token,
     jwt_required, set_access_cookies, set_refresh_cookies, unset_jwt_cookies
 )
 from argon2 import PasswordHasher
@@ -12,8 +12,8 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from .extensions import db, limiter
 from .models import (
-    User, Property, Room, RoomStateHistory, Tenant, Lease,
-    Invoice, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog, CaretakerAssignment, Inspection
+    User, RefreshSession, Permission, Role, RolePermission, Property, Room, RoomStateHistory, Tenant, Lease,
+    Invoice, InvoiceLine, CreditNote, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog, CaretakerAssignment, Inspection
 )
 
 api = Blueprint("api", __name__)
@@ -62,9 +62,16 @@ def current_user():
     user = db.session.get(User, get_jwt_identity())
     if not user or not user.is_active:
         abort(403)
+    if get_jwt().get("sv") != user.session_version:
+        abort(401, description="Session expired; sign in again")
     return user
 
 def roles(*allowed):
+    """Enforce statutory app ceiling plus mutable DB role grants.
+
+    Each decorated route has a role permission seeded by the CLI. Once a route
+    permission exists, revocation takes effect without redeployment.
+    """
     def decorator(fn):
         @wraps(fn)
         @jwt_required()
@@ -72,7 +79,15 @@ def roles(*allowed):
             user = current_user()
             if user.role not in allowed:
                 abort(403)
+            permission_name = "route:" + str(request.endpoint)
+            rule = db.session.get(Permission, permission_name)
+            if rule is None:
+                if os.getenv("APP_ENV") == "production":
+                    abort(403, description="Permission registry not initialized")
+            elif not db.session.get(RolePermission,(user.role, permission_name)):
+                abort(403, description="Role permission revoked")
             return fn(user, *args, **kwargs)
+        wrapped.__allowed_roles__ = tuple(allowed)
         return wrapped
     return decorator
 
@@ -120,21 +135,77 @@ def login():
     if not valid:
         return fail("Invalid email or password", 401)
     response = jsonify(user=serialize(user, "id", "full_name", "role"))
-    set_access_cookies(response, create_access_token(identity=user.id))
-    set_refresh_cookies(response, create_refresh_token(identity=user.id))
+    claims = {"sv": user.session_version}
+    refresh_token = create_refresh_token(identity=user.id, additional_claims=claims)
+    from datetime import datetime, timezone
+    expiry = datetime.fromtimestamp(decode_token(refresh_token)["exp"], tz=timezone.utc)
+    db.session.add(RefreshSession(user_id=user.id, token_jti=decode_token(refresh_token)["jti"], expires_at=expiry))
+    audit(user, "auth.login", "user", user.id)
+    db.session.commit()
+    set_access_cookies(response, create_access_token(identity=user.id, additional_claims=claims))
+    set_refresh_cookies(response, refresh_token)
     return response
 
 @api.post("/auth/refresh")
 @jwt_required(refresh=True)
 def refresh():
+    from .models import utcnow
+    token = get_jwt()
     user = current_user()
+    session = db.session.query(RefreshSession).filter_by(
+        token_jti=token["jti"], user_id=user.id, revoked_at=None
+    ).with_for_update().first()
+    if session is None or session.expires_at.replace(tzinfo=timezone.utc) <= utcnow():
+        return fail("Refresh session expired or already used", 401)
+    claims = {"sv": user.session_version}
+    new_refresh = create_refresh_token(identity=user.id, additional_claims=claims)
+    expiry = datetime.fromtimestamp(decode_token(new_refresh)["exp"], tz=timezone.utc)
+    session.revoked_at = utcnow()
+    db.session.add(RefreshSession(user_id=user.id, token_jti=decode_token(new_refresh)["jti"], expires_at=expiry))
+    db.session.commit()
     response = jsonify(user=serialize(user, "id", "full_name", "role"))
-    set_access_cookies(response, create_access_token(identity=user.id))
+    set_access_cookies(response, create_access_token(identity=user.id, additional_claims=claims))
+    set_refresh_cookies(response, new_refresh)
     return response
 
 @api.post("/auth/logout")
+@jwt_required()
 def logout():
-    response = jsonify(message="Signed out")
+    user = current_user()
+    user.session_version += 1
+    db.session.query(RefreshSession).filter_by(user_id=user.id, revoked_at=None).update(
+        {RefreshSession.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False
+    )
+    audit(user, "auth.logout", "user", user.id)
+    db.session.commit()
+    response = jsonify(message="Signed out from all devices")
+    unset_jwt_cookies(response)
+    return response
+
+@api.post("/auth/change-password")
+@jwt_required()
+@limiter.limit("5 per hour")
+def change_password():
+    user = current_user()
+    obj = data()
+    current = required_string(obj, "current_password", 256)
+    updated = required_string(obj, "new_password", 256)
+    if len(updated) < 12 or updated == current:
+        return fail("A different password of at least 12 characters is required")
+    try:
+        valid = hasher.verify(user.password_hash, current)
+    except (VerifyMismatchError, VerificationError):
+        valid = False
+    if not valid:
+        return fail("Incorrect current password", 403)
+    user.password_hash = hasher.hash(updated)
+    user.session_version += 1
+    db.session.query(RefreshSession).filter_by(user_id=user.id, revoked_at=None).update(
+        {RefreshSession.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False
+    )
+    audit(user, "auth.change_password", "user", user.id)
+    db.session.commit()
+    response = jsonify(message="Password changed; please sign in again")
     unset_jwt_cookies(response)
     return response
 
@@ -289,7 +360,7 @@ def invoices():
     elif user.role not in STAFF:
         abort(403)
     results = list_page(Invoice, query.order_by(Invoice.created_at.desc()))
-    fields = ("id", "invoice_number", "lease_id", "tenant_id", "period_start", "period_end", "due_date", "total_ugx", "paid_ugx", "status")
+    fields = ("id", "invoice_number", "lease_id", "tenant_id", "period_start", "period_end", "due_date", "total_ugx", "paid_ugx", "credit_ugx", "status")
     return jsonify(items=[serialize(inv, *fields) for inv in results.items], total=results.total)
 
 @api.post("/invoices")
@@ -302,13 +373,44 @@ def add_invoice(user):
     start, end, due = [parse_date(obj.get(key)) for key in ("period_start", "period_end", "due_date")]
     if end < start or start < lease.start_date or end > lease.end_date:
         return fail("Billing period outside lease bounds")
-    total = ugx(obj.get("total_ugx"), positive=True)
+    supplied_lines = obj.get("lines")
+    prepared = []
+    if supplied_lines is not None:
+        if not isinstance(supplied_lines, list) or not 1 <= len(supplied_lines) <= 30:
+            return fail("Invoice must contain between one and thirty lines")
+        for line in supplied_lines:
+            if not isinstance(line, dict):
+                return fail("Invoice line must be an object")
+            quantity = line.get("quantity", 1)
+            if type(quantity) is not int or not 1 <= quantity <= 100000:
+                return fail("Line quantity must be a positive integer")
+            price = ugx(line.get("unit_price_ugx"))
+            kind = required_string(line, "charge_type", 40).upper()
+            if kind not in {"RENT","WATER","ELECTRICITY","GARBAGE","PARKING","CLEANING","DAMAGE","LATE_FEE","MISCELLANEOUS"}:
+                return fail("Unsupported invoice charge type")
+            description = required_string(line, "description", 300)
+            amount = quantity * price
+            if amount > 10**15:
+                return fail("Invoice line amount exceeds allowable limit")
+            prepared.append((kind, description, quantity, price, amount))
+        total = sum(entry[4] for entry in prepared)
+        ugx(total, positive=True)
+        if "total_ugx" in obj and ugx(obj["total_ugx"]) != total:
+            return fail("Invoice total must equal the sum of its lines")
+    else:
+        total = ugx(obj.get("total_ugx"), positive=True)
+        prepared = [("RENT", "Rent and approved charges", 1, total, total)]
     from .models import new_id
     invoice = Invoice(lease_id=lease.id, tenant_id=lease.tenant_id, period_start=start, period_end=end,
                       due_date=due, total_ugx=total, invoice_number="KATS-" + new_id()[:12].upper())
     db.session.add(invoice)
     try:
         db.session.flush()
+        db.session.add_all([
+            InvoiceLine(invoice_id=invoice.id, charge_type=kind, description=description,
+                        quantity=qty, unit_price_ugx=price, amount_ugx=amount)
+            for kind, description, qty, price, amount in prepared
+        ])
         db.session.add(LedgerEntry(invoice_id=invoice.id, event="INVOICE_ISSUED", amount_ugx=total))
         audit(user, "invoice.issue", "invoice", invoice.id)
         db.session.commit()
@@ -340,7 +442,7 @@ def record_manual_payment(user):
     if method not in ("CASH", "BANK_TRANSFER"):
         return fail("Only cash and bank proof are accepted here")
     invoice = db.session.get(Invoice, required_string(obj, "invoice_id"))
-    if not invoice or invoice.status in ("VOID", "PAID"):
+    if not invoice or invoice.status in ("VOID", "PAID", "CREDITED"):
         return fail("Open invoice required")
     key = required_string(obj, "idempotency_key", 128)
     existing = db.session.query(Payment).filter_by(idempotency_key=key).first()
@@ -351,7 +453,7 @@ def record_manual_payment(user):
             return fail("Idempotency key already used for a different payment", 409)
         return jsonify(payment=serialize(existing, "id", "status", "amount_ugx")), 200
     amount = ugx(obj.get("amount_ugx"), positive=True)
-    if amount > invoice.total_ugx - invoice.paid_ugx:
+    if amount > invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx:
         return fail("Payment is greater than outstanding invoice balance")
     reference = obj.get("reference")
     if method == "BANK_TRANSFER":
@@ -385,10 +487,10 @@ def approve_payment(user, payment_id):
     if payment.created_by == user.id:
         return fail("Payment must be approved by a different staff member", 403)
     invoice = db.session.query(Invoice).filter_by(id=payment.invoice_id).with_for_update().first()
-    if invoice.status == "VOID" or payment.amount_ugx > invoice.total_ugx - invoice.paid_ugx:
+    if invoice.status == "VOID" or payment.amount_ugx > invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx:
         return fail("Payment conflicts with current invoice balance", 409)
     invoice.paid_ugx += payment.amount_ugx
-    invoice.status = "PAID" if invoice.paid_ugx == invoice.total_ugx else "PARTIALLY_PAID"
+    invoice.status = "PAID" if invoice.paid_ugx + invoice.credit_ugx == invoice.total_ugx else "PARTIALLY_PAID"
     payment.status = "RECONCILED"
     payment.reviewed_by = user.id
     db.session.add(LedgerEntry(invoice_id=invoice.id, payment_id=payment.id,
@@ -466,8 +568,8 @@ def add_expense(user):
 def dashboard(user):
     rooms_count = db.session.query(func.count(Room.id)).scalar() or 0
     occupied = db.session.query(func.count(Room.id)).filter(Room.status == "OCCUPIED").scalar() or 0
-    expected = db.session.query(func.coalesce(func.sum(Invoice.total_ugx), 0)).scalar() or 0
-    paid = db.session.query(func.coalesce(func.sum(Invoice.paid_ugx), 0)).scalar() or 0
+    expected = db.session.query(func.coalesce(func.sum(Invoice.total_ugx - Invoice.credit_ugx), 0)).filter(Invoice.status != "VOID").scalar() or 0
+    paid = db.session.query(func.coalesce(func.sum(Invoice.paid_ugx), 0)).filter(Invoice.status != "VOID").scalar() or 0
     open_maintenance = db.session.query(func.count(MaintenanceRequest.id)).filter(MaintenanceRequest.status.in_(["OPEN","ASSIGNED","IN_PROGRESS","ON_HOLD"])).scalar() or 0
     return jsonify(rooms=rooms_count, occupied_rooms=occupied, vacant_rooms=max(0, rooms_count - occupied),
                    expected_ugx=int(expected), collected_ugx=int(paid), outstanding_ugx=int(expected - paid),
@@ -657,12 +759,12 @@ def caretaker_payments(user):
 def caretaker_record_cash(user):
     obj = data()
     invoice = db.session.get(Invoice, required_string(obj, "invoice_id"))
-    if not invoice or invoice.status in ("PAID", "VOID"):
+    if not invoice or invoice.status in ("PAID", "VOID", "CREDITED"):
         return fail("Open invoice required")
     lease = db.session.get(Lease, invoice.lease_id)
     ensure_assigned(user, lease.room_id)
     amount = ugx(obj.get("amount_ugx"), positive=True)
-    if amount > invoice.total_ugx - invoice.paid_ugx:
+    if amount > invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx:
         return fail("Cash exceeds outstanding balance")
     key = required_string(obj, "idempotency_key", 128)
     existing = db.session.query(Payment).filter_by(idempotency_key=key).first()
@@ -741,6 +843,11 @@ def admin_user_status(user, account_id):
         return fail("is_active must be a boolean")
     previous = account.is_active
     account.is_active = value
+    if not value:
+        account.session_version += 1
+        db.session.query(RefreshSession).filter_by(user_id=account.id, revoked_at=None).update(
+            {RefreshSession.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False
+        )
     audit(user, "user.status", "user", account.id, previous=previous, active=value)
     db.session.commit()
     return jsonify(user=serialize(account, "id", "full_name", "email", "role", "is_active"))
@@ -785,8 +892,8 @@ def void_invoice(user, invoice_id):
         abort(404)
     if invoice.status == "VOID":
         return jsonify(invoice=serialize(invoice, "id", "status")), 200
-    if invoice.paid_ugx != 0:
-        return fail("Paid invoices require financial credit-note review", 409)
+    if invoice.paid_ugx != 0 or invoice.credit_ugx != 0:
+        return fail("Invoices with payments or credits cannot be voided", 409)
     if invoice.status not in ("ISSUED", "OVERDUE"):
         return fail("Cannot void this invoice state", 409)
     invoice.status = "VOID"
@@ -811,8 +918,9 @@ def report_summary(user):
         return fail("month must use YYYY-MM")
     month_start = month.replace(day=1)
     month_end = date(month_start.year, month_start.month, calendar.monthrange(month_start.year, month_start.month)[1])
-    billed, applied, invoice_count = db.session.query(
+    billed, credited, applied, invoice_count = db.session.query(
         func.coalesce(func.sum(Invoice.total_ugx), 0),
+        func.coalesce(func.sum(Invoice.credit_ugx), 0),
         func.coalesce(func.sum(Invoice.paid_ugx), 0),
         func.count(Invoice.id),
     ).filter(Invoice.period_start >= month_start, Invoice.period_start <= month_end,
@@ -824,9 +932,10 @@ def report_summary(user):
     occupied = db.session.query(func.count(Room.id)).filter(Room.status == "OCCUPIED").scalar() or 0
     return jsonify(
         month=month_start.isoformat(), billed_ugx=int(billed),
-        applied_to_invoices_ugx=int(applied), outstanding_on_invoices_ugx=int(billed-applied),
+        credited_ugx=int(credited), net_billed_ugx=int(billed - credited),
+        applied_to_invoices_ugx=int(applied), outstanding_on_invoices_ugx=int(billed-credited-applied),
         expenses_in_period_ugx=int(expenses or 0),
-        gross_invoice_margin_ugx=int(billed) - int(expenses or 0),
+        gross_invoice_margin_ugx=int(billed - credited) - int(expenses or 0),
         invoices=int(invoice_count), units=int(rooms_total), occupied_units=int(occupied),
         occupancy_percent=round((occupied/rooms_total)*100, 2) if rooms_total else 0,
         methodology="Invoice cohort balances, not a cashflow or profit and loss statement."
@@ -839,7 +948,7 @@ def report_arrears(user):
     from zoneinfo import ZoneInfo
     now = datetime.now(ZoneInfo("Africa/Kampala")).date()
     invoices = db.session.query(Invoice).filter(
-        Invoice.due_date < now, Invoice.paid_ugx < Invoice.total_ugx,
+        Invoice.due_date < now, Invoice.paid_ugx + Invoice.credit_ugx < Invoice.total_ugx,
         Invoice.status.in_(["ISSUED", "PARTIALLY_PAID", "OVERDUE"])
     ).all()
     buckets = {"1_30_days": 0, "31_60_days": 0, "61_90_days": 0, "over_90_days": 0}
@@ -847,7 +956,7 @@ def report_arrears(user):
     for invoice in invoices:
         age = (now - invoice.due_date).days
         bucket = "1_30_days" if age <= 30 else "31_60_days" if age <= 60 else "61_90_days" if age <= 90 else "over_90_days"
-        buckets[bucket] += invoice.total_ugx - invoice.paid_ugx
+        buckets[bucket] += invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx
         count += 1
     return jsonify(as_of=now.isoformat(), overdue_invoices=count,
                    total_ugx=sum(buckets.values()), ageing_ugx=buckets)
@@ -861,7 +970,7 @@ def export_invoices(user):
     stream = io.StringIO()
     writer = csv.writer(stream)
     writer.writerow(["Invoice number", "Tenant reference", "Period start", "Period end",
-                     "Due date", "Status", "Billed UGX", "Applied UGX", "Outstanding UGX"])
+                     "Due date", "Status", "Billed UGX", "Credited UGX", "Applied UGX", "Outstanding UGX"])
     records = db.session.query(Invoice).order_by(Invoice.created_at.desc()).limit(5000).all()
     for invoice in records:
         # Invoice numbers and references are server-generated UUIDs/IDs; never export arbitrary
@@ -869,8 +978,8 @@ def export_invoices(user):
         writer.writerow([invoice.invoice_number, invoice.tenant_id,
                          invoice.period_start.isoformat(), invoice.period_end.isoformat(),
                          invoice.due_date.isoformat(), invoice.status,
-                         invoice.total_ugx, invoice.paid_ugx,
-                         invoice.total_ugx-invoice.paid_ugx])
+                         invoice.total_ugx, invoice.credit_ugx, invoice.paid_ugx,
+                         invoice.total_ugx-invoice.credit_ugx-invoice.paid_ugx])
     response = Response(stream.getvalue(), mimetype="text/csv; charset=utf-8")
     response.headers["Content-Disposition"] = "attachment; filename=kats-invoices.csv"
     response.headers["Cache-Control"] = "no-store"
@@ -1056,3 +1165,156 @@ def receipt_detail(payment_id):
         valid=payment.status == "RECONCILED", fiscal_status="NOT_FISCALIZED",
         notice="Internal payment acknowledgement only. Not a URA EFRIS fiscal receipt or proof of a bank transfer."
     )
+
+
+@api.get("/invoices/<invoice_id>/lines")
+@jwt_required()
+def invoice_lines(invoice_id):
+    user = current_user()
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice:
+        abort(404)
+    if user.role == "TENANT":
+        owned = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        if invoice.tenant_id != owned:
+            abort(404)
+    elif user.role not in STAFF:
+        abort(403)
+    rows = db.session.query(InvoiceLine).filter_by(invoice_id=invoice.id).all()
+    return jsonify(items=[serialize(x, "id", "description", "charge_type", "quantity",
+                                    "unit_price_ugx", "amount_ugx") for x in rows])
+
+@api.get("/invoices/<invoice_id>/credit-notes")
+@jwt_required()
+def list_invoice_credits(invoice_id):
+    user = current_user()
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice:
+        abort(404)
+    if user.role == "TENANT":
+        linked = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        if linked is None or invoice.tenant_id != linked:
+            abort(404)
+    elif user.role not in STAFF:
+        abort(403)
+    credits = db.session.query(CreditNote).filter_by(invoice_id=invoice.id).order_by(CreditNote.created_at).all()
+    return jsonify(items=[serialize(x, "id", "amount_ugx", "reason", "created_at") for x in credits])
+
+@api.post("/invoices/<invoice_id>/credit-notes")
+@roles("OWNER", "ACCOUNTANT", "SUPER_ADMIN")
+def apply_invoice_credit(user, invoice_id):
+    obj = data()
+    amount = ugx(obj.get("amount_ugx"), positive=True)
+    key = required_string(obj, "idempotency_key", 128)
+    reason = required_string(obj, "reason", 500)
+    existing = db.session.query(CreditNote).filter_by(idempotency_key=key).first()
+    if existing:
+        if existing.invoice_id != invoice_id or existing.amount_ugx != amount:
+            return fail("Conflicting idempotency key", 409)
+        return jsonify(credit=serialize(existing, "id", "invoice_id", "amount_ugx")), 200
+    invoice = db.session.query(Invoice).filter_by(id=invoice_id).with_for_update().first()
+    if not invoice:
+        abort(404)
+    if invoice.status == "VOID" or amount > invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx:
+        return fail("Credit exceeds outstanding balance or invoice is void", 409)
+    note = CreditNote(invoice_id=invoice.id, amount_ugx=amount, reason=reason,
+                      created_by=user.id, idempotency_key=key)
+    invoice.credit_ugx += amount
+    if invoice.paid_ugx + invoice.credit_ugx == invoice.total_ugx:
+        invoice.status = "PAID" if invoice.paid_ugx > 0 else "CREDITED"
+    else:
+        invoice.status = "PARTIALLY_PAID" if invoice.paid_ugx else "ISSUED"
+    db.session.add(note)
+    try:
+        db.session.flush()
+        db.session.add(LedgerEntry(invoice_id=invoice.id, event="CREDIT_NOTE_ISSUED",
+                                   amount_ugx=-amount))
+        audit(user, "invoice.credit_note", "invoice", invoice.id,
+              credit_note_id=note.id, amount_ugx=amount, reason=reason)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("Duplicate credit note", 409)
+    return jsonify(credit=serialize(note, "id", "invoice_id", "amount_ugx"),
+                   invoice=serialize(invoice, "id", "total_ugx", "credit_ugx", "paid_ugx", "status")), 201
+
+
+@api.get("/tenant/profile")
+@roles("TENANT")
+def tenant_profile(user):
+    tenant = db.session.query(Tenant).filter_by(user_id=user.id).first()
+    if not tenant:
+        return jsonify(tenant=None)
+    return jsonify(tenant=serialize(tenant, "id", "full_name", "phone", "email"))
+
+
+@api.get("/admin/permissions")
+@roles("OWNER","SUPER_ADMIN")
+def list_permission_matrix(user):
+    permissions=db.session.query(Permission).order_by(Permission.name).all()
+    grants=db.session.query(RolePermission).all()
+    by_permission={}
+    for g in grants:
+        by_permission.setdefault(g.permission_name,[]).append(g.role_name)
+    return jsonify(items=[{"name":p.name,"description":p.description,
+                           "granted_roles":sorted(by_permission.get(p.name,[]))}
+                          for p in permissions])
+
+@api.put("/admin/permissions/<path:name>/roles/<role>")
+@roles("SUPER_ADMIN")
+def update_permission_grant(user,name,role):
+    if role not in {"OWNER","MANAGER","ACCOUNTANT","CARETAKER","TENANT","SUPER_ADMIN"}:
+        return fail("Invalid role")
+    rule=db.session.get(Permission,name)
+    if not rule:
+        abort(404)
+    # Core super-admin management and auth must never be lockable via this endpoint.
+    if name.endswith("admin_permission_grant") or name.endswith("update_permission_grant"):
+        return fail("Permission management cannot be disabled",403)
+    desired=data().get("allowed")
+    if type(desired) is not bool:
+        return fail("allowed must be a boolean")
+    rule_endpoint=name.removeprefix("route:")
+    from flask import current_app
+    view=current_app.view_functions.get(rule_endpoint)
+    if view is None:
+        return fail("Unknown permission endpoint")
+    ceiling=getattr(view,"__allowed_roles__",())
+    if role not in ceiling and desired:
+        return fail("Role cannot exceed the route security ceiling",403)
+    grant=db.session.get(RolePermission,(role,name))
+    if desired and not grant:
+        db.session.add(RolePermission(role_name=role,permission_name=name))
+    elif not desired and grant:
+        db.session.delete(grant)
+    audit(user,"permission.update","permission",user.id,permission=name,role=role,allowed=desired)
+    db.session.commit()
+    return jsonify(permission=name,role=role,allowed=desired)
+
+
+@api.get("/tenant/rooms")
+@roles("TENANT")
+def tenant_rooms(user):
+    linked=db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+    if linked is None:
+        return jsonify(items=[],total=0)
+    leases=db.session.query(Lease).filter_by(tenant_id=linked,status="ACTIVE").all()
+    ids=[lease.room_id for lease in leases]
+    rooms=db.session.query(Room).filter(Room.id.in_(ids)).all()
+    return jsonify(items=[serialize(r,"id","number","property_id","status") for r in rooms],
+                   total=len(rooms))
+
+@api.get("/caretaker/roster")
+@roles("OWNER","MANAGER","SUPER_ADMIN")
+def caretaker_roster(user):
+    rows=db.session.query(User).filter_by(role="CARETAKER",is_active=True).order_by(
+        User.full_name).limit(500).all()
+    return jsonify(items=[serialize(u,"id","full_name","role") for u in rows],total=len(rows))
+
+@api.get("/tenants/accounts")
+@roles("OWNER","MANAGER","SUPER_ADMIN")
+def available_tenant_accounts(user):
+    linked=db.session.query(Tenant.user_id).filter(Tenant.user_id.isnot(None))
+    rows=db.session.query(User).filter(User.role=="TENANT",User.is_active.is_(True),
+                                    ~User.id.in_(linked)).order_by(User.full_name).limit(500).all()
+    return jsonify(items=[serialize(u,"id","full_name","email") for u in rows],total=len(rows))

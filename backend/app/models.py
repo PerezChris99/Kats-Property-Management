@@ -17,6 +17,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(30), nullable=False, default="TENANT")
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    session_version = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
 class Property(db.Model):
@@ -88,11 +89,12 @@ class Invoice(db.Model):
     due_date = db.Column(db.Date, nullable=False)
     total_ugx = db.Column(db.BigInteger, nullable=False)
     paid_ugx = db.Column(db.BigInteger, nullable=False, default=0)
+    credit_ugx = db.Column(db.BigInteger, nullable=False, default=0)
     status = db.Column(db.String(30), nullable=False, default="ISSUED")
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     __table_args__ = (
         db.UniqueConstraint("lease_id", "period_start", "period_end", name="uq_lease_billing_period"),
-        CheckConstraint("total_ugx >= 0 AND paid_ugx >= 0 AND paid_ugx <= total_ugx", name="ck_invoice_amounts"),
+        CheckConstraint("total_ugx >= 0 AND paid_ugx >= 0 AND credit_ugx >= 0 AND paid_ugx + credit_ugx <= total_ugx", name="ck_invoice_amounts"),
         CheckConstraint("period_end >= period_start", name="ck_invoice_period"),
     )
 
@@ -112,6 +114,11 @@ class Payment(db.Model):
 
 class LedgerEntry(db.Model):
     __tablename__ = "ledger_entries"
+    __table_args__ = (
+        Index("uq_ledger_payment_event","payment_id","event",unique=True,
+              postgresql_where=text("payment_id IS NOT NULL"),
+              sqlite_where=text("payment_id IS NOT NULL")),
+    )
     id = db.Column(db.String(36), primary_key=True, default=new_id)
     invoice_id = db.Column(db.String(36), db.ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False, index=True)
     payment_id = db.Column(db.String(36), db.ForeignKey("payments.id", ondelete="RESTRICT"), nullable=True)
@@ -180,3 +187,94 @@ class Inspection(db.Model):
         CheckConstraint("damage_estimate_ugx >= 0", name="ck_inspection_damage"),
         CheckConstraint("kind IN ('MOVE_IN','MOVE_OUT','ROUTINE')", name="ck_inspection_kind"),
     )
+
+
+class RefreshSession(db.Model):
+    __tablename__ = "refresh_sessions"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    user_id = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_jti = db.Column(db.String(64), nullable=False, unique=True)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    revoked_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class InvoiceLine(db.Model):
+    __tablename__ = "invoice_lines"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    invoice_id = db.Column(db.String(36), db.ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False, index=True)
+    description = db.Column(db.String(300), nullable=False)
+    charge_type = db.Column(db.String(40), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    unit_price_ugx = db.Column(db.BigInteger, nullable=False)
+    amount_ugx = db.Column(db.BigInteger, nullable=False)
+    __table_args__ = (CheckConstraint(
+        "quantity > 0 AND quantity <= 100000 AND unit_price_ugx >= 0 AND amount_ugx >= 0",
+        name="ck_invoice_line_amounts"),)
+
+class CreditNote(db.Model):
+    __tablename__ = "credit_notes"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    invoice_id = db.Column(db.String(36), db.ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False, index=True)
+    amount_ugx = db.Column(db.BigInteger, nullable=False)
+    reason = db.Column(db.String(500), nullable=False)
+    idempotency_key = db.Column(db.String(128), unique=True, nullable=False)
+    created_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (CheckConstraint("amount_ugx > 0", name="ck_credit_positive"),)
+
+
+class LeaseAmendment(db.Model):
+    __tablename__ = "lease_amendments"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    lease_id = db.Column(db.String(36), db.ForeignKey("leases.id", ondelete="RESTRICT"), nullable=False, index=True)
+    previous_end_date = db.Column(db.Date, nullable=False)
+    new_end_date = db.Column(db.Date, nullable=False)
+    effective_date = db.Column(db.Date, nullable=False)
+    previous_rent_ugx = db.Column(db.BigInteger, nullable=False)
+    new_rent_ugx = db.Column(db.BigInteger, nullable=False)
+    reason = db.Column(db.String(500), nullable=False)
+    created_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (
+        CheckConstraint("new_end_date > previous_end_date", name="ck_renewal_dates"),
+        CheckConstraint("previous_rent_ugx > 0 AND new_rent_ugx > 0", name="ck_renewal_rent"),
+    )
+
+class DepositMovement(db.Model):
+    __tablename__ = "deposit_movements"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    lease_id = db.Column(db.String(36), db.ForeignKey("leases.id", ondelete="RESTRICT"), nullable=False, index=True)
+    kind = db.Column(db.String(20), nullable=False)
+    amount_ugx = db.Column(db.BigInteger, nullable=False)
+    external_reference = db.Column(db.String(160))
+    reason = db.Column(db.String(500), nullable=False)
+    idempotency_key = db.Column(db.String(128), nullable=False, unique=True)
+    status = db.Column(db.String(30), nullable=False, default="PENDING_REVIEW")
+    created_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    reviewed_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    reviewed_at = db.Column(db.DateTime(timezone=True))
+    __table_args__ = (
+        db.UniqueConstraint("kind", "external_reference", name="uq_deposit_external_reference"),
+        CheckConstraint("amount_ugx > 0", name="ck_deposit_amount"),
+        CheckConstraint("kind IN ('HOLD','REFUND','WITHHOLD')", name="ck_deposit_kind"),
+        CheckConstraint("status IN ('PENDING_REVIEW','APPROVED','REJECTED')", name="ck_deposit_state"),
+    )
+
+
+class Permission(db.Model):
+    __tablename__ = "permissions"
+    name = db.Column(db.String(160), primary_key=True)
+    description = db.Column(db.String(250), nullable=False, default="")
+
+class Role(db.Model):
+    __tablename__ = "roles"
+    name = db.Column(db.String(30), primary_key=True)
+    description = db.Column(db.String(250), nullable=False, default="")
+
+class RolePermission(db.Model):
+    __tablename__ = "role_permissions"
+    role_name = db.Column(db.String(30), db.ForeignKey("roles.name", ondelete="CASCADE"), primary_key=True)
+    permission_name = db.Column(db.String(160), db.ForeignKey("permissions.name", ondelete="CASCADE"), primary_key=True)
+    granted_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
