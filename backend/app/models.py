@@ -217,3 +217,41 @@ class CreditNote(db.Model):
     created_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     __table_args__ = (CheckConstraint("amount_ugx > 0", name="ck_credit_positive"),)
+
+
+class LeaseAmendment(db.Model):
+    __tablename__ = "lease_amendments"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    lease_id = db.Column(db.String(36), db.ForeignKey("leases.id", ondelete="RESTRICT"), nullable=False, index=True)
+    previous_end_date = db.Column(db.Date, nullable=False)
+    new_end_date = db.Column(db.Date, nullable=False)
+    effective_date = db.Column(db.Date, nullable=False)
+    previous_rent_ugx = db.Column(db.BigInteger, nullable=False)
+    new_rent_ugx = db.Column(db.BigInteger, nullable=False)
+    reason = db.Column(db.String(500), nullable=False)
+    created_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (
+        CheckConstraint("new_end_date > previous_end_date", name="ck_renewal_dates"),
+        CheckConstraint("previous_rent_ugx > 0 AND new_rent_ugx > 0", name="ck_renewal_rent"),
+    )
+
+class DepositMovement(db.Model):
+    __tablename__ = "deposit_movements"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    lease_id = db.Column(db.String(36), db.ForeignKey("leases.id", ondelete="RESTRICT"), nullable=False, index=True)
+    kind = db.Column(db.String(20), nullable=False)
+    amount_ugx = db.Column(db.BigInteger, nullable=False)
+    external_reference = db.Column(db.String(160))
+    reason = db.Column(db.String(500), nullable=False)
+    idempotency_key = db.Column(db.String(128), nullable=False, unique=True)
+    status = db.Column(db.String(30), nullable=False, default="PENDING_REVIEW")
+    created_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    reviewed_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    reviewed_at = db.Column(db.DateTime(timezone=True))
+    __table_args__ = (
+        CheckConstraint("amount_ugx > 0", name="ck_deposit_amount"),
+        CheckConstraint("kind IN ('HOLD','REFUND','WITHHOLD')", name="ck_deposit_kind"),
+        CheckConstraint("status IN ('PENDING_REVIEW','APPROVED','REJECTED')", name="ck_deposit_state"),
+    )
