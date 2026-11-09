@@ -1,4 +1,5 @@
 import { api, csrfToken } from './lib/api'
+import { WorkspaceNavigation } from './WorkspaceNavigation'
 import {ProrationPage} from './ProrationPage'
 import {AnnualTrendsPage} from './AnnualTrendsPage'
 import {PortfolioEditPage} from './PortfolioEditPage'
@@ -11,7 +12,7 @@ import {NotificationsPage, InspectionsPage, MobileMoneyPage, FiscalPage, LegalAd
   ReceiptsPage, TenantStatementsPage, TenantStatementSelfPage, ContactPage, ContactInboxPage} from './Modules'
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Building2, CreditCard, LayoutDashboard, Menu, ShieldCheck, Wrench, LogOut } from 'lucide-react'
+import { Building2, CreditCard, LayoutDashboard, ShieldCheck, Wrench } from 'lucide-react'
 
 type User = { id: string; full_name: string; role: string }
 type Row = Record<string, string | number | boolean | null>
@@ -241,8 +242,21 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
   const canOperate=roles.includes(user.role)
   const nav = canOperate?['dashboard','properties','buildings','floors','rooms','room-placement','portfolio-editor','tenants','leases','proration','invoices','payments','maintenance','expenses','expense-approvals','reports','trends','statements','receipts','mobile-money','efris','inspections','renewals','deposits','work-orders','documents','notifications','security',...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['settings']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['users','invitations','permissions','legal','audit','inquiries']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'||user.role==='MANAGER'?['assignments']:[])]:user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance','work-orders','inspections','documents','notifications','security','receipts']:['dashboard','invoices','payments','statements','receipts','deposits','maintenance','inspections','documents','mobile-money','notifications','security']
   const viewResource=user.role==='CARETAKER'?CARETAKER_RESOURCES[page]:RESOURCES[page]
-  return <div className="portal"><aside className="side"><Link to="/" className="brand">Kats</Link><div className="role">{user.role.replaceAll('_',' ')}</div><nav aria-label="Workspace">{nav.map(key=><Link key={key} className={page===key?'active':''} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</nav><button className="link-button logout" onClick={logout}><LogOut size={16}/> Sign out</button></aside>
-  <div className="portal-main"><header className="portal-bar"><span>Kats Property Management</span><span>{user.full_name}</span></header><main>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='statements'&&nav.includes(page)?(user.role==='TENANT'?<TenantStatementSelfPage/>:<TenantStatementsPage/>):
+  const pageTitle = page.replaceAll('-', ' ').replace(/^./, c => c.toUpperCase())
+  return <div className="portal">
+    <WorkspaceNavigation pages={nav} active={page} user={user} onLogout={logout}/>
+    <div className="portal-main">
+      <header className="portal-bar">
+        <div className="portal-location">
+          <span>Workspace <span aria-hidden="true">/</span> {pageTitle}</span>
+          <strong>{pageTitle}</strong>
+        </div>
+        <div className="portal-identity" title={user.full_name}>
+          <span className="identity-avatar" aria-hidden="true">{user.full_name.trim().charAt(0).toUpperCase()}</span>
+          <span><strong>{user.full_name}</strong><small>{user.role.replaceAll('_', ' ')}</small></span>
+        </div>
+      </header>
+      <main className="portal-content" key={page}>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='statements'&&nav.includes(page)?(user.role==='TENANT'?<TenantStatementSelfPage/>:<TenantStatementsPage/>):
     page==='receipts'&&nav.includes(page)?<ReceiptsPage/>:
     page==='notifications'&&nav.includes(page)?<NotificationsPage/>:page==='inspections'&&nav.includes(page)?<InspectionsPage user={user}/>:
     page==='mobile-money'&&nav.includes(page)?<MobileMoneyPage/>:page==='efris'&&nav.includes(page)?<FiscalPage/>:
@@ -258,7 +272,9 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
     page==='renewals'&&nav.includes(page)?<RenewalsPage/>:page==='deposits'&&nav.includes(page)?<DepositsPage user={user}/>:
     page==='work-orders'&&nav.includes(page)?<WorkOrdersPage user={user}/>:
     page==='settings'&&nav.includes(page)?<SettingsAdminPage/>:page==='security'&&nav.includes(page)?<SecurityPage onSignedOut={logout}/>:
-    page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main></div><nav className="mobile-nav" aria-label="Mobile workspace navigation">{(canOperate?['dashboard','rooms','payments','maintenance']:(user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance'])).map((key,i)=>{const Icon=[LayoutDashboard,Building2,CreditCard,Wrench][i];return <Link key={key} to={'/'+key} className={page===key?'active':''}><Icon size={20}/><span>{key[0].toUpperCase()+key.slice(1)}</span></Link>})}<Link to="/more"><Menu size={20}/><span>More</span></Link></nav></div>
+    page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main>
+    </div>
+  </div>
 }
 export default function App() {
   const [user,setUser]=useState<User|null>(null)
