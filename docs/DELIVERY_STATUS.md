@@ -1,26 +1,28 @@
-# Kats Property Management — verified delivery register
+# Kats Property Management — implementation and acceptance register
 
-Last updated: November 9, 2026. The two supplied blueprints define the product scope. The repository began completely empty; implementation is being performed on the perez development branch. No production environment is deployed.
+Updated: 2026-11-09. The repository was initially empty. The blueprints comprise 15 implementation/operations phases. This table is based on files and automated test results; **no code can be certified 100% correct without broader integration, security, performance and user acceptance evidence**.
 
-| Workstream | Implemented in perez | Outstanding for actual acceptance |
-| --- | --- | --- |
-| Repository foundation | Flask/React monorepo, local Docker Compose, perez branch, GitHub build verification | Code review and production release controls |
-| Public landing and PWA | Landing page, responsive navigation, install manifest, offline fallback | Final legal/contact content, real-device 3G/PWA tests |
-| Access and roles | Argon2 password hashes, JWT cookie/CSRF, owner-created users, basic role and tenant-scope controls | Password reset, refresh-token revocation/rotation, complete stored permission matrix and security audit |
-| Properties, rooms, tenants | Core create/list endpoints, room-state audit, basic React forms | Building/floor support, document storage, complete history, search and business rule edge cases |
-| Leases and inspections | Create lease, caretaker assignments, move-out inspection, gated termination, room-state history | Renewal, deposit reconciliation/settlement, damage evidence/photos, partial periods, comprehensive concurrency testing |
-| Billing and ledger | Invoice create, scheduled monthly rent generation, duplicate protection, posted ledger history | Additional charges, proration policy, credit notes, broad reconciliation and ledger completeness |
-| Cash/bank payments | Pending review, two-person approval, idempotency, accounting reversal | Verified bank settlement evidence, complex adjustments, refunds, robust concurrency and reconciliation |
-| MTN MoMo, Airtel Money | Explicitly disabled/not verified | Real provider adapters, approvals, credentials, callback signature/replay, sandbox and production tests |
-| Receipts and EFRIS | Internal non-fiscal acknowledgement API | Official fiscal documents, PDF receipt rendering, URA eligibility, EFRIS API and credit notes |
-| Maintenance and expenses | Maintenance creation, restricted transitions, basic expense records | Work orders, vendor tracking, actual completion evidence, expense approval, audit completeness |
-| Reports | Invoice-period totals, occupancy, arrears aging, expense summary, restricted CSV export and React report page | Real cashflow, PDF/Excel exports, report totals vs verified source records, charts |
-| Notifications | No verified delivery | SMS/email/in-app notifications, templates, retries and user preferences |
-| Admin/finance portals | Owner user management, caretaker scopes, manager and finance routes | Full admin control center, role/permission editor, integration dashboard, queue monitoring |
-| Security, performance and reliability | Server auth, CSRF, role checks, initial tests, PostgreSQL migration CI | Threat-model tests, dependency audit, rate/load benchmarks, formal five-pass review and UAT |
-| Backup and deployment | Encrypted dump and guarded staging restore helpers, HostWares runbooks | Real offsite backup, witnessed restore drill, TLS, infrastructure, secrets and monitoring |
-| Release | Development changes on perez | Reviewed merge to main, tags, staging rollout, landlord training and signoff |
+| Scope | Source implementation present | Remaining validation/dependency |
+|---|---|---|
+| Flask/React/PostgreSQL foundation | Yes: application, migration chain, local Docker, GitHub tests | HostWares staging/production and actual full-stack smoke/load testing |
+| Authentication/session security | Argon2id, JWT+CSRF, refresh replay prevention, password-change invalidation | Real auth penetration review, password recovery/verified email workflow |
+| Role matrix | Database role grants, seeding CLI, server ceilings, administrative API | Full permission UI and exhaustive endpoint/object-matrix testing |
+| Properties and room lifecycle | Basic CRUD create/list, statuses and immutable history | Buildings/floors hierarchy, advanced room editing/search and UAT |
+| Tenant onboarding | Staff provisioning, linking a tenant login, tenant self-rooms/lease | Invitation email identity proof, legacy import and verified data ownership |
+| Leases and inspections | Active leases, renewals, effective rent changes, move-out inspection and termination | Document signatures, comprehensive inspection checklists and proration policy review |
+| Billing and financial ledger | Recurring invoices, line items/charge types, credits, account balances, receipts | External source reconciliation, full deposit rules, tax/legal treatment, real concurrency testing |
+| Cash and bank | Pending evidence, two-person review, ledger posting, accounting reversal | Real bank transfers/receipts verification and actual refund execution |
+| Deposits | Hold/refund/withhold accounting, second-person approval and amount constraints | Verified settlement evidence and real disbursement/provider/bank flow |
+| MTN/Airtel | Server-side adapters, status polling, strict amount/currency/reference matching, integration mock tests | Approved merchant accounts, official provider-contract schema acceptance, sandbox/live end-to-end tests |
+| EFRIS | Durable fiscal outbox, structured approval adapter contract, retry/accepted proof validation | Approved URA-specific signing/encryption SDK or adapter, taxpayer config and fiscal acceptance |
+| Documents | Signed S3-compatible private upload/download endpoints and UI | Object-storage credentials, malware scanning provider and private data retention |
+| Notifications | In-app reminders with durable dedupe, scheduled lease expiry | SMS/email vendor integration, delivery verification and preferences |
+| Maintenance/expenses | Basic workflows, work orders, status changes, expenses | Contractor approvals, complex cost reconciliation and UAT |
+| Reporting | Cohort metrics, overdue aging, CSV/XLSX exports, PDF statements/internal receipts | Real bank cashflow, report-data reconciliation, advanced charting |
+| Public site/legal/contact | Landing, public contact/demo intake, owner inbox, versioned publishable legal pages | Approved legal copy, privacy compliance and communication operations |
+| Operational readiness | Encrypted backup/staging restore helpers, security middleware, migration and CI checks | Actual restore drill, TLS, offsite object storage, monitoring, incident drills, manual penetration and device testing |
+| Code release | `perez` development changes and PR | GitHub merge verification and release management; no production tag without acceptance |
 
-Do not infer deployment, external payment success, fiscal acceptance or recovery readiness from a source file. Follow docs/GO_LIVE_CHECKLIST.md and docs/HOSTWARES_DEPLOYMENT.md before promoting any code to production.
+**Known code-level gaps and risks:** Building/floor hierarchy, full refund settlement, role-editor frontend, signed URA provider-specific adapter, customer messaging transports, invitations/reset email delivery, deep automated E2E/performance/security test coverage, and complete administrator workflow are not fully implemented or validated. These cannot honestly be relabeled infrastructure-only. Prioritize them before marketing this as production-ready.
 
-Five mandatory independent review passes: correctness, security, performance, reliability and product/mobile UX. All critical/high/medium findings must be resolved before release.
+All external integration flags remain OFF by default. See GO_LIVE_CHECKLIST.md for customer and infrastructure acceptance.
