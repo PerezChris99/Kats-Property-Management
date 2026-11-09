@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from .extensions import db, limiter
 from .models import (
     User, Property, Room, RoomStateHistory, Tenant, Lease,
-    Invoice, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog
+    Invoice, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog, CaretakerAssignment
 )
 
 api = Blueprint("api", __name__)
@@ -519,3 +519,166 @@ def generate_rent_for_month(user):
     from .billing import generate_monthly_rent
     month = parse_date(data().get("month"))
     return jsonify(result=generate_monthly_rent(month, actor=user))
+
+
+def ensure_assigned(caretaker, room_id):
+    assigned = db.session.query(CaretakerAssignment.id).filter_by(
+        caretaker_user_id=caretaker.id, room_id=room_id
+    ).first()
+    if not assigned:
+        abort(403)
+
+@api.get("/caretaker/assignments")
+@roles("OWNER", "MANAGER", "SUPER_ADMIN")
+def caretaker_assignments(user):
+    results = list_page(CaretakerAssignment, db.session.query(CaretakerAssignment).order_by(
+        CaretakerAssignment.assigned_at.desc()
+    ))
+    return jsonify(items=[serialize(x, "id", "caretaker_user_id", "room_id", "assigned_at")
+                          for x in results.items], total=results.total)
+
+@api.post("/caretaker/assignments")
+@roles("OWNER", "MANAGER", "SUPER_ADMIN")
+def assign_caretaker(user):
+    obj = data()
+    caretaker = db.session.get(User, required_string(obj, "caretaker_user_id"))
+    room = db.session.get(Room, required_string(obj, "room_id"))
+    if not caretaker or caretaker.role != "CARETAKER" or not caretaker.is_active or not room:
+        return fail("An active caretaker and an existing room are required")
+    assignment = CaretakerAssignment(caretaker_user_id=caretaker.id, room_id=room.id)
+    db.session.add(assignment)
+    try:
+        db.session.flush()
+        audit(user, "caretaker.assign", "room", room.id, caretaker_id=caretaker.id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("Caretaker already assigned to this room", 409)
+    return jsonify(assignment=serialize(assignment, "id", "caretaker_user_id", "room_id")), 201
+
+@api.delete("/caretaker/assignments/<assignment_id>")
+@roles("OWNER", "MANAGER", "SUPER_ADMIN")
+def unassign_caretaker(user, assignment_id):
+    assignment = db.session.get(CaretakerAssignment, assignment_id)
+    if not assignment:
+        abort(404)
+    audit(user, "caretaker.unassign", "room", assignment.room_id,
+          caretaker_id=assignment.caretaker_user_id)
+    db.session.delete(assignment)
+    db.session.commit()
+    return jsonify(message="Assignment removed")
+
+@api.get("/caretaker/dashboard")
+@roles("CARETAKER")
+def caretaker_dashboard(user):
+    room_ids = db.session.query(CaretakerAssignment.room_id).filter_by(caretaker_user_id=user.id)
+    assigned = db.session.query(func.count(Room.id)).filter(Room.id.in_(room_ids)).scalar() or 0
+    open_requests = db.session.query(func.count(MaintenanceRequest.id)).filter(
+        MaintenanceRequest.room_id.in_(room_ids),
+        MaintenanceRequest.status.in_(["OPEN", "ASSIGNED", "IN_PROGRESS"])
+    ).scalar() or 0
+    pending_cash = db.session.query(func.count(Payment.id)).filter(
+        Payment.created_by == user.id, Payment.status == "PENDING_REVIEW"
+    ).scalar() or 0
+    return jsonify(assigned_rooms=assigned, open_maintenance=open_requests,
+                   pending_cash=pending_cash)
+
+@api.get("/caretaker/rooms")
+@roles("CARETAKER")
+def caretaker_rooms(user):
+    query = db.session.query(Room).join(
+        CaretakerAssignment, CaretakerAssignment.room_id == Room.id
+    ).filter(CaretakerAssignment.caretaker_user_id == user.id).order_by(Room.number)
+    results = list_page(Room, query)
+    return jsonify(items=[serialize(r, "id", "property_id", "number", "status")
+                          for r in results.items], total=results.total)
+
+@api.post("/caretaker/rooms/<room_id>/status")
+@roles("CARETAKER")
+def caretaker_room_status(user, room_id):
+    ensure_assigned(user, room_id)
+    obj = data()
+    room = db.session.get(Room, room_id)
+    if not room:
+        abort(404)
+    target = required_string(obj, "status").upper()
+    if target not in {"CLEANING", "MAINTENANCE", "UNAVAILABLE", "NOTICE_GIVEN"}:
+        return fail("Status requires manager approval")
+    previous = room.status
+    room.status = target
+    db.session.add(RoomStateHistory(room_id=room.id, old_status=previous,
+                                    new_status=target, reason=required_string(obj, "reason", 500),
+                                    actor_id=user.id))
+    audit(user, "caretaker.room_status", "room", room.id, previous=previous, new=target)
+    db.session.commit()
+    return jsonify(room=serialize(room, "id", "status"))
+
+@api.get("/caretaker/maintenance")
+@roles("CARETAKER")
+def caretaker_maintenance(user):
+    assigned_ids = db.session.query(CaretakerAssignment.room_id).filter_by(caretaker_user_id=user.id)
+    query = db.session.query(MaintenanceRequest).filter(
+        MaintenanceRequest.room_id.in_(assigned_ids)
+    ).order_by(MaintenanceRequest.created_at.desc())
+    results = list_page(MaintenanceRequest, query)
+    return jsonify(items=[serialize(m, "id", "room_id", "title", "priority", "status")
+                          for m in results.items], total=results.total)
+
+@api.post("/caretaker/maintenance")
+@roles("CARETAKER")
+def caretaker_report_maintenance(user):
+    obj = data()
+    room_id = required_string(obj, "room_id")
+    ensure_assigned(user, room_id)
+    priority = str(obj.get("priority", "MEDIUM")).upper()
+    if priority not in ("LOW", "MEDIUM", "HIGH", "URGENT"):
+        return fail("Invalid priority")
+    task = MaintenanceRequest(
+        room_id=room_id, title=required_string(obj, "title", 160),
+        description=required_string(obj, "description", 3000), priority=priority
+    )
+    db.session.add(task)
+    db.session.flush()
+    audit(user, "caretaker.maintenance", "maintenance", task.id)
+    db.session.commit()
+    return jsonify(request=serialize(task, "id", "title", "status")), 201
+
+@api.get("/caretaker/payments")
+@roles("CARETAKER")
+def caretaker_payments(user):
+    results = list_page(Payment, db.session.query(Payment).filter_by(
+        created_by=user.id
+    ).order_by(Payment.created_at.desc()))
+    return jsonify(items=[serialize(p, "id", "invoice_id", "amount_ugx", "status", "method")
+                          for p in results.items], total=results.total)
+
+@api.post("/caretaker/payments")
+@roles("CARETAKER")
+def caretaker_record_cash(user):
+    obj = data()
+    invoice = db.session.get(Invoice, required_string(obj, "invoice_id"))
+    if not invoice or invoice.status in ("PAID", "VOID"):
+        return fail("Open invoice required")
+    lease = db.session.get(Lease, invoice.lease_id)
+    ensure_assigned(user, lease.room_id)
+    amount = ugx(obj.get("amount_ugx"), positive=True)
+    if amount > invoice.total_ugx - invoice.paid_ugx:
+        return fail("Cash exceeds outstanding balance")
+    key = required_string(obj, "idempotency_key", 128)
+    existing = db.session.query(Payment).filter_by(idempotency_key=key).first()
+    if existing:
+        if (existing.invoice_id != invoice.id or existing.amount_ugx != amount
+                or existing.method != "CASH"):
+            return fail("Idempotency key already used for another payment", 409)
+        return jsonify(payment=serialize(existing, "id", "status", "amount_ugx"))
+    payment = Payment(invoice_id=invoice.id, amount_ugx=amount, method="CASH",
+                      status="PENDING_REVIEW", idempotency_key=key, created_by=user.id)
+    db.session.add(payment)
+    try:
+        db.session.flush()
+        audit(user, "caretaker.cash_pending", "payment", payment.id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("Duplicate cash submission", 409)
+    return jsonify(payment=serialize(payment, "id", "status", "amount_ugx")), 201

@@ -150,3 +150,16 @@ class AuditLog(db.Model):
     target_id = db.Column(db.String(36), nullable=False)
     details = db.Column(db.JSON, nullable=False, default=dict)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, index=True)
+
+
+class CaretakerAssignment(db.Model):
+    __tablename__ = "caretaker_assignments"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    caretaker_user_id = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"),
+                                  nullable=False, index=True)
+    room_id = db.Column(db.String(36), db.ForeignKey("rooms.id", ondelete="RESTRICT"),
+                        nullable=False, index=True)
+    assigned_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (
+        db.UniqueConstraint("caretaker_user_id", "room_id", name="uq_caretaker_assigned_room"),
+    )
