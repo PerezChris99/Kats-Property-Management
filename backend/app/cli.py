@@ -53,3 +53,53 @@ def register_commands(app):
                 count+=1
         db.session.commit()
         click.echo(f"Seeded {count} new route permission(s); existing grants preserved.")
+
+
+    @app.cli.command("security-preflight")
+    @with_appcontext
+    def security_preflight():
+        """Fail production readiness when DB role/RLS/config are unsafe.
+
+        Run using the ACTUAL production application DB credentials after
+        migrations and before enabling traffic; never run this as DBA.
+        """
+        import os
+        from sqlalchemy import text
+        from .config import validate_production_config
+        if os.getenv("APP_ENV") != "production":
+            raise click.ClickException("Set APP_ENV=production for a real production preflight")
+        try:
+            validate_production_config()
+        except RuntimeError as error:
+            raise click.ClickException(str(error)) from None
+        role=db.session.execute(text("""
+          SELECT rolname,rolsuper,rolbypassrls,rolcreaterole,rolcreatedb
+          FROM pg_roles WHERE rolname=current_user
+        """)).one()
+        if any((role.rolsuper,role.rolbypassrls,role.rolcreaterole,role.rolcreatedb)):
+            raise click.ClickException(
+                "Application PostgreSQL user has elevated database privileges; "
+                "use a dedicated non-superuser, non-BYPASSRLS runtime account"
+            )
+        security=db.session.execute(text("""
+          SELECT relrowsecurity,relforcerowsecurity
+          FROM pg_class WHERE oid = 'documents'::regclass
+        """)).one()
+        if not all(security):
+            raise click.ClickException("Private-document RLS is not enabled and forced")
+        policy=db.session.execute(text("""
+          SELECT count(*) FROM pg_policies
+          WHERE schemaname=current_schema() AND tablename='documents'
+            AND policyname='kats_document_scope'
+        """)).scalar()
+        if not policy:
+            raise click.ClickException("Private-document RLS policy is missing")
+        expected=int(os.getenv("DB_POOL_SIZE","5"))+int(os.getenv("DB_MAX_OVERFLOW","2"))
+        click.echo("PASS: application DB role is restricted; private document RLS "
+                   "is forced and policy exists; Redis, HTTPS origins and secrets "
+                   "pass configuration checks.")
+        click.echo(f"WARNING: pool allowance is {expected} connections per web worker, "
+                   "plus independent Celery/administrative usage. RLS on other data "
+                   "tables still relies on API object authorization.")
+        click.echo("NEXT: validate public TLS edge, providers, backups, "
+                   "S3 antivirus, penetration tests and staging load benchmarks.")
