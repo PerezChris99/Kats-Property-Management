@@ -324,3 +324,49 @@ export function TenantStatementSelfPage() {
       <p>No tenant record is currently linked to your account.</p>}
   </section>
 }
+
+
+export function ContactPage() {
+  const [values,setValues]=useState({full_name:'',email:'',phone:'',subject:'DEMO',message:'',consent:false,website:''})
+  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[result,setResult]=useState('')
+  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError('');setResult('')
+    try{const res=await api('public/contact-requests',{method:'POST',body:JSON.stringify(values)})
+      setResult(txt(res.message||'Request recorded.'));setValues({full_name:'',email:'',phone:'',subject:'DEMO',message:'',consent:false,website:''})
+    }catch(e){setError(err(e))}finally{setBusy(false)}
+  }
+  return <main className="section simple"><Link to="/">Back to Kats</Link>
+    <span className="eyebrow">CONTACT & SUPPORT</span><h1>How can we help?</h1>
+    <p>Request a demo, ask about pricing, or contact the rental-management team.</p><Notice error={error}/>
+    {result&&<p role="status" className="module-card">{result}</p>}
+    <form className="resource-form" onSubmit={submit}><div className="fields">
+      <label>Full name<input required maxLength={160} value={values.full_name} onChange={e=>setValues({...values,full_name:e.target.value})}/></label>
+      <label>Email<input required type="email" maxLength={254} value={values.email} onChange={e=>setValues({...values,email:e.target.value})}/></label>
+      <label>Phone (optional)<input inputMode="tel" maxLength={30} value={values.phone} onChange={e=>setValues({...values,phone:e.target.value})}/></label>
+      <label>Request type<select value={values.subject} onChange={e=>setValues({...values,subject:e.target.value})}><option value="DEMO">Book a demo</option><option value="PRICING">Pricing</option><option value="SUPPORT">Support</option><option value="OTHER">Other</option></select></label></div>
+      <label>Message<textarea rows={6} required minLength={20} maxLength={3000} value={values.message} onChange={e=>setValues({...values,message:e.target.value})}/></label>
+      <label className="check-row"><input type="checkbox" required checked={values.consent} onChange={e=>setValues({...values,consent:e.target.checked})}/> I agree to the processing of this inquiry according to the <Link to="/privacy">Privacy Policy</Link>.</label>
+      <input tabIndex={-1} style={{position:'absolute',left:'-9999px'}} value={values.website} onChange={e=>setValues({...values,website:e.target.value})} aria-hidden="true" autoComplete="off"/>
+      <button className="button" disabled={busy}>{busy?'Sending request…':'Submit request'}</button></form>
+  </main>
+}
+
+export function ContactInboxPage() {
+  const [rows,setRows]=useState<Item[]>([]),[error,setError]=useState('')
+  const load=useCallback(()=>getRows('admin/contact-requests').then(setRows).catch(e=>setError(err(e))),[])
+  useEffect(()=>{void load()},[load])
+  async function review(id:string,status:string){setError('')
+    try{await api('admin/contact-requests/'+id+'/resolve',{method:'POST',body:JSON.stringify({status})});await load()}
+    catch(e){setError(err(e))}
+  }
+  return <section className="page"><span className="eyebrow">DEMO & SUPPORT INQUIRIES</span><h1>Contact inbox</h1><Notice error={error}/>
+    {!rows.length?<Empty>No inquiries recorded.</Empty>:<div className="module-list">
+      {rows.map(r=><article className="module-card" key={txt(r.id)}>
+        <strong>{txt(r.full_name)} · {txt(r.subject)}</strong><p>{txt(r.email)} {txt(r.phone)}</p><p>{txt(r.message)}</p>
+        <small>{txt(r.status)} · {txt(r.created_at)}</small>
+        <div className="actions"><button className="outline-button" onClick={()=>review(txt(r.id),'IN_PROGRESS')}>In progress</button>
+        <button className="outline-button" onClick={()=>review(txt(r.id),'RESOLVED')}>Resolved</button>
+        <button className="outline-button" onClick={()=>review(txt(r.id),'SPAM')}>Spam</button></div>
+      </article>)}
+    </div>}
+  </section>
+}
