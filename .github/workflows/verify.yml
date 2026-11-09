@@ -54,6 +54,7 @@ jobs:
               conn.execute("CREATE ROLE kats_rls_test LOGIN PASSWORD 'rls_ci_password'")
               conn.execute("GRANT USAGE ON SCHEMA public TO kats_rls_test")
               conn.execute("GRANT SELECT ON documents TO kats_rls_test")
+              conn.execute("GRANT SELECT ON caretaker_assignments TO kats_rls_test")
           PY
       - name: PostgreSQL document RLS isolation
         run: python -m pytest -q tests/test_postgres_document_rls.py
