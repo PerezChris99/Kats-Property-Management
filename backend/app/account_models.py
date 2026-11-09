@@ -8,7 +8,7 @@ class AccountToken(db.Model):
     user_id=db.Column(db.String(36),db.ForeignKey("users.id",ondelete="CASCADE"),nullable=False,index=True)
     purpose=db.Column(db.String(16),nullable=False)
     digest=db.Column(db.String(64),nullable=False,unique=True)
-    expires_at=db.Column(db.DateTime(timezone=True),nullable=False)
+    expires_at=db.Column(db.DateTime(timezone=True),nullable=False,index=True)
     created_at=db.Column(db.DateTime(timezone=True),nullable=False,default=utcnow)
     consumed_at=db.Column(db.DateTime(timezone=True),nullable=True)
     issued_by=db.Column(db.String(36),db.ForeignKey("users.id",ondelete="SET NULL"),nullable=True)
