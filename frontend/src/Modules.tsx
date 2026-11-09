@@ -283,3 +283,44 @@ export function SettingsAdminPage() {
     <h2>Configured values</h2>{!rows.length?<Empty>Default system settings are being used.</Empty>:<div className="module-list">{rows.map(row=><article className="module-card" key={txt(row.key)}><strong>{txt(row.key)}</strong><p>{txt(row.value)}</p></article>)}</div>}
   </section>
 }
+
+
+export function ReceiptsPage() {
+  const [rows,setRows]=useState<Item[]>([]),[error,setError]=useState('')
+  useEffect(()=>{getRows('receipts').then(setRows).catch(e=>setError(err(e)))},[])
+  return <section className="page"><span className="eyebrow">RECONCILED PAYMENTS</span><h1>Payment acknowledgements</h1>
+    <p>These are internal receipts, not URA fiscal tax documents. Reversed payments are clearly marked invalid.</p>
+    <Notice error={error}/>{!rows.length?<Empty>No confirmed payment records are available yet.</Empty>:<div className="module-list">
+    {rows.map(row=><article className="module-card" key={txt(row.payment_id)}>
+      <h3>{txt(row.receipt_number)}</h3><p>{money(row.amount_ugx)} · {row.valid?'Valid':'Reversed/invalid'}</p>
+      <p>Fiscalization: {txt(row.fiscal_status)}</p>
+      <a className="button" href={'/api/v1/receipts/'+txt(row.payment_id)+'.pdf'}>Download internal receipt PDF</a>
+    </article>)}</div>}
+  </section>
+}
+
+export function TenantStatementsPage() {
+  const [leases,setLeases]=useState<Item[]>([]),[tenants,setTenants]=useState<Item[]>([])
+  const [error,setError]=useState('')
+  useEffect(()=>{
+    getRows('tenants').then(setTenants).catch(e=>setError(err(e)))
+    getRows('leases').then(setLeases).catch(()=>{})
+  },[])
+  return <section className="page"><span className="eyebrow">FINANCIAL STATEMENTS</span><h1>Tenant statements</h1>
+    <p>Statements show billed rent, credits, verified applied payments, and outstanding balances. These do not replace EFRIS fiscal documents.</p>
+    <Notice error={error}/>{!tenants.length?<Empty>No tenants available.</Empty>:<div className="module-list">
+    {tenants.map(t=><article className="module-card" key={txt(t.id)}><strong>{txt(t.full_name)}</strong>
+      <p>{txt(t.phone)} · {txt(t.email)}</p><a className="button" href={'/api/v1/tenants/'+txt(t.id)+'/statement.pdf'}>Download statement PDF</a>
+    </article>)}</div>}
+  </section>
+}
+
+export function TenantStatementSelfPage() {
+  const [tenant,setTenant]=useState<Item|null>(null),[error,setError]=useState('')
+  useEffect(()=>{api('tenant/profile').then(r=>setTenant(r.tenant)).catch(e=>setError(err(e)))},[])
+  return <section className="page"><h1>My rent statement</h1>
+    <p>Use this verified statement for your personal records. It is not an EFRIS tax invoice.</p><Notice error={error}/>
+    {tenant?<a className="button" href={'/api/v1/tenants/'+txt(tenant.id)+'/statement.pdf'}>Download my PDF statement</a>:
+      <p>No tenant record is currently linked to your account.</p>}
+  </section>
+}
