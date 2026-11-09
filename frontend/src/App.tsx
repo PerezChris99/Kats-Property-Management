@@ -1,4 +1,5 @@
 import { api, csrfToken } from './lib/api'
+import { WorkspaceNavigation } from './WorkspaceNavigation'
 import {ProrationPage} from './ProrationPage'
 import {AnnualTrendsPage} from './AnnualTrendsPage'
 import {PortfolioEditPage} from './PortfolioEditPage'
@@ -11,7 +12,7 @@ import {NotificationsPage, InspectionsPage, MobileMoneyPage, FiscalPage, LegalAd
   ReceiptsPage, TenantStatementsPage, TenantStatementSelfPage, ContactPage, ContactInboxPage} from './Modules'
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Building2, CreditCard, LayoutDashboard, Menu, ShieldCheck, Wrench, LogOut } from 'lucide-react'
+import { Building2, CreditCard, LayoutDashboard, ShieldCheck, Wrench } from 'lucide-react'
 
 type User = { id: string; full_name: string; role: string }
 type Row = Record<string, string | number | boolean | null>
@@ -54,7 +55,22 @@ RESOURCES.assignments = {title:'Caretaker assignments',path:'caretaker/assignmen
   fields:[{name:'caretaker_user_id',label:'Caretaker user ID',required:true},
   {name:'room_id',label:'Room ID',required:true}]}
 const roles = ['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN']
-const formats = (key: string, value: string | number | boolean | null) => key.endsWith('_ugx') && typeof value === 'number' ? 'UGX ' + value.toLocaleString('en-UG') : String(value ?? '—')
+const formats = (key: string, value: string | number | boolean | null) =>
+  key.endsWith('_ugx') && typeof value === 'number'
+    ? 'UGX ' + value.toLocaleString('en-UG')
+    : String(value ?? '—')
+
+function DataCell({column,value}:{column:string;value:string|number|boolean|null}) {
+  if(column==='status'||column==='is_active'){
+    const state=column==='is_active'?(value?'ACTIVE':'DISABLED'):String(value??'UNKNOWN').toUpperCase()
+    const ok=new Set(['ACTIVE','APPROVED','ACCEPTED','PAID','RECONCILED','COMPLETED','UPLOADED','OCCUPIED','VERIFIED'])
+    const pending=new Set(['PENDING','PENDING_REVIEW','PENDING_APPROVAL','REVIEW_REQUIRED','OPEN','ASSIGNED','IN_PROGRESS','CLEANING','INITIATED','RETRYING','PARTIALLY_PAID'])
+    const danger=new Set(['VOID','REJECTED','REVERSED','FAILED','TERMINATED','DISABLED','OVERDUE','UNRECONCILED'])
+    const tone=ok.has(state)?'ok':pending.has(state)?'warn':danger.has(state)?'danger':'neutral'
+    return <span className="status-pill" data-tone={tone}>{state.replaceAll('_',' ')}</span>
+  }
+  return <>{formats(column,value)}</>
+}
 function Header({user, logout}: {user:User|null;logout?:()=>void}) {
   return <header className="site-header"><Link to="/" className="brand"><Building2 size={24} aria-hidden="true"/> Kats <small>Property Management</small></Link>
   <nav aria-label="Main navigation">{user ? <><Link to="/dashboard">Workspace</Link><button className="link-button" onClick={logout}>Sign out</button></> : <><Link to="/features">Features</Link><Link to="/contact">Contact</Link><Link className="button small" to="/login">Sign in</Link></>}</nav></header>
@@ -91,6 +107,7 @@ function Login({onSuccess}: {onSuccess:(user:User)=>void}) {
 }
 function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   const [rows,setRows]=useState<Row[]>([])
+  const [filter,setFilter]=useState('')
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
   const [editing,setEditing]=useState(false)
@@ -99,6 +116,9 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   const [busy,setBusy]=useState(false)
   const [references,setReferences]=useState<Record<string,Row[]>>({})
   const canWrite=resource.writable?.includes(user.role)??false
+  const search=filter.trim().toLowerCase()
+  const visibleRows=search?rows.filter(row=>Object.values(row).some(value=>
+    String(value??'').toLowerCase().includes(search))):rows
   const load=useCallback(async()=>{
     setLoading(true);setError('')
     try {const payload=await api(resource.path);setRows(payload.items||[])}
@@ -165,14 +185,20 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   return <section className="page"><div className="page-head"><div><span className="eyebrow">OPERATIONS</span><h1>{resource.title}</h1></div>{canWrite&&<button className="button" onClick={()=>setEditing(!editing)}>{editing?'Cancel':'Add '+resource.title.toLowerCase()}</button>}</div>
     {error&&<p role="alert" className="error">{error}</p>}
     {editing&&canWrite&&<form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.filter(field=>field.name!=='idempotency_key').map(field=><label key={field.name}>{field.label}{field.options?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select</option>{field.options.map(option=><option key={option}>{option}</option>)}</select>:references[field.name]?.length?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select a record</option>{references[field.name].map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name||row.number||row.full_name||row.invoice_number||row.email||row.title||row.id)}</option>)}</select>:<input required={field.required} type={field.type||'text'} min={field.type==='number'?(field.name==='level'?'-10':'0'):undefined} value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})}/>}</label>)}</div><button className="button" disabled={busy}>{busy?'Saving…':'Save record'}</button></form>}
-    {loading?<p role="status">Loading records…</p>:rows.length===0?<div className="empty"><h2>No records yet</h2><p>Authorized records will appear here after they are created.</p></div>:<div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col=><th key={col}>{col.replaceAll('_',' ')}</th>)}{resource.path==='payments'&&canWrite&&<th>Review</th>}{(resource.path==='payments'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)||resource.path==='invoices'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)||resource.path==='caretaker/rooms'||resource.path==='caretaker/assignments'||resource.path==='admin/users')&&<th>Actions</th>}</tr></thead><tbody>{rows.map((item,i)=><tr key={String(item.id||i)}>{resource.columns.map(col=><td key={col}>{formats(col,item[col])}</td>)}{resource.path==='payments'&&canWrite&&<td>{item.status==='PENDING_REVIEW'?<button className="outline-button" disabled={busy} onClick={()=>approve(String(item.id))}>Approve*</button>:<span>—</span>}</td>}
+    {!loading&&rows.length>0&&<div className="record-toolbar">
+      <label className="record-filter">Filter loaded records
+        <input type="search" placeholder="Search this table" value={filter}
+          onChange={event=>setFilter(event.target.value)}/></label>
+      <span aria-live="polite">{visibleRows.length} of {rows.length} loaded</span>
+    </div>}
+    {loading?<p role="status" className="data-loading">Loading records…</p>:rows.length===0?<div className="empty"><h2>No records yet</h2><p>Authorized records will appear here after they are created.</p></div>:visibleRows.length===0?<div className="empty"><h2>No matching records</h2><p>Clear the filter to see the loaded records.</p><button type="button" className="outline-button" onClick={()=>setFilter('')}>Clear filter</button></div>:<div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col=><th key={col}>{col.replaceAll('_',' ')}</th>)}{resource.path==='payments'&&canWrite&&<th>Review</th>}{(resource.path==='payments'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)||resource.path==='invoices'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)||resource.path==='caretaker/rooms'||resource.path==='caretaker/assignments'||resource.path==='admin/users')&&<th>Actions</th>}</tr></thead><tbody>{visibleRows.map((item,i)=><tr key={String(item.id||i)}>{resource.columns.map(col=><td key={col}><DataCell column={col} value={item[col]}/></td>)}{resource.path==='payments'&&canWrite&&<td>{item.status==='PENDING_REVIEW'?<button className="outline-button" disabled={busy} onClick={()=>approve(String(item.id))}>Approve*</button>:<span>—</span>}</td>}
     {resource.path==='payments'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)&&<td>{item.status==='RECONCILED'?<button className="outline-button" disabled={busy} onClick={()=>financeAction('payments/'+String(item.id)+'/reverse')}>Reverse</button>:'—'}</td>}
     {resource.path==='invoices'&&['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)&&<td>{item.status==='ISSUED'&&Number(item.paid_ugx)===0?<button className="outline-button" disabled={busy} onClick={()=>financeAction('invoices/'+String(item.id)+'/void')}>Void</button>:'—'}</td>}
     {resource.path==='caretaker/rooms'&&<td><button className="outline-button" disabled={busy} onClick={()=>caretakerRoomStatus(String(item.id),'MAINTENANCE')}>Needs repair</button> <button className="outline-button" disabled={busy} onClick={()=>caretakerRoomStatus(String(item.id),'CLEANING')}>Cleaning</button></td>}
     {resource.path==='caretaker/assignments'&&<td><button className="outline-button" disabled={busy} onClick={()=>unassign(String(item.id))}>Unassign</button></td>}
     {resource.path==='admin/users'&&<td><button className="outline-button" disabled={busy} onClick={()=>toggleAccess(String(item.id),Boolean(item.is_active))}>{item.is_active?'Disable':'Enable'}</button></td>}</tr>)}</tbody></table></div>}
     {resource.path==='payments'&&<p className="note">*Approval requires another staff member to verify source evidence. Approval credits the invoice; authorized owners or accountants can post an auditable accounting reversal. Reversal never automatically refunds cash.</p>}
-    <p className="note">Records are scoped by server-side permissions. Copy IDs from existing records when linking items.</p></section>
+    <p className="note">Access is enforced by the server. Table search filters only the currently loaded records.</p></section>
 }
 function Dashboard({user}: {user:User}) {
   const [summary,setSummary]=useState<Record<string,number>|null>(null)
@@ -241,8 +267,21 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
   const canOperate=roles.includes(user.role)
   const nav = canOperate?['dashboard','properties','buildings','floors','rooms','room-placement','portfolio-editor','tenants','leases','proration','invoices','payments','maintenance','expenses','expense-approvals','reports','trends','statements','receipts','mobile-money','efris','inspections','renewals','deposits','work-orders','documents','notifications','security',...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['settings']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['users','invitations','permissions','legal','audit','inquiries']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'||user.role==='MANAGER'?['assignments']:[])]:user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance','work-orders','inspections','documents','notifications','security','receipts']:['dashboard','invoices','payments','statements','receipts','deposits','maintenance','inspections','documents','mobile-money','notifications','security']
   const viewResource=user.role==='CARETAKER'?CARETAKER_RESOURCES[page]:RESOURCES[page]
-  return <div className="portal"><aside className="side"><Link to="/" className="brand">Kats</Link><div className="role">{user.role.replaceAll('_',' ')}</div><nav aria-label="Workspace">{nav.map(key=><Link key={key} className={page===key?'active':''} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</nav><button className="link-button logout" onClick={logout}><LogOut size={16}/> Sign out</button></aside>
-  <div className="portal-main"><header className="portal-bar"><span>Kats Property Management</span><span>{user.full_name}</span></header><main>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='statements'&&nav.includes(page)?(user.role==='TENANT'?<TenantStatementSelfPage/>:<TenantStatementsPage/>):
+  const pageTitle = page.replaceAll('-', ' ').replace(/^./, c => c.toUpperCase())
+  return <div className="portal">
+    <WorkspaceNavigation pages={nav} active={page} user={user} onLogout={logout}/>
+    <div className="portal-main">
+      <header className="portal-bar">
+        <div className="portal-location">
+          <span>Workspace <span aria-hidden="true">/</span> {pageTitle}</span>
+          <strong>{pageTitle}</strong>
+        </div>
+        <div className="portal-identity" title={user.full_name}>
+          <span className="identity-avatar" aria-hidden="true">{user.full_name.trim().charAt(0).toUpperCase()}</span>
+          <span><strong>{user.full_name}</strong><small>{user.role.replaceAll('_', ' ')}</small></span>
+        </div>
+      </header>
+      <main className="portal-content" key={page}>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='statements'&&nav.includes(page)?(user.role==='TENANT'?<TenantStatementSelfPage/>:<TenantStatementsPage/>):
     page==='receipts'&&nav.includes(page)?<ReceiptsPage/>:
     page==='notifications'&&nav.includes(page)?<NotificationsPage/>:page==='inspections'&&nav.includes(page)?<InspectionsPage user={user}/>:
     page==='mobile-money'&&nav.includes(page)?<MobileMoneyPage/>:page==='efris'&&nav.includes(page)?<FiscalPage/>:
@@ -258,7 +297,9 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
     page==='renewals'&&nav.includes(page)?<RenewalsPage/>:page==='deposits'&&nav.includes(page)?<DepositsPage user={user}/>:
     page==='work-orders'&&nav.includes(page)?<WorkOrdersPage user={user}/>:
     page==='settings'&&nav.includes(page)?<SettingsAdminPage/>:page==='security'&&nav.includes(page)?<SecurityPage onSignedOut={logout}/>:
-    page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main></div><nav className="mobile-nav" aria-label="Mobile workspace navigation">{(canOperate?['dashboard','rooms','payments','maintenance']:(user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance'])).map((key,i)=>{const Icon=[LayoutDashboard,Building2,CreditCard,Wrench][i];return <Link key={key} to={'/'+key} className={page===key?'active':''}><Icon size={20}/><span>{key[0].toUpperCase()+key.slice(1)}</span></Link>})}<Link to="/more"><Menu size={20}/><span>More</span></Link></nav></div>
+    page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main>
+    </div>
+  </div>
 }
 export default function App() {
   const [user,setUser]=useState<User|null>(null)

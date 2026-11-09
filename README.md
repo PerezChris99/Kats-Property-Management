@@ -1,67 +1,344 @@
-# Kats Property Management
+# KATS Property Management
 
-Mobile-first rental property-management platform for a single rental business in Uganda. All monetary amounts are stored as **integer Ugandan shillings**.
+**A unified platform for rental properties, tenants, verified collections, maintenance, and financial oversight in Uganda.**
 
-**Status: code on development/review branches is not equivalent to live launch acceptance.** MTN/Airtel collections, EFRIS fiscal documents, email/SMS providers, object storage and HostWares deployment require third-party approval and real infrastructure tests before handling money or sensitive tenant documents.
+KATS is a mobile-first management application for **one property-management business** (not a multi-tenant SaaS platform). It brings everyday rental operations into one accountable workspace. Monetary amounts are represented as whole **Ugandan shillings (UGX)**.
 
-## Architecture
+> [!IMPORTANT]
+> **Release status: implementation is not production acceptance.** Automated backend, frontend, and PostgreSQL checks exist. MTN/Airtel money settlement, URA EFRIS fiscal documents, production storage, email/SMS providers, HostWares deployment, legal approval, and customer/device testing still need independent validation. Successful CI does not authorize processing live money.
 
-- Backend: Python 3.12+, Flask, SQLAlchemy 2, PostgreSQL 16 and Alembic.
-- Worker: Celery/Redis for monthly invoices, rent reminders, lease expiry, provider-status polling and fiscal-outbox processing.
-- Frontend: React + TypeScript + Vite, mobile-first navigation and static offline fallback PWA.
-- Auth: Argon2id, HttpOnly JWT cookies, CSRF, one-time refresh-token rotation and session-version invalidation.
-- Role enforcement: server-side role ceilings plus editable, audited database role grants; tenant/assigned-caretaker query scoping.
-- Finance: invoice charge lines, verified payments, reversal ledger, credit notes, timed rent renewal, deposit approval and reporting.
-- Integrations: server-side MTN/Airtel adapters and idempotent EFRIS outbox; all **disabled until provider acceptance**.
-- Documents: private S3-compatible signed upload/download with 8 MB cap; requires object-storage credentials.
-- Reports: CSV/Excel invoice exports, internal payment receipt PDFs, tenant statement PDFs and arrears aging.
-- Operations: work orders, inspections, contact/demo inbox, editable versioned legal pages and audit trails.
+[Architecture](docs/ARCHITECTURE.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [HostWares deployment](docs/HOSTWARES_DEPLOYMENT.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
 
-## Local setup
+---
 
-1. Copy `.env.example` to `.env`, change example DB password, generate two different unpredictable 32+ character secrets and configure PostgreSQL/Redis URLs.
-2. Start Docker services: `docker compose up --build -d`.
-3. Apply all migrations: `docker compose exec api flask --app wsgi db upgrade`.
-4. **Seed the database permission registry:** `docker compose exec api flask --app wsgi seed-permissions`. Repeat after shipping new endpoint permissions; existing permission edits are preserved.
-5. Create your first owner account securely from the server console: `docker compose exec api flask --app wsgi create-user --role OWNER`.
-6. Sign in at http://localhost:5173; API health: http://localhost:8000/healthz.
+## 1. Core capabilities
 
-The default Docker Compose binds ports to localhost and is **NOT internet-facing production TLS configuration**.
+| Area | Implemented |
+| --- | --- |
+| **Portfolio** | Properties, buildings, floors, room placement, status history, portfolio editing, caretaker assignments |
+| **Tenants & leases** | Tenant records, one-use account invitations, leases, dated renewals, inspections, move-out controls |
+| **Rent & invoicing** | Monthly billing, invoice line items, calendar-day proration with approval, credits, balances, arrears |
+| **Payments** | Cash/bank verification by a second person, MTN/Airtel adapter boundaries, idempotent provider status checks, accounting reversals |
+| **Deposits & expenses** | Deposit hold/withhold/refund records, independent approvals, expense review, immutable accounting events |
+| **Operations** | Maintenance requests, work orders, caretakers, reminders, inquiries, private-document integration |
+| **Reporting** | Occupancy, aging, monthly financial trends, tenant statements, internal receipts, CSV/XLSX exports |
+| **Administration** | Role-scoped portals, permission controls, secure sessions, audit records, versioned legal pages |
 
-## Native development and verification
+**Boundaries:** Payment initiation is not successful settlement; an accounting refund record is not a bank transfer; an internal receipt is not a URA tax document. Financial trend metrics are not a certified cash-flow or profit-and-loss statement.
 
-Requirements: Python 3.12+, Node 22+, PostgreSQL 16 and Redis. Install backend requirements under a virtual environment. Run `python -m pytest -q` from `backend/`; run `python -m flask --app wsgi db upgrade` and `python -m flask --app wsgi db check` against an isolated PostgreSQL schema. From `frontend/`, run `npm install && npm run build`. The GitHub verification workflow checks tests, compilation, TypeScript build, and migration upgrade/downgrade on PostgreSQL 16.
+## 2. Architecture
 
-## Money and fiscal safety
+### Runtime topology
 
-1. Recording a tenant claim or receiving a provider initiation response **never** credits an invoice. Staff must verify cash/bank evidence separately; mobile collections require independent provider confirmation.
-2. Each successful verified payment records an invoice credit and immutable ledger event in one database transaction. Failed/ambiguous callbacks remain pending or unreconciled.
-3. Credit notes do not erase issued invoices. Accounting reversals restore balances without claiming real bank or mobile-money refunds.
-4. Deposits are tracked as pending/approved hold, refund or withholding evidence. A recorded refund **does not transfer money**.
-5. Internal PDF receipts are explicitly **not official URA fiscal receipts**. EFRIS requires a taxpayer-specific, approved URA adapter. Only authenticated acknowledgment may mark a submission accepted.
-6. Encrypted backups must be transferred off the production VPS and restored periodically on isolated staging.
+~~~mermaid
+flowchart TB
+    subgraph Client["Client"]
+      UI["React + TypeScript<br/>Responsive PWA"]
+      ROLES["Owner · Manager · Accountant<br/>Caretaker · Tenant"]
+    end
+    subgraph Application["Application runtime"]
+      NGINX["Nginx<br/>Frontend + API proxy"]
+      API["Flask / Gunicorn<br/>Domain APIs and auth"]
+      BEAT["Celery Beat<br/>Schedules"]
+      WORKER["Celery worker<br/>Async / retry jobs"]
+    end
+    subgraph Stores["State"]
+      PG[("PostgreSQL 16<br/>SQLAlchemy / Alembic")]
+      REDIS[("Redis<br/>Task broker")]
+    end
+    subgraph Providers["External — activation pending"]
+      MONEY["MTN MoMo / Airtel Money"]
+      EFRIS["URA-approved EFRIS adapter"]
+      DOCS["Private S3-compatible storage"]
+      MAIL["Transactional TLS email / messaging"]
+    end
+    ROLES --> UI --> NGINX --> API
+    API --> PG
+    API --> REDIS
+    BEAT --> REDIS --> WORKER --> PG
+    API -. "Approved configuration" .-> MONEY
+    WORKER -. "Fiscal outbox" .-> EFRIS
+    API -. "Signed URLs" .-> DOCS
+    API -. "TLS sender" .-> MAIL
+~~~
 
-## Operations and outstanding requirements
+**Key decisions**
 
-See [delivery register](docs/DELIVERY_STATUS.md), [HostWares runbook](docs/HOSTWARES_DEPLOYMENT.md), [go-live acceptance](docs/GO_LIVE_CHECKLIST.md) and [operations](docs/OPERATIONS.md). Do not turn on third-party flags without sandbox verification. Final legal pages, UAT, approved staff credentials, verified legacy data and real-device testing require external signoff.
+- Single-business property management; properties represent locations, not SaaS customer tenants.
+- Server-side role ceilings, database permission grants, and object-level tenant/caretaker scope.
+- Immutable history for financial and audit-sensitive records; corrections use explicit reversal events.
+- Idempotent collection commands and atomic database posting after external verification.
+- Worker queues for recurring billing, reminders, and bounded provider retries.
+- Third-party money and fiscal services remain disabled until required approvals and tests.
 
-## Branching
+### Repository structure
 
-Commit on `perez`, use reviewed PRs to merge into `main`. A successful PR merge means code is integrated, **not** that the product has been deployed or passed real-money and tax acceptance. Do not cut a production release tag before launch signoff.
+~~~text
+Kats-Property-Management/
+├── backend/
+│   ├── app/                   Flask APIs, auth, finance, jobs, integrations
+│   ├── migrations/            Alembic versioned database schema
+│   ├── tests/                 API, security, finance, PostgreSQL checks
+│   └── Dockerfile
+├── frontend/
+│   ├── src/                   React portals, reusable navigation, styles
+│   ├── public/                PWA manifest and offline fallback
+│   └── nginx.conf
+├── docs/                      Architecture, runbooks, acceptance status
+├── ops/                       Encrypted backup, restore, smoke checks
+├── .github/workflows/         Automated verification
+├── docker-compose.yml         Local-only development stack
+└── .env.example               Non-secret configuration template
+~~~
 
-## Property hierarchy, onboarding and financial workflows (November 2026)
+## 3. Business workflows
 
-- **Buildings / floors:** Create buildings under a property, create ground/basement/upper floors, place and move rooms with a reason. Cross-property room placements are rejected. Existing rooms without floors stay valid.
-- **Account security:** In production the user console never shares an initial password. An owner sends a one-time email invitation; the user sets a password through `/account/activate`. Existing users can request a non-enumerating 30-minute recovery link at `/forgot-password`. Outbound email requires `SMTP_HOST`, `SMTP_PORT` (465/587 only), `SMTP_USERNAME`, `SMTP_PASSWORD`, `MAIL_FROM`, and an approved `PUBLIC_APP_URL` (HTTPS outside localhost). Without email configuration, invitations fail closed.
-- **Permission controls:** `/permissions` lists the persisted role permission matrix. Only a super administrator can change grants; no grant can exceed a server-side role ceiling. Run `flask --app wsgi seed-permissions` after introducing new protected routes.
-- **Proration:** `/proration` previews actual-calendar-day rent with effective dated renewals. A finance officer must confirm that the contractual terms permit that policy before invoice issuance. Partial months are never automatically charged using an assumed formula.
-- **Expense checks:** Expenses are `PENDING_APPROVAL` until a different authorized person approves or rejects the claim. Approved accounting expenses can be reversed by a distinct reviewer; reverse entries are immutable, and this does not send bank money. Previous expenses migrated from an unreviewed schema become `REVIEW_REQUIRED` rather than silently approved.
-- **Annual trends:** `/trends` shows 12 months of verified settled collections, net invoices and approved expenses (incurred date), with accessible charts and a source-data table. Undated historical settlements are disclosed separately; these metrics are **not** a cashflow statement.
+### Property and tenant onboarding
 
-### Verification checks
+~~~mermaid
+flowchart TD
+    P["Create property"] --> B["Add buildings and floors"]
+    B --> R["Register rooms and UGX asking rates"]
+    R --> T["Onboard tenant"]
+    T --> I["Owner issues one-time invitation"]
+    I --> A{"Email link accepted?"}
+    A -- "No" --> WAIT["Account remains inactive"]
+    WAIT --> I
+    A -- "Yes" --> PASSWORD["User sets password"]
+    PASSWORD --> LEASE["Record lease with agreed terms"]
+    LEASE --> PORTAL["Scoped tenant portal"]
+~~~
 
-Use `python -m pytest -q` for the SQLite-backed unit and API tests. The CI backend job also applies and rolls back all PostgreSQL migrations and then executes `tests/test_postgres_invariants.py` against a **disposable migrated PostgreSQL 16 database** via `TEST_POSTGRES_URL`; those tests verify PostgreSQL audit triggers and concurrent payment approval. The frontend job compiles React/TypeScript and performs a production build.
+Invitations expire after 48 hours and password-reset links after 30 minutes. Email delivery requires authenticated TLS SMTP. Tenant identity and signed lease documentation must be verified operationally.
 
-This is development verification. Never substitute green CI for legally approved leases, MTN/Airtel/URA onboarding, external malware checks, real backup restores, third-party callbacks, real-device accessibility, or operational UAT.
+### Rent billing and proration
 
-- **Audited portfolio editor:** `/portfolio-editor` searches and updates property, building, floor, and room listing fields; no overwrite of current signed lease amounts. `/room-placement` handles floor changes separately. PostgreSQL keeps the audit log append-only.
+~~~mermaid
+flowchart TD
+    LEASE["Active lease with dated rent terms"] --> MONTH{"Full billing month?"}
+    MONTH -- "Yes" --> AUTO["Idempotent monthly rent invoice"]
+    MONTH -- "No / rate change" --> PREVIEW["Manual calendar-day preview"]
+    PREVIEW --> APPROVE{"Finance verifies lease<br/>and approves policy?"}
+    APPROVE -- "No" --> WAIT["Invoice not issued"]
+    APPROVE -- "Yes" --> ISSUE["Issue reviewed invoice"]
+    AUTO --> LINES["Invoice lines and ledger event"]
+    ISSUE --> LINES
+    LINES --> CREDIT["Optional credit note"]
+    CREDIT --> BALANCE["Open amount = billed - credits - verified payments"]
+~~~
+
+Partial-month rent is never silently charged using an unapproved formula. Calendar-day proration requires explicit authorized confirmation.
+
+### Payment intake and reconciliation
+
+~~~mermaid
+flowchart TD
+    INV["Issued invoice"] --> METHOD{"Collection method"}
+    METHOD -- "Cash / bank" --> PENDING["Pending payment claim"]
+    PENDING --> MAKER{"Another authorized reviewer<br/>confirms evidence?"}
+    MAKER -- "No" --> HOLD["No invoice credit"]
+    METHOD -- "MTN / Airtel" --> REQUEST["Provider payment request"]
+    REQUEST --> VERIFY{"Independent verified<br/>status, amount, currency and reference?"}
+    VERIFY -- "No / unclear" --> HOLD
+    VERIFY -- "Yes" --> POST["Single atomic database posting"]
+    MAKER -- "Yes" --> POST
+    POST --> LEDGER["Reconciled payment, invoice credit<br/>and immutable ledger event"]
+    LEDGER --> REVERSE["Corrections use audited reversals<br/>not automatic cash refunds"]
+~~~
+
+Provider onboarding and real sandbox reconciliation are pending. This architecture intentionally fails closed when external settlement cannot be verified.
+
+### Maintenance, inspections, and deposits
+
+~~~mermaid
+flowchart LR
+    ISSUE["Tenant / caretaker issue"] --> WORK["Maintenance work order"]
+    WORK --> CHECK["Inspection / damage evidence"]
+    CHECK --> EXIT["Controlled move-out"]
+    EXIT --> HOLD["Deposit movement record"]
+    HOLD --> REVIEW["Independent approval"]
+    REVIEW --> BANK["Bank / provider payout and<br/>real evidence — external gate"]
+~~~
+
+### EFRIS fiscalization
+
+~~~mermaid
+flowchart TD
+    I["Eligible invoice"] --> Q["Durable fiscal outbox"]
+    Q --> GATE{"Approved URA taxpayer connector installed?"}
+    GATE -- "No" --> PENDING["Not fiscalized"]
+    GATE -- "Yes" --> URA["Authenticated URA submission"]
+    URA --> RESULT{"Authenticated result and valid fiscal proof?"}
+    RESULT -- "Retryable" --> RETRY["Bounded retry"]
+    RETRY --> URA
+    RESULT -- "Rejected" --> REJECT["Record rejection"]
+    RESULT -- "Accepted" --> ACCEPT["Record URA fiscal number,<br/>QR and verification link"]
+~~~
+
+Internal payment receipts remain explicitly **non-fiscal**. Actual EFRIS activation requires a taxpayer-specific approved adapter and URA acceptance.
+
+## 4. Roles and access model
+
+| Role | Primary responsibilities |
+| --- | --- |
+| Owner | Portfolio oversight, invitations, financial approvals, policy and audit visibility |
+| Super administrator | Elevated system administration and permission-grant management |
+| Manager | Property, tenant, lease, room, inspection, and maintenance operations |
+| Accountant | Invoice/expense reviews, collections, credits, reports, fiscal queue visibility |
+| Caretaker | Only assigned rooms, work orders, limited cash collection and inspections |
+| Tenant | Own lease, invoices, payments, internal receipts, and maintenance requests |
+
+The frontend menu does **not** grant authorization. The backend enforces role ceilings, explicit database grants, and record-level access. New protected routes must be seeded after migrations; existing grants are not overwritten.
+
+## 5. Technology
+
+| Layer | Technology |
+| --- | --- |
+| UI | React 19, TypeScript, Vite, React Router, Lucide, responsive CSS, PWA |
+| API | Python 3.12+, Flask, Gunicorn, Argon2id, cookie-based JWT, CSRF |
+| Database | PostgreSQL 16, SQLAlchemy, Alembic |
+| Tasks | Redis, Celery workers, Celery Beat |
+| Runtime | Docker Compose, Nginx |
+| External contracts | MTN MoMo, Airtel Money, EFRIS, S3-compatible storage, TLS SMTP |
+
+**Design language:** midnight navy, sky blue, whitesmoke, carefully restrained warm yellow; legible type, clean data hierarchy, mobile navigation, keyboard search, short transitions, and reduced-motion support.
+
+## 6. Quick start
+
+### Prerequisites
+
+Docker Desktop (Windows) or Docker Engine with Compose, Git, and a terminal. Node.js 22+ and Python 3.12+ are required for native development outside Docker.
+
+~~~bash
+git clone https://github.com/PerezChris99/Kats-Property-Management.git
+cd Kats-Property-Management
+cp .env.example .env
+~~~
+
+On Windows PowerShell, copy the template with:
+
+~~~powershell
+Copy-Item .env.example .env
+~~~
+
+Edit the resulting **.env**: replace the example PostgreSQL password and choose **different, unpredictable 32+-character secrets** for SECRET_KEY and JWT_SECRET_KEY. Keep MTN_MOMO_ENABLED, AIRTEL_MONEY_ENABLED, and EFRIS_ENABLED set to false until real provider acceptance.
+
+### Start services and bootstrap the owner
+
+~~~bash
+docker compose up --build -d
+docker compose exec api flask --app wsgi db upgrade
+docker compose exec api flask --app wsgi seed-permissions
+docker compose exec api flask --app wsgi create-user --role OWNER
+~~~
+
+The last command interactively prompts for the first owner's identity and password within the server console. Do not store credentials in version control or runbooks.
+
+| Local URL | Function |
+| --- | --- |
+| http://localhost:5173 | Web application served from compiled frontend |
+| http://localhost:8000/healthz | API health |
+| http://localhost:8000/readyz | Database readiness |
+
+**Note:** Docker Compose exposes HTTP only on localhost. It is not an internet-facing HTTPS deployment.
+
+### Common operations
+
+~~~bash
+docker compose ps
+docker compose logs -f api worker beat
+docker compose exec api flask --app wsgi db upgrade
+docker compose exec api flask --app wsgi seed-permissions
+docker compose down
+~~~
+
+Stopping containers preserves the volumes by default. Avoid removing volumes containing needed data.
+
+### Frontend development
+
+~~~bash
+cd frontend
+npm install
+npm run dev
+npm run build
+~~~
+
+Vite handles local hot reloading when running the dev server. The Compose web container instead serves the compiled frontend and does not run Vite hot reload.
+
+## 7. Secure external configuration
+
+| Integration | Activation requirements |
+| --- | --- |
+| Transactional invitations / password reset | Approved PUBLIC_APP_URL, MAIL_FROM and SMTP_HOST, SMTP_PORT (465/587), SMTP_USERNAME, SMTP_PASSWORD; verified domain/deliverability |
+| MTN MoMo | Merchant account, secrets, approved callback/status schemas, sandbox-to-ledger reconciliation |
+| Airtel Money | Approved merchant profile and actual payout/collection response verification |
+| URA EFRIS | Registered taxpayer, applicable fiscal obligations, approved signed/encrypted adapter, accepted fiscal-document verification |
+| Private documents | S3-compatible endpoint, private bucket, signed URLs, object malware validation, retention controls |
+| SMS / messaging | Approved communications provider, privacy consent, sender registration and delivery acceptance |
+| HostWares | Separate staging/production environments, HTTPS, secrets, monitoring, tested offsite restore, release plan |
+
+Never enable an external integration solely because an API key is present.
+
+## 8. Testing and safety
+
+**Backend tests**
+
+~~~bash
+cd backend
+python -m pip install -r requirements.txt
+python -m pytest -q
+~~~
+
+**Frontend build**
+
+~~~bash
+cd frontend
+npm install --no-audit --no-fund
+npm run build
+~~~
+
+The [GitHub verification workflow](.github/workflows/verify.yml) checks Python tests and compilation, frontend type checking/production build, PostgreSQL 16 schema upgrade-downgrade-upgrade, and targeted PostgreSQL runtime tests (including concurrent approval and append-only audit protections).
+
+Security and accounting invariants include:
+
+- Monetary values in whole UGX; reviewed and idempotent posting of verified transactions.
+- Separate manual-payment and expense reviewers, immutable finance/audit events, explicit reversals.
+- Argon2id passwords, CSRF, refresh-token rotation, account/session invalidation, strict HTTPS production origins.
+- Tenant and caretaker object scoping; auditable super-admin permission changes.
+- No private API response caching by the PWA.
+- Encrypted offsite backups, periodic restore rehearsal, alerts and failure drills before go-live.
+
+Automated coverage reduces risk; it is not a guarantee of error-free, attack-proof, or tax-compliant production operation.
+
+## 9. Delivery workflow
+
+~~~mermaid
+flowchart LR
+    DEV["Develop and commit on perez"] --> CI["Build · tests · migrations"]
+    CI --> OK{"All checks pass?"}
+    OK -- "No" --> FIX["Fix / retest on perez"]
+    FIX --> CI
+    OK -- "Yes" --> PR["Review pull request"]
+    PR --> MAIN["Merge into main"]
+    MAIN --> ACCEPT{"External and customer acceptance?"}
+    ACCEPT -- "Not yet" --> HOLD["Code merged; no production tag"]
+    ACCEPT -- "Approved" --> STAGE["Stage, verify, deploy and monitor"]
+~~~
+
+Use the existing **perez → main** workflow. Do not add unnecessary branches or leave orphaned commits. A merged commit confirms code integration, not deployment.
+
+## 10. Documentation and launch gates
+
+| Reference | Purpose |
+| --- | --- |
+| [Architecture](docs/ARCHITECTURE.md) | Scope, design decisions, security and data invariants |
+| [Delivery status](docs/DELIVERY_STATUS.md) | Implemented modules, gaps, and dependencies |
+| [Operations](docs/OPERATIONS.md) | Reconciliation, recovery, ongoing support |
+| [HostWares deployment](docs/HOSTWARES_DEPLOYMENT.md) | Staging/production checklist and failure recovery |
+| [Go-live checklist](docs/GO_LIVE_CHECKLIST.md) | Evidence-based acceptance before launch |
+
+**Still outstanding:** actual MTN/Airtel merchant and URA approvals, provider-specific fiscal credit/refund behavior, real bank disbursement, email/SMS delivery activation, private storage and malware scanning, signed document and advanced operational workflows, deployment/TLS, backups and restore drills, penetration/load tests, legal review, and real-device UAT. Consult the delivery register; do not relabel all remaining work as infrastructure-only.
+
+---
+
+**KATS Property Management** · Organized property operations, verified financial records, and accountable access.
