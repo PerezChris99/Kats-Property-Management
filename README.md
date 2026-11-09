@@ -1,5 +1,9 @@
 # KATS Property Management
 
+**© 2026 Kats Properties. All rights reserved. Proprietary software — NOT open source.**
+
+> Unauthorized copying, distribution, hosting, resale, or reuse is prohibited without written permission from Kats Properties. Available legal remedies, including claims for damages, depend on applicable law; this notice does not create automatic charges. See [LICENSE](LICENSE) and [NOTICE](NOTICE.md).
+
 **A unified platform for rental properties, tenants, verified collections, maintenance, and financial oversight in Uganda.**
 
 KATS is a mobile-first management application for **one property-management business** (not a multi-tenant SaaS platform). It brings everyday rental operations into one accountable workspace. Monetary amounts are represented as whole **Ugandan shillings (UGX)**.
@@ -341,4 +345,4 @@ Use the existing **perez → main** workflow. Do not add unnecessary branches or
 
 ---
 
-**KATS Property Management** · Organized property operations, verified financial records, and accountable access.
+**KATS Property Management** · Owned exclusively by **Kats Properties**. © 2026 Kats Properties. All rights reserved.
