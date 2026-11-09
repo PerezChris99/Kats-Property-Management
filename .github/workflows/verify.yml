@@ -1,0 +1,54 @@
+name: Verify
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [perez, main]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: kats_ci
+          POSTGRES_USER: kats_ci
+          POSTGRES_PASSWORD: ci_only_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kats_ci -d kats_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q
+        env:
+          APP_ENV: testing
+      - run: python -m compileall -q app
+      - run: python -m flask --app wsgi db upgrade
+        env:
+          APP_ENV: testing
+          DATABASE_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
+      - run: python -m flask --app wsgi db downgrade base && python -m flask --app wsgi db upgrade
+        env:
+          APP_ENV: testing
+          DATABASE_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
