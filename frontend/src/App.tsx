@@ -107,6 +107,9 @@ function Login({onSuccess}: {onSuccess:(user:User)=>void}) {
 }
 function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   const [rows,setRows]=useState<Row[]>([])
+  const [page,setPage]=useState(1)
+  const [pageSize,setPageSize]=useState(25)
+  const [total,setTotal]=useState<number|null>(null)
   const [filter,setFilter]=useState('')
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
@@ -121,11 +124,17 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
     String(value??'').toLowerCase().includes(search))):rows
   const load=useCallback(async()=>{
     setLoading(true);setError('')
-    try {const payload=await api(resource.path);setRows(payload.items||[])}
+    try {
+      const join=resource.path.includes('?')?'&':'?'
+      const payload=await api(resource.path+join+'page='+page+'&page_size='+pageSize)
+      setRows(payload.items||[])
+      setTotal(typeof payload.total==='number'?payload.total:null)
+    }
     catch(err) {setError(err instanceof Error?err.message:'Could not load')}
     finally {setLoading(false)}
-  },[resource.path])
+  },[resource.path,page,pageSize])
   useEffect(()=>{void load()},[load])
+  useEffect(()=>{setPage(1);setFilter('')},[resource.path])
   useEffect(()=>{
     if(!editing)return
     const entities:Record<string,string>={property_id:'properties',building_id:'buildings',floor_id:'floors',room_id:'rooms',tenant_id:'tenants',lease_id:'leases',invoice_id:'invoices',caretaker_user_id:'caretaker/roster',user_id:'tenants/accounts'}
@@ -139,7 +148,10 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
     event.preventDefault();setBusy(true);setError('')
     const body:Record<string,string|number>={}
     for(const field of resource.fields) {
-      const value=field.name==='idempotency_key'?idempotencyKey:(values[field.name]||'')
+      const value=field.name==='idempotency_key'?idempotencyKey:(values[field.name]||'').trim()
+      if(field.type==='number' && value && !/^-?\d+$/.test(value)){
+        setError(field.label+' must be a whole number.');setBusy(false);return
+      }
       if(value || field.required) body[field.name]=field.type==='number'?Number(value):value
     }
     try {await api(resource.path==='payments'?'payments/manual':resource.path,{method:'POST',body:JSON.stringify(body)});setEditing(false);setValues({});setIdempotencyKey(crypto.randomUUID());await load()}
@@ -197,8 +209,22 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
     {resource.path==='caretaker/rooms'&&<td><button className="outline-button" disabled={busy} onClick={()=>caretakerRoomStatus(String(item.id),'MAINTENANCE')}>Needs repair</button> <button className="outline-button" disabled={busy} onClick={()=>caretakerRoomStatus(String(item.id),'CLEANING')}>Cleaning</button></td>}
     {resource.path==='caretaker/assignments'&&<td><button className="outline-button" disabled={busy} onClick={()=>unassign(String(item.id))}>Unassign</button></td>}
     {resource.path==='admin/users'&&<td><button className="outline-button" disabled={busy} onClick={()=>toggleAccess(String(item.id),Boolean(item.is_active))}>{item.is_active?'Disable':'Enable'}</button></td>}</tr>)}</tbody></table></div>}
+    {!loading && rows.length>0&&<div className="pagination-controls" aria-label="Record pages">
+      <div className="page-size"><label>Rows per page
+        <select value={pageSize} onChange={event=>{setPageSize(Number(event.target.value));setPage(1)}}>
+          <option value={10}>10</option><option value={25}>25</option><option value={50}>50</option>
+        </select></label></div>
+      <span aria-live="polite">Page {page}{total!==null?' of '+Math.max(1,Math.ceil(total/pageSize)):''}</span>
+      <div className="actions">
+        <button className="outline-button" type="button" disabled={page<=1||loading}
+          onClick={()=>setPage(p=>Math.max(1,p-1))}>Previous</button>
+        <button className="outline-button" type="button"
+          disabled={loading||page>=200||(total!==null?page*pageSize>=total:rows.length<pageSize)}
+          onClick={()=>setPage(p=>p+1)}>Next</button>
+      </div>
+    </div>}
     {resource.path==='payments'&&<p className="note">*Approval requires another staff member to verify source evidence. Approval credits the invoice; authorized owners or accountants can post an auditable accounting reversal. Reversal never automatically refunds cash.</p>}
-    <p className="note">Access is enforced by the server. Table search filters only the currently loaded records.</p></section>
+    <p className="note">Access is enforced by the server. Search filters this page only; use Previous / Next to browse more records.</p></section>
 }
 function Dashboard({user}: {user:User}) {
   const [summary,setSummary]=useState<Record<string,number>|null>(null)
