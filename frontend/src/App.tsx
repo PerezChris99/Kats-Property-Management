@@ -75,7 +75,7 @@ function Header({user, logout}: {user:User|null;logout?:()=>void}) {
   return <header className="site-header"><Link to="/" className="brand"><Building2 size={24} aria-hidden="true"/> Kats <small>Property Management</small></Link>
   <nav aria-label="Main navigation">{user ? <><Link to="/dashboard">Workspace</Link><button className="link-button" onClick={logout}>Sign out</button></> : <><Link to="/features">Features</Link><Link to="/contact">Contact</Link><Link className="button small" to="/login">Sign in</Link></>}</nav></header>
 }
-function Footer() {return <footer><span>© {new Date().getFullYear()} Kats Property Management</span><nav aria-label="Legal"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/cookies">Cookies</Link><Link to="/contact">Support</Link></nav></footer>}
+function Footer() {return <footer><span>© {new Date().getFullYear()} Kats Properties. All rights reserved. Proprietary software.</span><nav aria-label="Legal"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/cookies">Cookies</Link><Link to="/contact">Support</Link></nav></footer>}
 function Landing({user,logout}: {user:User|null;logout:()=>void}) {
   const features = [{icon:Building2,title:'Property oversight',body:'Know which units are occupied and what rent is due.'},
     {icon:CreditCard,title:'Verified collections',body:'Review cash and bank records before counting them as collected.'},

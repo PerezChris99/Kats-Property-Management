@@ -1,6 +1,9 @@
 import logging
 import os
-from flask import Flask, jsonify, request
+import secrets
+from urllib.parse import urlparse
+from werkzeug.middleware.proxy_fix import ProxyFix
+from flask import Flask, jsonify, request, abort
 from flask_cors import CORS
 from sqlalchemy import text
 from werkzeug.exceptions import HTTPException
@@ -14,6 +17,25 @@ def create_app(test_config=None):
     app.config.from_object(Config)
     if test_config is not None:
         app.config.update(test_config)
+    if str(app.config.get("SQLALCHEMY_DATABASE_URI", "")).startswith("postgresql"):
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+            **app.config.get("SQLALCHEMY_ENGINE_OPTIONS", {}),
+            "pool_size": int(os.getenv("DB_POOL_SIZE", "5")),
+            "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "2")),
+            "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT", "10")),
+            "pool_recycle": int(os.getenv("DB_POOL_RECYCLE", "1800")),
+            "pool_use_lifo": True,
+            "connect_args": {"options": "-c statement_timeout=15000 -c idle_in_transaction_session_timeout=30000"}
+        }
+    if os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true":
+        # Trust exactly one hop; the frontend proxy MUST overwrite, not append,
+        # externally supplied X-Forwarded-For and X-Forwarded-Proto values.
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0)
+    if os.getenv("APP_ENV") == "production":
+        trusted = os.getenv("TRUSTED_HOSTS")
+        app.config["TRUSTED_HOSTS"] = [h.strip() for h in trusted.split(",") if h.strip()] if trusted else [
+            urlparse(x.strip()).hostname for x in os.environ["CORS_ORIGINS"].split(",") if x.strip()
+        ]
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
@@ -21,14 +43,39 @@ def create_app(test_config=None):
     allowed_origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if origin.strip()]
     CORS(app, origins=allowed_origins, supports_credentials=True, resources={r"/api/*": {"origins": allowed_origins}})
 
+    @app.before_request
+    def validate_request():
+        if not request.path.startswith("/api/"):
+            return None
+        if request.content_length and request.content_length > app.config["MAX_CONTENT_LENGTH"]:
+            abort(413)
+        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            if request.is_json and request.content_length and request.content_length > app.config["JSON_MAX_BYTES"]:
+                abort(413, description="JSON request exceeds configured limit")
+            origin = request.headers.get("Origin")
+            # Browser mutations with an Origin must originate from an explicitly
+            # approved frontend, even when the endpoint itself is public.
+            if origin and origin not in allowed_origins:
+                abort(403, description="Origin not allowed")
+            if request.content_length and request.content_length > 0 and not request.is_json:
+                abort(415, description="Mutations require application/json")
+        return None
+
     @app.after_request
     def security_headers(response):
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+        response.headers["X-Request-ID"] = secrets.token_hex(12)
         if request.path.startswith("/api/"):
-            response.headers["Cache-Control"] = "no-store"
+            response.headers["Cache-Control"] = "private, no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        if request.is_secure and os.getenv("APP_ENV") == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
         return response
 
     @app.errorhandler(HTTPException)
@@ -37,7 +84,12 @@ def create_app(test_config=None):
 
     @app.errorhandler(Exception)
     def unexpected_error(error):
-        app.logger.exception("Unhandled exception")
+        # Production must not log request bodies, query strings, credentials,
+        # exception messages or SQL bind values.
+        if os.getenv("APP_ENV") == "production":
+            app.logger.error("Internal error type=%s endpoint=%s", type(error).__name__, request.endpoint or "unknown")
+        else:
+            app.logger.exception("Unhandled exception")
         return jsonify(error={"code": "INTERNAL_ERROR", "message": "Unexpected server error"}), 500
 
     @app.get("/healthz")
