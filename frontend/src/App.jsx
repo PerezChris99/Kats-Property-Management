@@ -175,7 +175,7 @@ function ResourcePage({ resource, user }) {
                 return [field.name, []];
             }
         })).then(result => setReferences(Object.fromEntries(result)));
-    }, [editing, resource.fields]);
+    }, [editing, resource.fields, user.role]);
     async function submit(event) {
         event.preventDefault();
         setBusy(true);

@@ -82,6 +82,7 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }) {
         if (!drawerOpen)
             return;
         const previous = document.body.style.overflow;
+        const trigger = drawerTrigger.current;
         document.body.style.overflow = 'hidden';
         drawerSearch.current?.focus();
         function trapFocus(event) {
@@ -105,7 +106,7 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }) {
         return () => {
             document.removeEventListener('keydown', trapFocus);
             document.body.style.overflow = previous;
-            drawerTrigger.current?.focus();
+            trigger?.focus();
         };
     }, [drawerOpen]);
     useEffect(() => {
