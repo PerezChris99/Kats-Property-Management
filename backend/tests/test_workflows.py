@@ -59,10 +59,14 @@ def test_manual_payment_requires_separate_approval_and_is_idempotent(app):
     assert reviewer.post("/api/v1/payments/" + payment_id + "/approve",
                          headers=csrf(reviewer)).status_code == 200
     assert db.session.query(LedgerEntry).filter_by(payment_id=payment_id).count() == 1
+    receipt = reviewer.get("/api/v1/receipts/" + payment_id)
+    assert receipt.status_code == 200 and receipt.json["valid"] is True
+    assert receipt.json["fiscal_status"] == "NOT_FISCALIZED"
     reversed_payment = reviewer.post("/api/v1/payments/" + payment_id + "/reverse",
         headers=csrf(reviewer), json={"reason":"Duplicate cash collection found during reconciliation"})
     assert reversed_payment.status_code == 200, reversed_payment.json
     assert reversed_payment.json["invoice"]["paid_ugx"] == 0
+    assert reviewer.get("/api/v1/receipts/" + payment_id).json["valid"] is False
     assert db.session.query(LedgerEntry).filter_by(payment_id=payment_id).count() == 2
     again_reversed = reviewer.post("/api/v1/payments/" + payment_id + "/reverse",
         headers=csrf(reviewer), json={"reason":"Repeated command"})
