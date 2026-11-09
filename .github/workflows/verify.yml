@@ -29,6 +29,8 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: pip install -r requirements.txt
+      - name: Check tracked files for committed secret signatures
+        run: cd .. && python ops/check-secrets.py
       - run: python -m pytest -q
         env:
           APP_ENV: testing

@@ -331,6 +331,12 @@ flowchart LR
 
 Use the existing **perez → main** workflow. Do not add unnecessary branches or leave orphaned commits. A merged commit confirms code integration, not deployment.
 
+## Production hardening and ownership
+
+**© 2026 Kats Properties. All rights reserved.** This repository is proprietary and **not open source**. No public permission to copy, fork, distribute, host, sublicense or commercialize is granted. See [LICENSE](LICENSE) and [NOTICE](NOTICE.md). Legal remedies require applicable law and are not automatic charges.
+
+The current security baseline and its limits are documented in the [production security/capacity checklist](docs/PRODUCTION_SECURITY.md). Implemented controls include Redis rate limits, strict CORS/CSRF and secure cookies, request size guards, non-cacheable private API data, Nginx CSP and backpressure, SQL pool limits, targeted PostgreSQL indexes, RBAC/permission grants, and FORCE RLS specifically for private documents. **Other financial/tenant tables are protected by application authorization, not a universal RLS policy.** Production acceptance still requires external penetration/load testing, the real trusted-proxy/TLS chain, least-privilege database credentials, backup-restore drills and approved integrations.
+
 ## 10. Documentation and launch gates
 
 | Reference | Purpose |

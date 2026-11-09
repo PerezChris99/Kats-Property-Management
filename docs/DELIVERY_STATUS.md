@@ -24,6 +24,12 @@
 | Testing | Current Python/React tests, PostgreSQL 16 migration round-trip, PostgreSQL concurrency and audit-trigger tests | Comprehensive external E2E, security/load tests, mobile/iOS/Android devices and genuine UAT |
 | Release | Development work committed to perez and PR-reviewed into main after green checks | Never release/deploy without full signoffs |
 
+## Security baseline and known limitations
+
+The repository includes proprietary Kats Properties ownership notices, bounded API request/rate controls, Redis rate-limit storage in production, verified-cookie authentication and role grants, database query/pool bounds, indexed paginated lists and PostgreSQL FORCE RLS on private document rows. All new sensitive routes are subject to anonymous-route regression checks. A CI scanner checks high-confidence secret signatures in the current source tree.
+
+This does **not** prove secrets were never exposed historically; any leaked credentials need rotation. Database RLS applies to **documents only**, while financial and other tenant records rely on server-side RBAC and object-level checks. An external security review, provider credentials, production monitoring, scale/load tests and backup restore drills remain required.
+
 ## Outstanding code-level caveats
 
 This is **not** purely a third-party/infrastructure checklist yet. Portfolio archival/bulk editing, full signed document workflows, provider-specific EFRIS/fiscal-credit adapter requirements, bank refund/disbursement implementation, SMS/email notification delivery workers, exhaustive security/end-to-end coverage and detailed contractor/bank reconciliation remain incomplete or unverified. Some depend on provider specs and contractual decisions, but until implemented and tested they are not ready to be certified 100%.
