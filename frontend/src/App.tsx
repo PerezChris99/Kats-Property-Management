@@ -17,7 +17,7 @@ const RESOURCES: Record<string, Resource> = {
   rooms: {title:'Rooms',path:'rooms',columns:['number','status','rent_ugx','deposit_ugx'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
     fields:[{name:'property_id',label:'Property ID',required:true},{name:'number',label:'Room number',required:true},{name:'rent_ugx',label:'Monthly rent (UGX)',type:'number',required:true},{name:'deposit_ugx',label:'Deposit (UGX)',type:'number'}]},
   tenants: {title:'Tenants',path:'tenants',columns:['full_name','phone','email'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
-    fields:[{name:'full_name',label:'Full name',required:true},{name:'phone',label:'Phone',required:true},{name:'email',label:'Email',type:'email'}]},
+    fields:[{name:'full_name',label:'Full name',required:true},{name:'phone',label:'Phone',required:true},{name:'email',label:'Email',type:'email'},{name:'user_id',label:'Linked tenant account'}]},
   leases: {title:'Leases',path:'leases',columns:['room_id','tenant_id','start_date','end_date','rent_ugx','status'],writable:['OWNER','MANAGER','SUPER_ADMIN'],
     fields:[{name:'room_id',label:'Room ID',required:true},{name:'tenant_id',label:'Tenant ID',required:true},{name:'start_date',label:'Start date',type:'date',required:true},{name:'end_date',label:'End date',type:'date',required:true},{name:'rent_ugx',label:'Rent (UGX)',type:'number',required:true},{name:'deposit_ugx',label:'Deposit (UGX)',type:'number'}]},
   invoices: {title:'Rent invoices',path:'invoices',columns:['invoice_number','due_date','total_ugx','paid_ugx','status'],writable:['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN'],
@@ -101,10 +101,10 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   useEffect(()=>{void load()},[load])
   useEffect(()=>{
     if(!editing)return
-    const entities:Record<string,string>={property_id:'properties',room_id:'rooms',tenant_id:'tenants',lease_id:'leases',invoice_id:'invoices',caretaker_user_id:'admin/users'}
+    const entities:Record<string,string>={property_id:'properties',room_id:'rooms',tenant_id:'tenants',lease_id:'leases',invoice_id:'invoices',caretaker_user_id:'caretaker/roster',user_id:'tenants/accounts'}
     const related=resource.fields.filter(field=>entities[field.name])
     Promise.all(related.map(async field=>{
-      try {const endpoint=user.role==='CARETAKER'&&field.name==='room_id'?'caretaker/rooms':user.role==='CARETAKER'&&field.name==='invoice_id'?'caretaker/invoices':entities[field.name];const payload=await api(endpoint);const items=field.name==='caretaker_user_id'?(payload.items||[]).filter((item:Row)=>item.role==='CARETAKER'):(payload.items||[]);return [field.name,items] as const}
+      try {const endpoint=user.role==='CARETAKER'&&field.name==='room_id'?'caretaker/rooms':user.role==='TENANT'&&field.name==='room_id'?'tenant/rooms':user.role==='CARETAKER'&&field.name==='invoice_id'?'caretaker/invoices':entities[field.name];const payload=await api(endpoint);const items=field.name==='caretaker_user_id'?(payload.items||[]).filter((item:Row)=>item.role==='CARETAKER'):(payload.items||[]);return [field.name,items] as const}
       catch{return [field.name,[]] as const}
     })).then(result=>setReferences(Object.fromEntries(result)))
   },[editing,resource.fields])
