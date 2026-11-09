@@ -223,7 +223,18 @@ def landing_content():
 @api.get("/properties")
 @roles(*STAFF)
 def properties(user):
-    results = list_page(Property, db.session.query(Property).order_by(Property.name))
+    query=db.session.query(Property)
+    query_text=request.args.get("q","").strip()
+    if len(query_text)>100:
+        return fail("Search term too long")
+    if query_text:
+        from sqlalchemy import or_
+        escaped=query_text.replace("\\","\\\\").replace("%","\\%").replace("_","\\_")
+        term="%"+escaped+"%"
+        query=query.filter(or_(Property.name.ilike(term,escape="\\"),
+                              Property.address.ilike(term,escape="\\"),
+                              Property.district.ilike(term,escape="\\")))
+    results = list_page(Property, query.order_by(Property.name))
     return jsonify(items=[serialize(p, "id", "name", "address", "district") for p in results.items], total=results.total, page=results.page)
 
 @api.post("/properties")
@@ -243,6 +254,18 @@ def rooms(user):
     query = db.session.query(Room)
     if request.args.get("property_id"):
         query = query.filter_by(property_id=request.args["property_id"])
+    if request.args.get("floor_id"):
+        query = query.filter_by(floor_id=request.args["floor_id"])
+    if request.args.get("status"):
+        if request.args["status"] not in ROOM_STATES:
+            return fail("Unknown room state")
+        query=query.filter_by(status=request.args["status"])
+    query_text=request.args.get("q","").strip()
+    if len(query_text)>60:
+        return fail("Search term too long")
+    if query_text:
+        escaped=query_text.replace("\\","\\\\").replace("%","\\%").replace("_","\\_")
+        query=query.filter(Room.number.ilike("%"+escaped+"%",escape="\\"))
     results = list_page(Room, query.order_by(Room.number))
     return jsonify(items=[serialize(r, "id", "property_id", "floor_id", "number", "status", "rent_ugx", "deposit_ugx") for r in results.items], total=results.total)
 

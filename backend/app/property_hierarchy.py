@@ -16,6 +16,10 @@ def buildings(user):
     query=db.session.query(Building)
     if request.args.get("property_id"):
         query=query.filter_by(property_id=request.args["property_id"])
+    q=request.args.get("q","").strip()
+    if len(q)>100:return fail("Search term too long")
+    if q:
+        query=query.filter(Building.name.ilike("%"+q.replace("%","\\%").replace("_","\\_")+"%",escape="\\"))
     records=list_page(Building,query.order_by(Building.name))
     return jsonify(items=[serialize(b,"id","property_id","name","description","created_at") for b in records.items],
                    total=records.total)
@@ -51,6 +55,10 @@ def floors(user):
     if request.args.get("property_id"):
         query=query.join(Building,Building.id==Floor.building_id).filter(
             Building.property_id==request.args["property_id"])
+    q=request.args.get("q","").strip()
+    if len(q)>100:return fail("Search term too long")
+    if q:
+        query=query.filter(Floor.label.ilike("%"+q.replace("%","\\%").replace("_","\\_")+"%",escape="\\"))
     records=list_page(Floor,query.order_by(Floor.level))
     return jsonify(items=[serialize(f,"id","building_id","level","label","created_at") for f in records.items],
                    total=records.total)
