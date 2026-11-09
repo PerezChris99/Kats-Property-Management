@@ -17,6 +17,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(30), nullable=False, default="TENANT")
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    session_version = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
 class Property(db.Model):
@@ -180,3 +181,13 @@ class Inspection(db.Model):
         CheckConstraint("damage_estimate_ugx >= 0", name="ck_inspection_damage"),
         CheckConstraint("kind IN ('MOVE_IN','MOVE_OUT','ROUTINE')", name="ck_inspection_kind"),
     )
+
+
+class RefreshSession(db.Model):
+    __tablename__ = "refresh_sessions"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    user_id = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_jti = db.Column(db.String(64), nullable=False, unique=True)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    revoked_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)

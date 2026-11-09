@@ -1,9 +1,9 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from functools import wraps
 import os
 from flask import Blueprint, abort, jsonify, request
 from flask_jwt_extended import (
-    create_access_token, create_refresh_token, get_jwt_identity,
+    create_access_token, create_refresh_token, get_jwt_identity, get_jwt, decode_token,
     jwt_required, set_access_cookies, set_refresh_cookies, unset_jwt_cookies
 )
 from argon2 import PasswordHasher
@@ -12,7 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from .extensions import db, limiter
 from .models import (
-    User, Property, Room, RoomStateHistory, Tenant, Lease,
+    User, RefreshSession, Property, Room, RoomStateHistory, Tenant, Lease,
     Invoice, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog, CaretakerAssignment, Inspection
 )
 
@@ -62,6 +62,8 @@ def current_user():
     user = db.session.get(User, get_jwt_identity())
     if not user or not user.is_active:
         abort(403)
+    if get_jwt().get("sv") != user.session_version:
+        abort(401, description="Session expired; sign in again")
     return user
 
 def roles(*allowed):
@@ -120,21 +122,77 @@ def login():
     if not valid:
         return fail("Invalid email or password", 401)
     response = jsonify(user=serialize(user, "id", "full_name", "role"))
-    set_access_cookies(response, create_access_token(identity=user.id))
-    set_refresh_cookies(response, create_refresh_token(identity=user.id))
+    claims = {"sv": user.session_version}
+    refresh_token = create_refresh_token(identity=user.id, additional_claims=claims)
+    from datetime import datetime, timezone
+    expiry = datetime.fromtimestamp(decode_token(refresh_token)["exp"], tz=timezone.utc)
+    db.session.add(RefreshSession(user_id=user.id, token_jti=decode_token(refresh_token)["jti"], expires_at=expiry))
+    audit(user, "auth.login", "user", user.id)
+    db.session.commit()
+    set_access_cookies(response, create_access_token(identity=user.id, additional_claims=claims))
+    set_refresh_cookies(response, refresh_token)
     return response
 
 @api.post("/auth/refresh")
 @jwt_required(refresh=True)
 def refresh():
+    from .models import utcnow
+    token = get_jwt()
     user = current_user()
+    session = db.session.query(RefreshSession).filter_by(
+        token_jti=token["jti"], user_id=user.id, revoked_at=None
+    ).with_for_update().first()
+    if session is None or session.expires_at <= utcnow():
+        return fail("Refresh session expired or already used", 401)
+    claims = {"sv": user.session_version}
+    new_refresh = create_refresh_token(identity=user.id, additional_claims=claims)
+    expiry = datetime.fromtimestamp(decode_token(new_refresh)["exp"], tz=timezone.utc)
+    session.revoked_at = utcnow()
+    db.session.add(RefreshSession(user_id=user.id, token_jti=decode_token(new_refresh)["jti"], expires_at=expiry))
+    db.session.commit()
     response = jsonify(user=serialize(user, "id", "full_name", "role"))
-    set_access_cookies(response, create_access_token(identity=user.id))
+    set_access_cookies(response, create_access_token(identity=user.id, additional_claims=claims))
+    set_refresh_cookies(response, new_refresh)
     return response
 
 @api.post("/auth/logout")
+@jwt_required()
 def logout():
-    response = jsonify(message="Signed out")
+    user = current_user()
+    user.session_version += 1
+    db.session.query(RefreshSession).filter_by(user_id=user.id, revoked_at=None).update(
+        {RefreshSession.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False
+    )
+    audit(user, "auth.logout", "user", user.id)
+    db.session.commit()
+    response = jsonify(message="Signed out from all devices")
+    unset_jwt_cookies(response)
+    return response
+
+@api.post("/auth/change-password")
+@jwt_required()
+@limiter.limit("5 per hour")
+def change_password():
+    user = current_user()
+    obj = data()
+    current = required_string(obj, "current_password", 256)
+    updated = required_string(obj, "new_password", 256)
+    if len(updated) < 12 or updated == current:
+        return fail("A different password of at least 12 characters is required")
+    try:
+        valid = hasher.verify(user.password_hash, current)
+    except (VerifyMismatchError, VerificationError):
+        valid = False
+    if not valid:
+        return fail("Incorrect current password", 403)
+    user.password_hash = hasher.hash(updated)
+    user.session_version += 1
+    db.session.query(RefreshSession).filter_by(user_id=user.id, revoked_at=None).update(
+        {RefreshSession.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False
+    )
+    audit(user, "auth.change_password", "user", user.id)
+    db.session.commit()
+    response = jsonify(message="Password changed; please sign in again")
     unset_jwt_cookies(response)
     return response
 
@@ -741,6 +799,11 @@ def admin_user_status(user, account_id):
         return fail("is_active must be a boolean")
     previous = account.is_active
     account.is_active = value
+    if not value:
+        account.session_version += 1
+        db.session.query(RefreshSession).filter_by(user_id=account.id, revoked_at=None).update(
+            {RefreshSession.revoked_at: datetime.now(timezone.utc)}, synchronize_session=False
+        )
     audit(user, "user.status", "user", account.id, previous=previous, active=value)
     db.session.commit()
     return jsonify(user=serialize(account, "id", "full_name", "email", "role", "is_active"))
