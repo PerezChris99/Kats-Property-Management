@@ -114,6 +114,11 @@ class Payment(db.Model):
 
 class LedgerEntry(db.Model):
     __tablename__ = "ledger_entries"
+    __table_args__ = (
+        Index("uq_ledger_payment_event","payment_id","event",unique=True,
+              postgresql_where=text("payment_id IS NOT NULL"),
+              sqlite_where=text("payment_id IS NOT NULL")),
+    )
     id = db.Column(db.String(36), primary_key=True, default=new_id)
     invoice_id = db.Column(db.String(36), db.ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False, index=True)
     payment_id = db.Column(db.String(36), db.ForeignKey("payments.id", ondelete="RESTRICT"), nullable=True)
