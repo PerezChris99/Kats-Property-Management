@@ -796,3 +796,82 @@ def void_invoice(user, invoice_id):
     audit(user, "invoice.void", "invoice", invoice.id, reason=reason)
     db.session.commit()
     return jsonify(invoice=serialize(invoice, "id", "status"))
+
+
+@api.get("/reports/summary")
+@roles("OWNER", "MANAGER", "ACCOUNTANT", "SUPER_ADMIN")
+def report_summary(user):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    import calendar
+    raw = request.args.get("month")
+    try:
+        month = date.fromisoformat(raw + "-01") if raw else datetime.now(ZoneInfo("Africa/Kampala")).date().replace(day=1)
+    except ValueError:
+        return fail("month must use YYYY-MM")
+    month_start = month.replace(day=1)
+    month_end = date(month_start.year, month_start.month, calendar.monthrange(month_start.year, month_start.month)[1])
+    billed, applied, invoice_count = db.session.query(
+        func.coalesce(func.sum(Invoice.total_ugx), 0),
+        func.coalesce(func.sum(Invoice.paid_ugx), 0),
+        func.count(Invoice.id),
+    ).filter(Invoice.period_start >= month_start, Invoice.period_start <= month_end,
+             Invoice.status != "VOID").one()
+    expenses = db.session.query(func.coalesce(func.sum(Expense.amount_ugx), 0)).filter(
+        Expense.incurred_on >= month_start, Expense.incurred_on <= month_end
+    ).scalar()
+    rooms_total = db.session.query(func.count(Room.id)).filter(Room.status != "ARCHIVED").scalar() or 0
+    occupied = db.session.query(func.count(Room.id)).filter(Room.status == "OCCUPIED").scalar() or 0
+    return jsonify(
+        month=month_start.isoformat(), billed_ugx=int(billed),
+        applied_to_invoices_ugx=int(applied), outstanding_on_invoices_ugx=int(billed-applied),
+        expenses_in_period_ugx=int(expenses or 0),
+        gross_invoice_margin_ugx=int(billed) - int(expenses or 0),
+        invoices=int(invoice_count), units=int(rooms_total), occupied_units=int(occupied),
+        occupancy_percent=round((occupied/rooms_total)*100, 2) if rooms_total else 0,
+        methodology="Invoice cohort balances, not a cashflow or profit and loss statement."
+    )
+
+@api.get("/reports/arrears")
+@roles("OWNER", "MANAGER", "ACCOUNTANT", "SUPER_ADMIN")
+def report_arrears(user):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    now = datetime.now(ZoneInfo("Africa/Kampala")).date()
+    invoices = db.session.query(Invoice).filter(
+        Invoice.due_date < now, Invoice.paid_ugx < Invoice.total_ugx,
+        Invoice.status.in_(["ISSUED", "PARTIALLY_PAID", "OVERDUE"])
+    ).all()
+    buckets = {"1_30_days": 0, "31_60_days": 0, "61_90_days": 0, "over_90_days": 0}
+    count = 0
+    for invoice in invoices:
+        age = (now - invoice.due_date).days
+        bucket = "1_30_days" if age <= 30 else "31_60_days" if age <= 60 else "61_90_days" if age <= 90 else "over_90_days"
+        buckets[bucket] += invoice.total_ugx - invoice.paid_ugx
+        count += 1
+    return jsonify(as_of=now.isoformat(), overdue_invoices=count,
+                   total_ugx=sum(buckets.values()), ageing_ugx=buckets)
+
+@api.get("/reports/export/invoices.csv")
+@roles("OWNER", "ACCOUNTANT", "SUPER_ADMIN")
+def export_invoices(user):
+    import csv
+    import io
+    from flask import Response
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+    writer.writerow(["Invoice number", "Tenant reference", "Period start", "Period end",
+                     "Due date", "Status", "Billed UGX", "Applied UGX", "Outstanding UGX"])
+    records = db.session.query(Invoice).order_by(Invoice.created_at.desc()).limit(5000).all()
+    for invoice in records:
+        # Invoice numbers and references are server-generated UUIDs/IDs; never export arbitrary
+        # tenant-supplied text into CSV without protecting against spreadsheet formulas.
+        writer.writerow([invoice.invoice_number, invoice.tenant_id,
+                         invoice.period_start.isoformat(), invoice.period_end.isoformat(),
+                         invoice.due_date.isoformat(), invoice.status,
+                         invoice.total_ugx, invoice.paid_ugx,
+                         invoice.total_ugx-invoice.paid_ugx])
+    response = Response(stream.getvalue(), mimetype="text/csv; charset=utf-8")
+    response.headers["Content-Disposition"] = "attachment; filename=kats-invoices.csv"
+    response.headers["Cache-Control"] = "no-store"
+    return response
