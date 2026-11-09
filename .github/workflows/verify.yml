@@ -7,6 +7,20 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: kats_ci
+          POSTGRES_USER: kats_ci
+          POSTGRES_PASSWORD: ci_only_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kats_ci -d kats_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: backend
@@ -22,6 +36,11 @@ jobs:
       - run: python -m flask --app wsgi db upgrade
         env:
           APP_ENV: testing
+          DATABASE_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
+      - run: python -m flask --app wsgi db downgrade base && python -m flask --app wsgi db upgrade
+        env:
+          APP_ENV: testing
+          DATABASE_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
   frontend:
     runs-on: ubuntu-latest
     defaults:
