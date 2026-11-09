@@ -89,11 +89,12 @@ class Invoice(db.Model):
     due_date = db.Column(db.Date, nullable=False)
     total_ugx = db.Column(db.BigInteger, nullable=False)
     paid_ugx = db.Column(db.BigInteger, nullable=False, default=0)
+    credit_ugx = db.Column(db.BigInteger, nullable=False, default=0)
     status = db.Column(db.String(30), nullable=False, default="ISSUED")
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     __table_args__ = (
         db.UniqueConstraint("lease_id", "period_start", "period_end", name="uq_lease_billing_period"),
-        CheckConstraint("total_ugx >= 0 AND paid_ugx >= 0 AND paid_ugx <= total_ugx", name="ck_invoice_amounts"),
+        CheckConstraint("total_ugx >= 0 AND paid_ugx >= 0 AND credit_ugx >= 0 AND paid_ugx + credit_ugx <= total_ugx", name="ck_invoice_amounts"),
         CheckConstraint("period_end >= period_start", name="ck_invoice_period"),
     )
 
@@ -191,3 +192,28 @@ class RefreshSession(db.Model):
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
     revoked_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class InvoiceLine(db.Model):
+    __tablename__ = "invoice_lines"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    invoice_id = db.Column(db.String(36), db.ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False, index=True)
+    description = db.Column(db.String(300), nullable=False)
+    charge_type = db.Column(db.String(40), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    unit_price_ugx = db.Column(db.BigInteger, nullable=False)
+    amount_ugx = db.Column(db.BigInteger, nullable=False)
+    __table_args__ = (CheckConstraint(
+        "quantity > 0 AND quantity <= 100000 AND unit_price_ugx >= 0 AND amount_ugx >= 0",
+        name="ck_invoice_line_amounts"),)
+
+class CreditNote(db.Model):
+    __tablename__ = "credit_notes"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    invoice_id = db.Column(db.String(36), db.ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False, index=True)
+    amount_ugx = db.Column(db.BigInteger, nullable=False)
+    reason = db.Column(db.String(500), nullable=False)
+    idempotency_key = db.Column(db.String(128), unique=True, nullable=False)
+    created_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (CheckConstraint("amount_ugx > 0", name="ck_credit_positive"),)
