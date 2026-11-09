@@ -109,3 +109,18 @@ class SystemSetting(db.Model):
     value = db.Column(db.JSON, nullable=False)
     updated_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class ContactRequest(db.Model):
+    __tablename__ = "contact_requests"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    full_name = db.Column(db.String(160), nullable=False)
+    email = db.Column(db.String(254), nullable=False)
+    phone = db.Column(db.String(30))
+    subject = db.Column(db.String(120), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    consent = db.Column(db.Boolean, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="NEW")
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    reviewed_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"))
+    reviewed_at = db.Column(db.DateTime(timezone=True))
