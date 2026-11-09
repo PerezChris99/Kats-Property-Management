@@ -22,7 +22,8 @@ def test_ugx_reporting_scope_and_csv_export(app):
                       due_date=date(2026, 11, 5), total_ugx=200000, paid_ugx=120000,
                       status="PARTIALLY_PAID")
     expense = Expense(property_id=prop.id, category="Repairs", description="Tap replacement",
-                      amount_ugx=30000, incurred_on=date(2026, 11, 8), created_by=owner.id)
+                      amount_ugx=30000, incurred_on=date(2026, 11, 8), created_by=owner.id,
+                      status="APPROVED")
     db.session.add_all([invoice, expense])
     db.session.commit()
     cli = auth_client(app, owner)
