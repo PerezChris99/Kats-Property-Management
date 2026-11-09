@@ -33,6 +33,7 @@ class Room(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=new_id)
     property_id = db.Column(db.String(36), db.ForeignKey("properties.id", ondelete="RESTRICT"), nullable=False, index=True)
     number = db.Column(db.String(60), nullable=False)
+    floor_id = db.Column(db.String(36), db.ForeignKey("floors.id", ondelete="RESTRICT"), nullable=True, index=True)
     status = db.Column(db.String(30), nullable=False, default="VACANT")
     rent_ugx = db.Column(db.BigInteger, nullable=False)
     deposit_ugx = db.Column(db.BigInteger, nullable=False, default=0)
@@ -278,3 +279,25 @@ class RolePermission(db.Model):
     role_name = db.Column(db.String(30), db.ForeignKey("roles.name", ondelete="CASCADE"), primary_key=True)
     permission_name = db.Column(db.String(160), db.ForeignKey("permissions.name", ondelete="CASCADE"), primary_key=True)
     granted_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class Building(db.Model):
+    __tablename__ = "buildings"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    property_id = db.Column(db.String(36), db.ForeignKey("properties.id", ondelete="RESTRICT"), nullable=False, index=True)
+    name = db.Column(db.String(160), nullable=False)
+    description = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (db.UniqueConstraint("property_id", "name", name="uq_property_building_name"),)
+
+class Floor(db.Model):
+    __tablename__ = "floors"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    building_id = db.Column(db.String(36), db.ForeignKey("buildings.id", ondelete="RESTRICT"), nullable=False, index=True)
+    level = db.Column(db.Integer, nullable=False)
+    label = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (
+        db.UniqueConstraint("building_id", "level", name="uq_building_floor_level"),
+        CheckConstraint("level BETWEEN -10 AND 300", name="ck_floor_level"),
+    )

@@ -12,7 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from .extensions import db, limiter
 from .models import (
-    User, RefreshSession, Permission, Role, RolePermission, Property, Room, RoomStateHistory, Tenant, Lease,
+    User, RefreshSession, Permission, Role, RolePermission, Property, Building, Floor, Room, RoomStateHistory, Tenant, Lease,
     Invoice, InvoiceLine, CreditNote, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog, CaretakerAssignment, Inspection
 )
 
@@ -244,7 +244,7 @@ def rooms(user):
     if request.args.get("property_id"):
         query = query.filter_by(property_id=request.args["property_id"])
     results = list_page(Room, query.order_by(Room.number))
-    return jsonify(items=[serialize(r, "id", "property_id", "number", "status", "rent_ugx", "deposit_ugx") for r in results.items], total=results.total)
+    return jsonify(items=[serialize(r, "id", "property_id", "floor_id", "number", "status", "rent_ugx", "deposit_ugx") for r in results.items], total=results.total)
 
 @api.post("/rooms")
 @roles(*OPERATIONS)
@@ -253,7 +253,15 @@ def add_room(user):
     property_id = required_string(obj, "property_id")
     if not db.session.get(Property, property_id):
         abort(404)
-    room = Room(property_id=property_id, number=required_string(obj, "number", 60), rent_ugx=ugx(obj.get("rent_ugx")), deposit_ugx=ugx(obj.get("deposit_ugx", 0)))
+    floor_id = obj.get("floor_id")
+    if floor_id:
+        floor = db.session.get(Floor, floor_id)
+        if not floor or db.session.get(Building, floor.building_id).property_id != property_id:
+            return fail("Selected floor does not belong to this property", 409)
+    room = Room(property_id=property_id, floor_id=floor_id or None,
+                number=required_string(obj, "number", 60),
+                rent_ugx=ugx(obj.get("rent_ugx")),
+                deposit_ugx=ugx(obj.get("deposit_ugx", 0)))
     db.session.add(room)
     try:
         db.session.flush()
@@ -262,7 +270,7 @@ def add_room(user):
     except IntegrityError:
         db.session.rollback()
         return fail("Room number already exists for the property", 409)
-    return jsonify(room=serialize(room, "id", "number", "status", "rent_ugx", "property_id")), 201
+    return jsonify(room=serialize(room, "id", "number", "status", "rent_ugx", "property_id", "floor_id")), 201
 
 @api.post("/rooms/<room_id>/status")
 @roles(*OPERATIONS)
