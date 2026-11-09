@@ -178,6 +178,32 @@ function Dashboard({user}: {user:User}) {
   {[['Expected',summary.expected_ugx,true],['Collected',summary.collected_ugx,true],['Outstanding',summary.outstanding_ugx,true],['Occupied rooms',summary.occupied_rooms,false],['Vacant / other rooms',summary.vacant_rooms,false],['Open maintenance',summary.open_maintenance,false]].map(([label,value,currency])=><div className="stat" key={String(label)}><small>{label}</small><strong>{currency?'UGX ':''}{Number(value).toLocaleString('en-UG')}</strong></div>)}</div>}
   <div className="quick"><h2>Common actions</h2><Link to="/properties">Properties</Link><Link to="/rooms">Rooms</Link><Link to="/invoices">Invoices</Link><Link to="/payments">Payments</Link></div></section>
 }
+function ReportsPage() {
+  const [month,setMonth]=useState('')
+  const [summary,setSummary]=useState<Record<string,string|number>|null>(null)
+  const [arrears,setArrears]=useState<{total_ugx:number;overdue_invoices:number;ageing_ugx:Record<string,number>}|null>(null)
+  const [error,setError]=useState('')
+  useEffect(()=>{
+    setError('')
+    Promise.all([api('reports/summary'+(month?'?month='+month:'')),api('reports/arrears')])
+      .then(([a,b])=>{setSummary(a);setArrears(b)})
+      .catch(err=>setError(err instanceof Error?err.message:'Could not load reports'))
+  },[month])
+  return <section className="page"><span className="eyebrow">FINANCIAL OVERSIGHT</span><h1>Reports</h1>
+    <p>Invoice-period reporting. Payments applied to an invoice are not necessarily cash received in the selected month.</p>
+    <label style={{maxWidth:280}}>Invoice period <input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label>
+    {error&&<p className="error" role="alert">{error}</p>}
+    {summary?<><div className="stat-grid">
+      {([['Invoiced UGX',summary.billed_ugx],['Applied to invoices UGX',summary.applied_to_invoices_ugx],
+          ['Outstanding UGX',summary.outstanding_on_invoices_ugx],['Period expenses UGX',summary.expenses_in_period_ugx],
+          ['Occupied units',summary.occupied_units],['Occupancy %',summary.occupancy_percent]] as [string,string|number][]).map(([label,value])=><div key={label} className="stat"><small>{label}</small><strong>{typeof value==='number'?value.toLocaleString('en-UG'):value}</strong></div>)}
+    </div><p className="note">{String(summary.methodology)}</p></>:<p role="status">Loading financial report…</p>}
+    {arrears&&<div className="quick"><h2>Overdue rent</h2><p>{arrears.overdue_invoices} overdue invoice(s) · UGX {arrears.total_ugx.toLocaleString('en-UG')}</p>
+      <div className="stat-grid">{Object.entries(arrears.ageing_ugx).map(([label,value])=><div className="stat" key={label}><small>{label.replaceAll('_',' ')}</small><strong>UGX {value.toLocaleString('en-UG')}</strong></div>)}</div></div>}
+    <div className="quick"><h2>Exports</h2><a className="button" href="/api/v1/reports/export/invoices.csv">Download invoice CSV</a></div>
+  </section>
+}
+
 function TenantHome() {
   const [summary,setSummary]=useState<Record<string,number>|null>(null)
   const [lease,setLease]=useState<Row|null>(null)
@@ -209,10 +235,10 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
   const location=useLocation()
   const page=location.pathname.slice(1)
   const canOperate=roles.includes(user.role)
-  const nav = canOperate?['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses',...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['users']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'||user.role==='MANAGER'?['assignments']:[])]:user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance']
+  const nav = canOperate?['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports',...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['users']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'||user.role==='MANAGER'?['assignments']:[])]:user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance']
   const viewResource=user.role==='CARETAKER'?CARETAKER_RESOURCES[page]:RESOURCES[page]
   return <div className="portal"><aside className="side"><Link to="/" className="brand">Kats</Link><div className="role">{user.role.replaceAll('_',' ')}</div><nav aria-label="Workspace">{nav.map(key=><Link key={key} className={page===key?'active':''} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</nav><button className="link-button logout" onClick={logout}><LogOut size={16}/> Sign out</button></aside>
-  <div className="portal-main"><header className="portal-bar"><span>Kats Property Management</span><span>{user.full_name}</span></header><main>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main></div><nav className="mobile-nav" aria-label="Mobile workspace navigation">{(canOperate?['dashboard','rooms','payments','maintenance']:(user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance'])).map((key,i)=>{const Icon=[LayoutDashboard,Building2,CreditCard,Wrench][i];return <Link key={key} to={'/'+key} className={page===key?'active':''}><Icon size={20}/><span>{key[0].toUpperCase()+key.slice(1)}</span></Link>})}<Link to="/more"><Menu size={20}/><span>More</span></Link></nav></div>
+  <div className="portal-main"><header className="portal-bar"><span>Kats Property Management</span><span>{user.full_name}</span></header><main>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main></div><nav className="mobile-nav" aria-label="Mobile workspace navigation">{(canOperate?['dashboard','rooms','payments','maintenance']:(user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance'])).map((key,i)=>{const Icon=[LayoutDashboard,Building2,CreditCard,Wrench][i];return <Link key={key} to={'/'+key} className={page===key?'active':''}><Icon size={20}/><span>{key[0].toUpperCase()+key.slice(1)}</span></Link>})}<Link to="/more"><Menu size={20}/><span>More</span></Link></nav></div>
 }
 export default function App() {
   const [user,setUser]=useState<User|null>(null)
@@ -230,7 +256,7 @@ export default function App() {
     <Route path="/features" element={<TextPage title="Features" body="Manage units, leases, invoices, verified manual payments, maintenance and expenses. MTN/Airtel and EFRIS require provider verification." user={user} logout={logout}/>}/>
     <Route path="/contact" element={<TextPage title="Contact and support" body="Contact details and demo-booking workflow will be published before launch. No payment is accepted through this page." user={user} logout={logout}/>}/>
     {Object.entries(legal).map(([slug,body])=><Route key={slug} path={'/'+slug} element={<TextPage title={slug[0].toUpperCase()+slug.slice(1)} body={body} user={user} logout={logout}/>}/>)}
-    {['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','users','assignments','more'].map(path=><Route key={path} path={'/'+path} element={user?<Portal user={user} logout={logout}/>:<Navigate to="/login" replace/>}/>)}
+    {['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports','users','assignments','more'].map(path=><Route key={path} path={'/'+path} element={user?<Portal user={user} logout={logout}/>:<Navigate to="/login" replace/>}/>)}
     <Route path="*" element={<Navigate to="/" replace/>}/>
   </Routes></>
 }
