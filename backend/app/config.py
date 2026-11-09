@@ -33,5 +33,14 @@ def validate_production_config():
         raise RuntimeError("PostgreSQL is required for production")
     if os.getenv("COOKIE_SECURE") != "true":
         raise RuntimeError("Production requires COOKIE_SECURE=true")
-    if not os.environ["CORS_ORIGINS"].startswith("https://"):
-        raise RuntimeError("Production requires an HTTPS CORS origin")
+    from urllib.parse import urlparse
+    origins = [x.strip() for x in os.environ["CORS_ORIGINS"].split(",") if x.strip()]
+    if not origins:
+        raise RuntimeError("At least one HTTPS CORS origin is required")
+    for origin in origins:
+        p = urlparse(origin)
+        if (p.scheme != "https" or not p.hostname or p.username or p.password or
+                p.path not in ("", "/") or p.query or p.fragment or "*" in origin):
+            raise RuntimeError("Production CORS origins must be explicit HTTPS hosts without paths or wildcards")
+    if os.getenv("PUBLIC_REGISTRATION_ENABLED", "false").lower() == "true":
+        raise RuntimeError("Public self-registration requires a verified-email workflow; use invitations")

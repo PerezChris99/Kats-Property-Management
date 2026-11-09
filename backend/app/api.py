@@ -896,6 +896,8 @@ def admin_users(user):
 @api.post("/admin/users")
 @roles("OWNER", "SUPER_ADMIN")
 def admin_create_user(user):
+    if os.getenv("APP_ENV") == "production":
+        return fail("Password-based staff provisioning is disabled. Use secure invitations.", 403)
     obj = data()
     role = required_string(obj, "role").upper()
     if role not in ("MANAGER", "CARETAKER", "ACCOUNTANT", "TENANT"):
