@@ -38,7 +38,7 @@ def required_string(obj, key, max_length=250):
         abort(400, description=key + " is required and must be text")
     # Reject control bytes and text-direction overrides. React escapes text;
     # do not run a lossy HTML sanitizer on legitimate literal descriptions.
-    if any((unicodedata.category(ch) in ("Cc", "Cs") and ch not in ("\\n", "\\t")) or
+    if any((unicodedata.category(ch) in ("Cc", "Cs") and ch not in ("\n", "\t")) or
            unicodedata.bidirectional(ch) in ("RLO", "LRO", "RLE", "LRE", "PDF") for ch in value):
         abort(400, description=key + " contains forbidden control characters")
     return value.strip()
