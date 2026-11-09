@@ -30,6 +30,34 @@ def data():
     value = request.get_json(silent=True)
     if not isinstance(value, dict):
         abort(400, description="JSON object required")
+    # Bound nested structured input so attackers cannot exhaust CPU/DB memory
+    # with oversized array/map allocations. Preserve literal HTML as inert
+    # text: escaping belongs to the display context, never SQL concatenation.
+    remaining = [5000]
+    def validate(item, depth=0):
+        remaining[0] -= 1
+        if remaining[0] < 0 or depth > 12:
+            abort(400, description="JSON structure is too complex")
+        if isinstance(item, str):
+            if len(item) > 100000 or any(
+                (unicodedata.category(ch) in ("Cc", "Cs") and ch not in ("\n", "\t"))
+                or unicodedata.bidirectional(ch) in ("RLO", "LRO", "RLE", "LRE", "PDF")
+                for ch in item
+            ):
+                abort(400, description="Invalid text or control characters")
+        elif isinstance(item, dict):
+            if len(item) > 100:
+                abort(400, description="Too many JSON object fields")
+            for key, child in item.items():
+                if not isinstance(key, str) or len(key) > 120:
+                    abort(400, description="Invalid JSON field name")
+                validate(child, depth + 1)
+        elif isinstance(item, list):
+            if len(item) > 1000:
+                abort(400, description="Too many JSON list items")
+            for child in item:
+                validate(child, depth + 1)
+    validate(value)
     return value
 
 def required_string(obj, key, max_length=250):
