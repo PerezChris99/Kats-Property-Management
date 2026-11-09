@@ -1,0 +1,202 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Activity, Bell, BookOpen, Building2, CalendarRange, ChartColumnIncreasing, ChevronRight, ClipboardCheck, CreditCard, FileCheck2, FileClock, FileText, FolderLock, House, KeyRound, LayoutDashboard, LogOut, Mail, Menu, ReceiptText, Search, Settings2, ShieldCheck, Smartphone, Users, Wallet, Wrench, X } from 'lucide-react';
+const GROUPS = [
+    { title: 'Overview', pages: ['dashboard', 'notifications', 'trends', 'reports'] },
+    { title: 'Portfolio', pages: ['properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor'] },
+    { title: 'Tenancies', pages: ['tenants', 'leases', 'renewals', 'inspections', 'deposits', 'documents'] },
+    { title: 'Finance', pages: ['invoices', 'proration', 'payments', 'mobile-money', 'receipts', 'statements', 'efris', 'expenses', 'expense-approvals'] },
+    { title: 'Operations', pages: ['maintenance', 'work-orders', 'assignments', 'inquiries'] },
+    { title: 'Administration', pages: ['users', 'invitations', 'permissions', 'legal', 'audit', 'settings', 'security'] }
+];
+const PAGE_META = {
+    dashboard: { label: 'Dashboard', icon: LayoutDashboard },
+    notifications: { label: 'Notifications', icon: Bell },
+    trends: { label: 'Financial trends', icon: ChartColumnIncreasing },
+    reports: { label: 'Reports', icon: Activity },
+    properties: { label: 'Properties', icon: House },
+    buildings: { label: 'Buildings', icon: Building2 },
+    floors: { label: 'Floors', icon: Building2 },
+    rooms: { label: 'Rooms', icon: KeyRound },
+    'room-placement': { label: 'Room placement', icon: ClipboardCheck },
+    'portfolio-editor': { label: 'Edit portfolio', icon: Settings2 },
+    tenants: { label: 'Tenants', icon: Users },
+    leases: { label: 'Leases', icon: FileText },
+    renewals: { label: 'Renewals', icon: CalendarRange },
+    inspections: { label: 'Inspections', icon: ClipboardCheck },
+    deposits: { label: 'Deposits', icon: Wallet },
+    documents: { label: 'Documents', icon: FolderLock },
+    invoices: { label: 'Invoices', icon: FileText },
+    proration: { label: 'Rent proration', icon: CalendarRange },
+    payments: { label: 'Payments', icon: CreditCard },
+    'mobile-money': { label: 'Mobile money', icon: Smartphone },
+    receipts: { label: 'Receipts', icon: ReceiptText },
+    statements: { label: 'Statements', icon: FileText },
+    efris: { label: 'EFRIS', icon: FileCheck2 },
+    expenses: { label: 'Expenses', icon: Wallet },
+    'expense-approvals': { label: 'Expense review', icon: ClipboardCheck },
+    maintenance: { label: 'Maintenance', icon: Wrench },
+    'work-orders': { label: 'Work orders', icon: ClipboardCheck },
+    assignments: { label: 'Assignments', icon: Users },
+    inquiries: { label: 'Inquiries', icon: Mail },
+    users: { label: 'Users', icon: Users },
+    invitations: { label: 'Invitations', icon: Mail },
+    permissions: { label: 'Permissions', icon: ShieldCheck },
+    legal: { label: 'Legal pages', icon: BookOpen },
+    audit: { label: 'Audit log', icon: FileClock },
+    settings: { label: 'Settings', icon: Settings2 },
+    security: { label: 'Security', icon: ShieldCheck }
+};
+function labelFor(key) {
+    return PAGE_META[key]?.label ?? key.replaceAll('-', ' ').replace(/^./, c => c.toUpperCase());
+}
+export function WorkspaceNavigation({ pages, active, user, onLogout }) {
+    const [query, setQuery] = useState('');
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const desktopSearch = useRef(null);
+    const drawerSearch = useRef(null);
+    const drawerTrigger = useRef(null);
+    const drawerPanel = useRef(null);
+    const groups = useMemo(() => {
+        const wanted = query.trim().toLowerCase();
+        const used = new Set();
+        const result = GROUPS.map(group => {
+            const filtered = group.pages.filter(page => {
+                if (!pages.includes(page) || (wanted && !labelFor(page).toLowerCase().includes(wanted)))
+                    return false;
+                used.add(page);
+                return true;
+            });
+            return { title: group.title, pages: filtered };
+        }).filter(group => group.pages.length > 0);
+        const unmatched = pages.filter(page => !used.has(page) && (!wanted || labelFor(page).toLowerCase().includes(wanted)));
+        if (unmatched.length > 0)
+            result.push({ title: 'More', pages: unmatched });
+        return result;
+    }, [pages, query]);
+    useEffect(() => {
+        setDrawerOpen(false);
+        setQuery('');
+    }, [active]);
+    useEffect(() => {
+        if (!drawerOpen)
+            return;
+        const previous = document.body.style.overflow;
+        const trigger = drawerTrigger.current;
+        document.body.style.overflow = 'hidden';
+        drawerSearch.current?.focus();
+        function trapFocus(event) {
+            if (event.key !== 'Tab')
+                return;
+            const elements = drawerPanel.current?.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled])');
+            if (!elements?.length)
+                return;
+            const first = elements[0];
+            const last = elements[elements.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            }
+            else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+        document.addEventListener('keydown', trapFocus);
+        return () => {
+            document.removeEventListener('keydown', trapFocus);
+            document.body.style.overflow = previous;
+            trigger?.focus();
+        };
+    }, [drawerOpen]);
+    useEffect(() => {
+        function keyDown(event) {
+            if (event.key === 'Escape')
+                setDrawerOpen(false);
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+                event.preventDefault();
+                if (window.matchMedia('(max-width: 800px)').matches)
+                    setDrawerOpen(true);
+                else
+                    desktopSearch.current?.focus();
+            }
+        }
+        window.addEventListener('keydown', keyDown);
+        return () => window.removeEventListener('keydown', keyDown);
+    }, []);
+    function menuItems(close) {
+        return groups.length ? groups.map(group => (<section className="nav-group" key={group.title} aria-label={group.title}>
+        <h2 className="nav-group-label">{group.title}</h2>
+        {group.pages.map(page => {
+                const item = PAGE_META[page];
+                const Icon = item?.icon ?? ChevronRight;
+                return <Link className={'nav-item' + (page === active ? ' active' : '')} aria-current={page === active ? 'page' : undefined} key={page} to={'/' + page} onClick={close}>
+            <Icon size={17} strokeWidth={1.8} aria-hidden="true"/>
+            <span>{labelFor(page)}</span>
+            {page === active && <span className="nav-current-dot" aria-hidden="true"/>}
+          </Link>;
+            })}
+      </section>)) : <p className="nav-empty">No matching pages.</p>;
+    }
+    const bottomPages = (user.role === 'TENANT'
+        ? ['dashboard', 'invoices', 'payments', 'maintenance']
+        : ['dashboard', 'rooms', 'payments', 'maintenance']).filter(page => pages.includes(page));
+    const searched = query.length > 0;
+    return <>
+    <aside className="side" aria-label="Workspace navigation">
+      <Link to="/dashboard" className="workspace-brand">
+        <span className="brand-symbol" aria-hidden="true"><Building2 size={23} strokeWidth={2.2}/></span>
+        <span><strong>KATS</strong><small>PROPERTY MANAGEMENT</small></span>
+      </Link>
+      <div className="side-account">
+        <span className="side-account-label">WORKSPACE</span>
+        <strong title={user.full_name}>{user.full_name}</strong>
+        <span>{user.role.replaceAll('_', ' ').toLowerCase()}</span>
+      </div>
+      <div className="nav-search">
+        <Search size={17} aria-hidden="true"/>
+        <input ref={desktopSearch} type="search" placeholder="Find a page" aria-label="Search workspace navigation" value={query} onChange={event => setQuery(event.target.value)}/>
+        {!searched && <kbd>Ctrl K</kbd>}
+      </div>
+      <nav className="workspace-links" aria-label="Workspace sections">{menuItems(() => setQuery(''))}</nav>
+      <div className="side-utilities">
+        <Link to="/security"><ShieldCheck size={17}/> Account security</Link>
+        <button className="side-signout" type="button" onClick={onLogout}>
+          <LogOut size={17}/> Sign out
+        </button>
+      </div>
+    </aside>
+    <nav className="mobile-nav" aria-label="Mobile workspace navigation">
+      {bottomPages.map(page => {
+            const Icon = PAGE_META[page]?.icon ?? LayoutDashboard;
+            return <Link key={page} to={'/' + page} className={active === page ? 'active' : ''} aria-current={active === page ? 'page' : undefined}>
+          <Icon size={20} strokeWidth={1.9}/><span>{labelFor(page)}</span>
+        </Link>;
+        })}
+      <button ref={drawerTrigger} type="button" className={!bottomPages.includes(active) ? 'active' : ''} aria-label="Browse all workspace pages" aria-expanded={drawerOpen} aria-controls="mobile-workspace-drawer" onClick={() => setDrawerOpen(true)}>
+        <Menu size={20} strokeWidth={1.9}/><span>More</span>
+      </button>
+    </nav>
+    {drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)}>
+      <section id="mobile-workspace-drawer" ref={drawerPanel} role="dialog" aria-modal="true" aria-label="Workspace navigation" className="workspace-drawer" onClick={event => event.stopPropagation()}>
+        <div className="drawer-head">
+          <div><strong>Browse workspace</strong><span>{user.role.replaceAll('_', ' ')}</span></div>
+          <button aria-label="Close navigation" className="icon-button" type="button" onClick={() => setDrawerOpen(false)}><X size={21}/></button>
+        </div>
+        <div className="nav-search drawer-search">
+          <Search size={18} aria-hidden="true"/>
+          <input ref={drawerSearch} type="search" placeholder="Search pages" aria-label="Search all workspace pages" value={query} onChange={event => setQuery(event.target.value)}/>
+        </div>
+        <nav className="drawer-links" aria-label="All workspace sections">
+          {menuItems(() => setDrawerOpen(false))}
+        </nav>
+        <div className="drawer-footer">
+          <button className="side-signout" type="button" onClick={() => {
+                setDrawerOpen(false);
+                onLogout();
+            }}><LogOut size={17}/> Sign out</button>
+        </div>
+      </section>
+    </div>}
+  </>;
+}
