@@ -11,7 +11,7 @@ KATS is a mobile-first management application for **one property-management busi
 > [!IMPORTANT]
 > **Release status: implementation is not production acceptance.** Automated backend, frontend, and PostgreSQL checks exist. MTN/Airtel money settlement, URA EFRIS fiscal documents, production storage, email/SMS providers, HostWares deployment, legal approval, and customer/device testing still need independent validation. Successful CI does not authorize processing live money.
 
-[Architecture](docs/ARCHITECTURE.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [HostWares deployment](docs/HOSTWARES_DEPLOYMENT.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
+[Architecture](docs/ARCHITECTURE.md) · [Production security](docs/PRODUCTION_SECURITY.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [HostWares deployment](docs/HOSTWARES_DEPLOYMENT.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
 
 ---
 
@@ -346,6 +346,8 @@ The current security baseline and its limits are documented in the [production s
 | [Operations](docs/OPERATIONS.md) | Reconciliation, recovery, ongoing support |
 | [HostWares deployment](docs/HOSTWARES_DEPLOYMENT.md) | Staging/production checklist and failure recovery |
 | [Go-live checklist](docs/GO_LIVE_CHECKLIST.md) | Evidence-based acceptance before launch |
+
+**Security and efficiency baseline:** API requests are rate-limited through Redis in production; PostgreSQL uses bounded pools, query timeouts, targeted indexes, and limited pagination. Private documents additionally enforce PostgreSQL row-level security. Run `flask --app wsgi security-preflight` using the **restricted production application database role** after migrations. For benchmarks, an explicitly approved HTTPS staging target can be tested with `KATS_LOAD_TEST_APPROVED=yes BASE_URL=https://<staging-host> k6 run ops/load-test.js`. Never run load tests against live payment providers or unapproved production hosts. Full configuration and limitations are described in [Production security](docs/PRODUCTION_SECURITY.md).
 
 **Still outstanding:** actual MTN/Airtel merchant and URA approvals, provider-specific fiscal credit/refund behavior, real bank disbursement, email/SMS delivery activation, private storage and malware scanning, signed document and advanced operational workflows, deployment/TLS, backups and restore drills, penetration/load tests, legal review, and real-device UAT. Consult the delivery register; do not relabel all remaining work as infrastructure-only.
 
