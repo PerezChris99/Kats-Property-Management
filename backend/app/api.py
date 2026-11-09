@@ -1224,3 +1224,12 @@ def apply_invoice_credit(user, invoice_id):
         return fail("Duplicate credit note", 409)
     return jsonify(credit=serialize(note, "id", "invoice_id", "amount_ugx"),
                    invoice=serialize(invoice, "id", "total_ugx", "credit_ugx", "paid_ugx", "status")), 201
+
+
+@api.get("/tenant/profile")
+@roles("TENANT")
+def tenant_profile(user):
+    tenant = db.session.query(Tenant).filter_by(user_id=user.id).first()
+    if not tenant:
+        return jsonify(tenant=None)
+    return jsonify(tenant=serialize(tenant, "id", "full_name", "phone", "email"))
