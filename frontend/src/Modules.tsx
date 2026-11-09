@@ -173,3 +173,113 @@ export function AuditPage() {
   useEffect(()=>{getRows('audit').then(setRows).catch(e=>setError(err(e)))},[])
   return <section className="page"><span className="eyebrow">ACCOUNTABILITY</span><h1>Audit history</h1><Notice error={error}/>{!rows.length?<Empty>No audit events in the first page.</Empty>:<div className="module-list">{rows.map(r=><article key={txt(r.id)} className="module-card"><strong>{txt(r.action)}</strong><p>{txt(r.target_type)} · {txt(r.target_id)}</p><small>{txt(r.created_at)}</small></article>)}</div>}</section>
 }
+
+
+export function RenewalsPage() {
+  const [leases,setLeases]=useState<Item[]>([]),[history,setHistory]=useState<Item[]>([])
+  const [selected,setSelected]=useState(''),[date,setDate]=useState(''),[amount,setAmount]=useState(''),[reason,setReason]=useState('')
+  const [error,setError]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false)
+  const load=useCallback(()=>getRows('leases').then(setLeases).catch(e=>setError(err(e))),[])
+  useEffect(()=>{void load()},[load])
+  useEffect(()=>{if(selected)getRows('leases/'+selected+'/amendments').then(setHistory).catch(e=>setError(err(e)))},[selected])
+  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError('')
+    try{const fields:Record<string,unknown>={new_end_date:date,reason}
+      if(amount)fields.new_rent_ugx=Number(amount)
+      const res=await api('leases/'+selected+'/renew',{method:'POST',body:JSON.stringify(fields)})
+      setMessage('Lease renewed until '+txt(res.lease.end_date)+'. New terms take effect on '+txt(res.amendment.effective_date)+'.')
+      await load();setHistory(await getRows('leases/'+selected+'/amendments'))
+    }catch(e){setError(err(e))}finally{setBusy(false)}
+  }
+  return <section className="page"><span className="eyebrow">LEASE HISTORY</span><h1>Renewals and amendments</h1><p>Future rent changes are effective-dated. Previous invoices and historical rent are preserved.</p><Notice error={error}/>{message&&<p role="status">{message}</p>}
+    <form className="resource-form" onSubmit={submit}><h2>Renew an active lease</h2><div className="fields">
+      <label>Lease<select required value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Select active lease</option>{leases.filter(l=>l.status==='ACTIVE').map(l=><option value={txt(l.id)} key={txt(l.id)}>{txt(l.room_id)} · through {txt(l.end_date)}</option>)}</select></label>
+      <label>New end date<input required type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
+      <label>New rent (UGX, optional)<input type="number" min="1" value={amount} onChange={e=>setAmount(e.target.value)}/></label>
+      <label>Reason<input required value={reason} onChange={e=>setReason(e.target.value)}/></label>
+    </div><button className="button" disabled={busy}>{busy?'Renewing…':'Record renewal'}</button></form>
+    <h2>Rent history</h2>{history.length===0?<Empty>Select a lease to view previous amendments.</Empty>:<div className="module-list">{history.map(h=><article className="module-card" key={txt(h.id)}><strong>{txt(h.effective_date)} · {money(h.new_rent_ugx)}</strong><p>Through {txt(h.new_end_date)}. {txt(h.reason)}</p></article>)}</div>}
+  </section>
+}
+
+export function DepositsPage({user}:{user:Identity}) {
+  const [rows,setRows]=useState<Item[]>([]),[leases,setLeases]=useState<Item[]>([]),[selected,setSelected]=useState('')
+  const [balance,setBalance]=useState<Item|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false)
+  const [key,setKey]=useState(()=>crypto.randomUUID())
+  const [form,setForm]=useState({kind:'HOLD',amount_ugx:'',reason:'',external_reference:''})
+  const isStaff=user.role!=='TENANT' && user.role!=='CARETAKER'
+  const canReview=['OWNER','ACCOUNTANT','SUPER_ADMIN'].includes(user.role)
+  const load=useCallback(async()=>{
+    try{
+      if(isStaff){setRows(await getRows('deposits'));setLeases(await getRows('leases'))}
+      else {const r=await api('tenant/lease');if(r.lease)setLeases([r.lease])}
+    }catch(e){setError(err(e))}
+  },[isStaff])
+  useEffect(()=>{void load()},[load])
+  useEffect(()=>{if(selected)api('deposits/leases/'+selected).then(r=>setBalance(r.balance)).catch(e=>setError(err(e)))},[selected])
+  async function create(e:FormEvent){e.preventDefault();setBusy(true);setError('')
+    try{await api('deposits/movements',{method:'POST',body:JSON.stringify({
+      lease_id:selected,...form,amount_ugx:Number(form.amount_ugx),idempotency_key:key})})
+      setNotice('Deposit movement recorded for separate verification. No cash transfer was performed.')
+      setKey(crypto.randomUUID());await load()
+      const b=await api('deposits/leases/'+selected);setBalance(b.balance)
+    }catch(e){setError(err(e))}finally{setBusy(false)}
+  }
+  async function review(id:string,decision:string){const reason=window.prompt('Evidence/review reason');if(!reason?.trim())return;setError('')
+    try{await api('deposits/movements/'+id+'/review',{method:'POST',body:JSON.stringify({decision,reason})});await load();if(selected){const b=await api('deposits/leases/'+selected);setBalance(b.balance)}}
+    catch(e){setError(err(e))}
+  }
+  return <section className="page"><span className="eyebrow">SECURITY DEPOSITS</span><h1>Deposit accounting</h1><p>Held, withheld and refunded movements require separate staff approval and verified real-world evidence. Recording a refund does not send money.</p>
+    <Notice error={error}/>{notice&&<p role="status">{notice}</p>}
+    <label style={{maxWidth:500}}>Lease<select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Select lease</option>{leases.map(l=><option key={txt(l.id)} value={txt(l.id)}>{txt(l.room_id)} · {txt(l.id)}</option>)}</select></label>
+    {balance&&<div className="stat-grid">{Object.entries(balance).map(([label,value])=><div className="stat" key={label}><small>{label.replaceAll('_',' ')}</small><strong>{money(value)}</strong></div>)}</div>}
+    {isStaff&&<form className="resource-form" onSubmit={create}><h2>Record movement for review</h2><div className="fields">
+      <label>Movement<select value={form.kind} onChange={e=>setForm({...form,kind:e.target.value})}><option>HOLD</option><option>REFUND</option><option>WITHHOLD</option></select></label>
+      <label>Amount UGX<input required type="number" min="1" value={form.amount_ugx} onChange={e=>setForm({...form,amount_ugx:e.target.value})}/></label>
+      <label>External receipt or transfer reference<input value={form.external_reference} onChange={e=>setForm({...form,external_reference:e.target.value})}/></label>
+      <label>Reason<input required value={form.reason} onChange={e=>setForm({...form,reason:e.target.value})}/></label>
+    </div><button className="button" disabled={busy||!selected}>{busy?'Recording…':'Submit for separate approval'}</button></form>}
+    <h2>Deposit movements</h2>{!rows.length?<Empty>No deposit movements in this account.</Empty>:<div className="module-list">{rows.map(d=><article className="module-card" key={txt(d.id)}><strong>{txt(d.kind)} · {money(d.amount_ugx)}</strong><p>{txt(d.status)} · {txt(d.lease_id)}</p>{canReview&&d.status==='PENDING_REVIEW'&&<div className="actions"><button className="outline-button" onClick={()=>review(txt(d.id),'APPROVE')}>Verify & approve</button><button className="outline-button" onClick={()=>review(txt(d.id),'REJECT')}>Reject</button></div>}</article>)}</div>}
+  </section>
+}
+
+export function WorkOrdersPage({user}:{user:Identity}) {
+  const [maintenance,setMaintenance]=useState<Item[]>([]),[selected,setSelected]=useState(''),[orders,setOrders]=useState<Item[]>([])
+  const [scope,setScope]=useState(''),[cost,setCost]=useState('0'),[error,setError]=useState(''),[notice,setNotice]=useState('')
+  const [busy,setBusy]=useState(false)
+  useEffect(()=>{getRows(user.role==='CARETAKER'?'caretaker/maintenance':'maintenance').then(setMaintenance).catch(e=>setError(err(e)))},[user.role])
+  const load=useCallback(()=>selected?getRows('maintenance/'+selected+'/work-orders').then(setOrders).catch(e=>setError(err(e))):Promise.resolve(),[selected])
+  useEffect(()=>{void load()},[load])
+  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError('')
+    try{await api('maintenance/'+selected+'/work-orders',{method:'POST',body:JSON.stringify({scope,estimated_cost_ugx:Number(cost)})});setNotice('Work order created');await load()}
+    catch(e){setError(err(e))}finally{setBusy(false)}
+  }
+  async function change(id:string,status:string){setBusy(true);setError('')
+    try{await api('work-orders/'+id+'/status',{method:'POST',body:JSON.stringify({status})});await load()}
+    catch(e){setError(err(e))}finally{setBusy(false)}
+  }
+  return <section className="page"><h1>Maintenance work orders</h1><Notice error={error}/>{notice&&<p role="status">{notice}</p>}
+    <label>Select request<select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Select maintenance request</option>{maintenance.map(m=><option key={txt(m.id)} value={txt(m.id)}>{txt(m.title)} · {txt(m.room_id)}</option>)}</select></label>
+    {user.role!=='CARETAKER'&&<form className="resource-form" onSubmit={submit}><h2>New work order</h2><label>Work scope<textarea rows={3} required value={scope} onChange={e=>setScope(e.target.value)}/></label><label>Estimated cost UGX<input type="number" min="0" value={cost} onChange={e=>setCost(e.target.value)}/></label><button className="button" disabled={busy||!selected}>Assign work</button></form>}
+    <h2>Work order history</h2>{!orders.length?<Empty>No work orders for this request.</Empty>:<div className="module-list">{orders.map(o=><article className="module-card" key={txt(o.id)}><h3>{txt(o.status)}</h3><p>{txt(o.scope)}</p><p>Estimate: {money(o.estimated_cost_ugx)} · Actual: {money(o.actual_cost_ugx)}</p>{user.role!=='CARETAKER'&&o.status!=='COMPLETED'&&<div className="actions"><button className="outline-button" onClick={()=>change(txt(o.id),'IN_PROGRESS')}>In progress</button><button className="outline-button" onClick={()=>change(txt(o.id),'COMPLETED')}>Complete</button></div>}</article>)}</div>}
+  </section>
+}
+
+export function SettingsAdminPage() {
+  const [rows,setRows]=useState<Item[]>([]),[key,setKey]=useState('business_display_name')
+  const [value,setValue]=useState(''),[error,setError]=useState(''),[message,setMessage]=useState('')
+  const load=useCallback(()=>getRows('admin/system-settings').then(setRows).catch(e=>setError(err(e))),[])
+  useEffect(()=>{void load()},[load])
+  async function submit(e:FormEvent){e.preventDefault();setError('')
+    try{await api('admin/system-settings/'+key,{method:'PUT',body:JSON.stringify({
+      value:key.endsWith('_days')?Number(value):value
+    })});setMessage('Setting saved');await load()}
+    catch(e){setError(err(e))}
+  }
+  return <section className="page"><h1>System configuration</h1><p>Only safe operational settings can be edited here. Provider secrets remain in the server environment, never in this portal.</p><Notice error={error}/>{message&&<p role="status">{message}</p>}
+    <form className="resource-form" onSubmit={submit}><div className="fields">
+      <label>Setting<select value={key} onChange={e=>setKey(e.target.value)}><option value="business_display_name">Business display name</option><option value="support_email">Support email</option><option value="rent_reminder_days">Rent reminder days</option><option value="default_late_fee_days">Late fee grace days</option></select></label>
+      <label>Value<input required value={value} onChange={e=>setValue(e.target.value)}/></label>
+    </div><button className="button">Save setting</button></form>
+    <h2>Configured values</h2>{!rows.length?<Empty>Default system settings are being used.</Empty>:<div className="module-list">{rows.map(row=><article className="module-card" key={txt(row.key)}><strong>{txt(row.key)}</strong><p>{txt(row.value)}</p></article>)}</div>}
+  </section>
+}
