@@ -10,3 +10,5 @@ redis>=5,<7
 celery[redis]>=5.4,<6
 gunicorn>=23,<24
 pytest>=8,<10
+
+boto3>=1.35,<2
