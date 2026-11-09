@@ -14,12 +14,14 @@ def test_expired_temporary_credentials_pruned_without_affecting_live_tokens(app)
     long_expired=AccountToken(user_id=owner.id,purpose="RESET",digest="a"*64,expires_at=old)
     active=AccountToken(user_id=owner.id,purpose="RESET",digest="b"*64,expires_at=future)
     db.session.add_all([expired,live,long_expired,active]);db.session.commit()
+    expired_id,live_id,old_token_id,active_id=expired.id,live.id,long_expired.id,active.id
     counts=prune_ephemeral_credentials()
+    db.session.expunge_all()
     assert counts=={"refresh_sessions":1,"account_tokens":1}
-    assert db.session.get(RefreshSession,live.id) is not None
-    assert db.session.get(AccountToken,active.id) is not None
-    assert db.session.get(RefreshSession,expired.id) is None
-    assert db.session.get(AccountToken,long_expired.id) is None
+    assert db.session.get(RefreshSession,live_id) is not None
+    assert db.session.get(AccountToken,active_id) is not None
+    assert db.session.get(RefreshSession,expired_id) is None
+    assert db.session.get(AccountToken,old_token_id) is None
     assert prune_ephemeral_credentials()=={"refresh_sessions":0,"account_tokens":0}
 
 def test_pruning_rejects_unbounded_ranges(app):
