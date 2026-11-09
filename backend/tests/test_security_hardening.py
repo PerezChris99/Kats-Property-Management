@@ -31,6 +31,25 @@ def test_protected_get_endpoints_require_authentication(app):
         inspected+=1
     assert inspected>=25
 
+def test_protected_mutation_endpoints_require_authentication(app):
+    client=app.test_client()
+    inspected=0
+    for rule in app.url_map.iter_rules():
+        if not rule.rule.startswith("/api/v1/"):
+            continue
+        path=re.sub(r"<(?:[^:>]+:)?[^>]+>",
+                    "00000000-0000-4000-8000-000000000000",rule.rule)
+        for method in ("POST","PUT","PATCH","DELETE"):
+            if method not in rule.methods:
+                continue
+            if method=="POST" and rule.rule in PUBLIC_POST:
+                continue
+            response=client.open(path,method=method,json={})
+            assert response.status_code==401,(rule.rule,method,response.status_code,response.json)
+            inspected+=1
+    assert inspected>=30
+
+
 def test_api_rejects_invalid_origin_media_type_and_oversized_json(app):
     client=app.test_client()
     hostile=client.post("/api/v1/auth/login",json={"email":"test@kats.test","password":"a"},
