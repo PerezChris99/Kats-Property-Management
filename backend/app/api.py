@@ -1290,3 +1290,31 @@ def update_permission_grant(user,name,role):
     audit(user,"permission.update","permission",user.id,permission=name,role=role,allowed=desired)
     db.session.commit()
     return jsonify(permission=name,role=role,allowed=desired)
+
+
+@api.get("/tenant/rooms")
+@roles("TENANT")
+def tenant_rooms(user):
+    linked=db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+    if linked is None:
+        return jsonify(items=[],total=0)
+    leases=db.session.query(Lease).filter_by(tenant_id=linked,status="ACTIVE").all()
+    ids=[lease.room_id for lease in leases]
+    rooms=db.session.query(Room).filter(Room.id.in_(ids)).all()
+    return jsonify(items=[serialize(r,"id","number","property_id","status") for r in rooms],
+                   total=len(rooms))
+
+@api.get("/caretaker/roster")
+@roles("OWNER","MANAGER","SUPER_ADMIN")
+def caretaker_roster(user):
+    rows=db.session.query(User).filter_by(role="CARETAKER",is_active=True).order_by(
+        User.full_name).limit(500).all()
+    return jsonify(items=[serialize(u,"id","full_name","role") for u in rows],total=len(rows))
+
+@api.get("/tenants/accounts")
+@roles("OWNER","MANAGER","SUPER_ADMIN")
+def available_tenant_accounts(user):
+    linked=db.session.query(Tenant.user_id).filter(Tenant.user_id.isnot(None))
+    rows=db.session.query(User).filter(User.role=="TENANT",User.is_active.is_(True),
+                                    ~User.id.in_(linked)).order_by(User.full_name).limit(500).all()
+    return jsonify(items=[serialize(u,"id","full_name","email") for u in rows],total=len(rows))
