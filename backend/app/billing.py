@@ -9,7 +9,7 @@ from flask import current_app
 from sqlalchemy.exc import IntegrityError
 
 from .extensions import db
-from .models import User, Lease, Invoice, InvoiceLine, LedgerEntry, AuditLog, new_id
+from .models import User, Lease, LeaseAmendment, Invoice, InvoiceLine, LedgerEntry, AuditLog, new_id
 
 SYSTEM_ACTOR_ID = "00000000-0000-4000-8000-000000000001"
 
@@ -49,6 +49,21 @@ def generate_monthly_rent(target_month: date, actor: User | None = None):
         if lease.start_date > first or lease.end_date < last:
             needs_review += 1
             continue
+        # A rent increase taking effect mid-month must be prorated through a
+        # manager-approved manual invoice; never silently charge either rate.
+        change_in_month = db.session.query(LeaseAmendment.id).filter(
+            LeaseAmendment.lease_id == lease.id,
+            LeaseAmendment.effective_date > first,
+            LeaseAmendment.effective_date <= last
+        ).first()
+        if change_in_month:
+            needs_review += 1
+            continue
+        amendment = db.session.query(LeaseAmendment).filter(
+            LeaseAmendment.lease_id == lease.id,
+            LeaseAmendment.effective_date <= first
+        ).order_by(LeaseAmendment.effective_date.desc()).first()
+        monthly_rent = amendment.new_rent_ugx if amendment else lease.rent_ugx
         duplicate = db.session.query(Invoice.id).filter_by(
             lease_id=lease.id, period_start=first, period_end=last
         ).first()
@@ -60,7 +75,7 @@ def generate_monthly_rent(target_month: date, actor: User | None = None):
             invoice_number="KATS-" + new_id()[:12].upper(),
             lease_id=lease.id, tenant_id=lease.tenant_id,
             period_start=first, period_end=last, due_date=due,
-            total_ugx=lease.rent_ugx, paid_ugx=0, status="ISSUED"
+            total_ugx=monthly_rent, paid_ugx=0, status="ISSUED"
         )
         db.session.add(invoice)
         db.session.flush()
