@@ -1152,3 +1152,75 @@ def receipt_detail(payment_id):
         valid=payment.status == "RECONCILED", fiscal_status="NOT_FISCALIZED",
         notice="Internal payment acknowledgement only. Not a URA EFRIS fiscal receipt or proof of a bank transfer."
     )
+
+
+@api.get("/invoices/<invoice_id>/lines")
+@jwt_required()
+def invoice_lines(invoice_id):
+    user = current_user()
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice:
+        abort(404)
+    if user.role == "TENANT":
+        owned = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        if invoice.tenant_id != owned:
+            abort(404)
+    elif user.role not in STAFF:
+        abort(403)
+    rows = db.session.query(InvoiceLine).filter_by(invoice_id=invoice.id).all()
+    return jsonify(items=[serialize(x, "id", "description", "charge_type", "quantity",
+                                    "unit_price_ugx", "amount_ugx") for x in rows])
+
+@api.get("/invoices/<invoice_id>/credit-notes")
+@jwt_required()
+def list_invoice_credits(invoice_id):
+    user = current_user()
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice:
+        abort(404)
+    if user.role == "TENANT":
+        linked = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        if linked is None or invoice.tenant_id != linked:
+            abort(404)
+    elif user.role not in STAFF:
+        abort(403)
+    credits = db.session.query(CreditNote).filter_by(invoice_id=invoice.id).order_by(CreditNote.created_at).all()
+    return jsonify(items=[serialize(x, "id", "amount_ugx", "reason", "created_at") for x in credits])
+
+@api.post("/invoices/<invoice_id>/credit-notes")
+@roles("OWNER", "ACCOUNTANT", "SUPER_ADMIN")
+def apply_invoice_credit(user, invoice_id):
+    obj = data()
+    amount = ugx(obj.get("amount_ugx"), positive=True)
+    key = required_string(obj, "idempotency_key", 128)
+    reason = required_string(obj, "reason", 500)
+    existing = db.session.query(CreditNote).filter_by(idempotency_key=key).first()
+    if existing:
+        if existing.invoice_id != invoice_id or existing.amount_ugx != amount:
+            return fail("Conflicting idempotency key", 409)
+        return jsonify(credit=serialize(existing, "id", "invoice_id", "amount_ugx")), 200
+    invoice = db.session.query(Invoice).filter_by(id=invoice_id).with_for_update().first()
+    if not invoice:
+        abort(404)
+    if invoice.status == "VOID" or amount > invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx:
+        return fail("Credit exceeds outstanding balance or invoice is void", 409)
+    note = CreditNote(invoice_id=invoice.id, amount_ugx=amount, reason=reason,
+                      created_by=user.id, idempotency_key=key)
+    invoice.credit_ugx += amount
+    if invoice.paid_ugx + invoice.credit_ugx == invoice.total_ugx:
+        invoice.status = "PAID" if invoice.paid_ugx > 0 else "CREDITED"
+    else:
+        invoice.status = "PARTIALLY_PAID" if invoice.paid_ugx else "ISSUED"
+    db.session.add(note)
+    try:
+        db.session.flush()
+        db.session.add(LedgerEntry(invoice_id=invoice.id, event="CREDIT_NOTE_ISSUED",
+                                   amount_ugx=-amount))
+        audit(user, "invoice.credit_note", "invoice", invoice.id,
+              credit_note_id=note.id, amount_ugx=amount, reason=reason)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("Duplicate credit note", 409)
+    return jsonify(credit=serialize(note, "id", "invoice_id", "amount_ugx"),
+                   invoice=serialize(invoice, "id", "total_ugx", "credit_ugx", "paid_ugx", "status")), 201
