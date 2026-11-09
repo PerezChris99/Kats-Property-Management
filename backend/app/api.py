@@ -142,7 +142,7 @@ def refresh():
     session = db.session.query(RefreshSession).filter_by(
         token_jti=token["jti"], user_id=user.id, revoked_at=None
     ).with_for_update().first()
-    if session is None or session.expires_at <= utcnow():
+    if session is None or session.expires_at.replace(tzinfo=timezone.utc) <= utcnow():
         return fail("Refresh session expired or already used", 401)
     claims = {"sv": user.session_version}
     new_refresh = create_refresh_token(identity=user.id, additional_claims=claims)
