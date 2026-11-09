@@ -1,4 +1,6 @@
 import { api, csrfToken } from './lib/api'
+import {NotificationsPage, InspectionsPage, MobileMoneyPage, FiscalPage, LegalAdminPage,
+  PublicLegalPage, DocumentsPage, SecurityPage, AuditPage} from './Modules'
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Building2, CreditCard, LayoutDashboard, Menu, ShieldCheck, Wrench, LogOut } from 'lucide-react'
@@ -22,6 +24,7 @@ const RESOURCES: Record<string, Resource> = {
     fields:[{name:'invoice_id',label:'Invoice ID',required:true},{name:'method',label:'Method',required:true,options:['CASH','BANK_TRANSFER']},{name:'amount_ugx',label:'Amount (UGX)',type:'number',required:true},{name:'reference',label:'Bank transaction reference'},{name:'idempotency_key',label:'Unique command reference',required:true}]},
   maintenance: {title:'Maintenance',path:'maintenance',columns:['title','room_id','priority','status'],writable:['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN','TENANT'],
     fields:[{name:'room_id',label:'Room ID',required:true},{name:'title',label:'Issue',required:true},{name:'description',label:'Description',required:true},{name:'priority',label:'Priority',options:['LOW','MEDIUM','HIGH','URGENT']}]},
+  receipts: {title:'Non-fiscal receipts',path:'receipts',columns:['receipt_number','amount_ugx','valid','fiscal_status'],writable:[],fields:[]},
   expenses: {title:'Expenses',path:'expenses',columns:['property_id','category','amount_ugx','incurred_on'],writable:['OWNER','MANAGER','ACCOUNTANT','SUPER_ADMIN'],
     fields:[{name:'property_id',label:'Property ID',required:true},{name:'category',label:'Category',required:true},{name:'description',label:'Description',required:true},{name:'amount_ugx',label:'Amount (UGX)',type:'number',required:true},{name:'incurred_on',label:'Date',type:'date',required:true}]}
 }
@@ -227,10 +230,14 @@ function Portal({user,logout}: {user:User;logout:()=>void}) {
   const location=useLocation()
   const page=location.pathname.slice(1)
   const canOperate=roles.includes(user.role)
-  const nav = canOperate?['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports',...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['users']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'||user.role==='MANAGER'?['assignments']:[])]:user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance']
+  const nav = canOperate?['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports','receipts','mobile-money','efris','inspections','documents','notifications','security',...(user.role==='OWNER'||user.role==='SUPER_ADMIN'?['users','legal','audit']:[]),...(user.role==='OWNER'||user.role==='SUPER_ADMIN'||user.role==='MANAGER'?['assignments']:[])]:user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance','inspections','documents','notifications','security','receipts']:['dashboard','invoices','payments','receipts','maintenance','inspections','documents','mobile-money','notifications','security']
   const viewResource=user.role==='CARETAKER'?CARETAKER_RESOURCES[page]:RESOURCES[page]
   return <div className="portal"><aside className="side"><Link to="/" className="brand">Kats</Link><div className="role">{user.role.replaceAll('_',' ')}</div><nav aria-label="Workspace">{nav.map(key=><Link key={key} className={page===key?'active':''} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</nav><button className="link-button logout" onClick={logout}><LogOut size={16}/> Sign out</button></aside>
-  <div className="portal-main"><header className="portal-bar"><span>Kats Property Management</span><span>{user.full_name}</span></header><main>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main></div><nav className="mobile-nav" aria-label="Mobile workspace navigation">{(canOperate?['dashboard','rooms','payments','maintenance']:(user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance'])).map((key,i)=>{const Icon=[LayoutDashboard,Building2,CreditCard,Wrench][i];return <Link key={key} to={'/'+key} className={page===key?'active':''}><Icon size={20}/><span>{key[0].toUpperCase()+key.slice(1)}</span></Link>})}<Link to="/more"><Menu size={20}/><span>More</span></Link></nav></div>
+  <div className="portal-main"><header className="portal-bar"><span>Kats Property Management</span><span>{user.full_name}</span></header><main>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='notifications'&&nav.includes(page)?<NotificationsPage/>:page==='inspections'&&nav.includes(page)?<InspectionsPage user={user}/>:
+    page==='mobile-money'&&nav.includes(page)?<MobileMoneyPage/>:page==='efris'&&nav.includes(page)?<FiscalPage/>:
+    page==='documents'&&nav.includes(page)?<DocumentsPage/>:page==='legal'&&nav.includes(page)?<LegalAdminPage/>:
+    page==='audit'&&nav.includes(page)?<AuditPage/>:page==='security'&&nav.includes(page)?<SecurityPage onSignedOut={logout}/>:
+    page==='reports'&&canOperate?<ReportsPage/>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:user.role==='CARETAKER'?<CaretakerHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):viewResource&&nav.includes(page)?<ResourcePage resource={viewResource} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main></div><nav className="mobile-nav" aria-label="Mobile workspace navigation">{(canOperate?['dashboard','rooms','payments','maintenance']:(user.role==='CARETAKER'?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance'])).map((key,i)=>{const Icon=[LayoutDashboard,Building2,CreditCard,Wrench][i];return <Link key={key} to={'/'+key} className={page===key?'active':''}><Icon size={20}/><span>{key[0].toUpperCase()+key.slice(1)}</span></Link>})}<Link to="/more"><Menu size={20}/><span>More</span></Link></nav></div>
 }
 export default function App() {
   const [user,setUser]=useState<User|null>(null)
@@ -246,14 +253,25 @@ export default function App() {
   useEffect(()=>{const update=()=>setOnline(navigator.onLine);window.addEventListener('online',update);window.addEventListener('offline',update);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}},[])
   function logout(){api('auth/logout',{method:'POST'}).catch(()=>{}).finally(()=>{setUser(null);navigate('/')})}
   if(!ready)return <div className="loading">Loading Kats…</div>
-  const legal:Record<string,string>={privacy:'Privacy policy requires client and legal review before launch. This system is not yet deployed for public customer use.',terms:'Terms of service are pending customer approval. Financial and EFRIS services are not yet live.',cookies:'Essential secure session cookies are used for authenticated access. Additional processing will be documented before deployment.'}
+  
   return <>{!online&&<div className="offline" role="status">Offline. Reconnect to view private records.</div>}<Routes>
     <Route path="/" element={<Landing user={user} logout={logout}/>}/>
     <Route path="/login" element={user?<Navigate to="/dashboard" replace/>:<Login onSuccess={setUser}/>}/>
     <Route path="/features" element={<TextPage title="Features" body="Manage units, leases, invoices, verified manual payments, maintenance and expenses. MTN/Airtel and EFRIS require provider verification." user={user} logout={logout}/>}/>
     <Route path="/contact" element={<TextPage title="Contact and support" body="Contact details and demo-booking workflow will be published before launch. No payment is accepted through this page." user={user} logout={logout}/>}/>
-    {Object.entries(legal).map(([slug,body])=><Route key={slug} path={'/'+slug} element={<TextPage title={slug[0].toUpperCase()+slug.slice(1)} body={body} user={user} logout={logout}/>}/>)}
-    {['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports','users','assignments','more'].map(path=><Route key={path} path={'/'+path} element={user?<Portal user={user} logout={logout}/>:<Navigate to="/login" replace/>}/>)}
+    {['privacy','terms','cookies','refund'].map(slug=><Route key={slug} path={'/'+slug} element={<PublicLegalPage slug={slug}/>}/>)}
+    {['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses','reports','receipts','users','assignments','notifications','inspections','mobile-money','efris','documents','legal','audit','security','more'].map(path=><Route key={path} path={'/'+path} element={user?<Portal user={user} logout={logout}/>:<Navigate to="/login" replace/>}/>)}
+    {['dashboard','payments','invoices','receipts','maintenance','lease','profile'].map(path=>
+      <Route key={'tenant-'+path} path={'/tenant/'+path} element={<Navigate to={path==='lease'?'/dashboard':path==='profile'?'/security':'/'+path} replace/>}/>)}
+    {['dashboard','rooms','maintenance','inspections','payments','profile'].map(path=>
+      <Route key={'caretaker-'+path} path={'/caretaker/'+path} element={<Navigate to={path==='profile'?'/security':'/'+path} replace/>}/>)}
+    {['users','roles','permissions','integrations','efris','payments','audit-logs','legal-pages','system-settings'].map(path=>
+      <Route key={'admin-'+path} path={'/admin/'+path} element={<Navigate to={
+        path==='audit-logs'?'/audit':path==='legal-pages'?'/legal':path==='system-settings'?'/security':
+        path==='integrations'?'/efris':path==='roles'||path==='permissions'?'/users':'/'+path
+      } replace/>}/>)}
+    <Route path="/how-it-works" element={<TextPage title="How it works" body="Create properties and rooms, onboard tenants and leases, issue rent invoices, verify collections, track maintenance and review reports." user={user} logout={logout}/>}/>
+    <Route path="/pricing" element={<TextPage title="Pricing" body="Contact the property owner for deployment and service pricing." user={user} logout={logout}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/>
   </Routes></>
 }
