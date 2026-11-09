@@ -500,6 +500,7 @@ def approve_payment(user, payment_id):
     invoice.paid_ugx += payment.amount_ugx
     invoice.status = "PAID" if invoice.paid_ugx + invoice.credit_ugx == invoice.total_ugx else "PARTIALLY_PAID"
     payment.status = "RECONCILED"
+    payment.settled_at = datetime.now(timezone.utc)
     payment.reviewed_by = user.id
     db.session.add(LedgerEntry(invoice_id=invoice.id, payment_id=payment.id,
                                event="PAYMENT_RECEIVED", amount_ugx=payment.amount_ugx))
@@ -958,8 +959,11 @@ def reverse_payment(user, payment_id):
     if invoice.paid_ugx < payment.amount_ugx:
         return fail("Invoice balance and payment records are inconsistent", 409)
     invoice.paid_ugx -= payment.amount_ugx
-    invoice.status = "ISSUED" if invoice.paid_ugx == 0 else "PARTIALLY_PAID"
+    invoice.status = ("PAID" if invoice.paid_ugx and invoice.paid_ugx + invoice.credit_ugx == invoice.total_ugx
+                      else "CREDITED" if invoice.credit_ugx == invoice.total_ugx
+                      else "ISSUED" if invoice.paid_ugx == 0 else "PARTIALLY_PAID")
     payment.status = "REVERSED"
+    payment.reversed_at = datetime.now(timezone.utc)
     db.session.add(LedgerEntry(
         invoice_id=invoice.id, payment_id=payment.id,
         event="PAYMENT_REVERSED", amount_ugx=-payment.amount_ugx
