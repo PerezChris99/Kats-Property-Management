@@ -163,3 +163,20 @@ class CaretakerAssignment(db.Model):
     __table_args__ = (
         db.UniqueConstraint("caretaker_user_id", "room_id", name="uq_caretaker_assigned_room"),
     )
+
+
+class Inspection(db.Model):
+    __tablename__ = "inspections"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    lease_id = db.Column(db.String(36), db.ForeignKey("leases.id", ondelete="RESTRICT"), nullable=False, index=True)
+    room_id = db.Column(db.String(36), db.ForeignKey("rooms.id", ondelete="RESTRICT"), nullable=False, index=True)
+    inspector_id = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    kind = db.Column(db.String(20), nullable=False)
+    condition_notes = db.Column(db.Text, nullable=False)
+    damage_estimate_ugx = db.Column(db.BigInteger, nullable=False, default=0)
+    observed_on = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (
+        CheckConstraint("damage_estimate_ugx >= 0", name="ck_inspection_damage"),
+        CheckConstraint("kind IN ('MOVE_IN','MOVE_OUT','ROUTINE')", name="ck_inspection_kind"),
+    )
