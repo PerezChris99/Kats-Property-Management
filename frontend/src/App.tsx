@@ -143,7 +143,7 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
     setLoading(true);setError('')
     try {
       const join=resource.path.includes('?')?'&':'?'
-      const payload=await api(resource.path+join+'page='+page+'&page_size='+pageSize)
+      const payload=await api(resource.path+join+'page='+page+'&page_size='+pageSize+'&include_total=0')
       setRows(payload.items||[])
       setTotal(typeof payload.total==='number'?payload.total:null)
     }
