@@ -17,6 +17,8 @@ export default [
       ...js.configs.recommended.rules,
       'no-unused-vars': 'off',
       'no-constant-condition': 'error',
+      // The API path validator intentionally matches C0 control characters.
+      'no-control-regex': 'off',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn'
     }

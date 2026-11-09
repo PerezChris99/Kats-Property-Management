@@ -16,7 +16,7 @@ const inflight = new Map<string, Promise<unknown>>()
 
 function validatePath(path: string): void {
   // Caller must pass an application-relative path, never a user-controlled URL.
-  if (!path || path.startsWith('/') || path.includes('\\') ||
+  if (!path || /^[a-z][a-z0-9+.-]*:/i.test(path) || path.startsWith('/') || path.includes('\\') ||
       path.split('?')[0].split('/').includes('..') || /[\u0000-\u001f]/.test(path)) {
     throw new Error('Invalid API path')
   }

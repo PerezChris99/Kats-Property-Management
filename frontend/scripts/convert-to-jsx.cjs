@@ -2,6 +2,7 @@
  * One-shot source migration, executed in the existing perez branch.
  * TypeScript is used once as a syntax transformer ONLY; output retains JSX.
  * Commit generated JavaScript files and remove this migration script afterward.
+ * Validation updated to reject scheme-prefixed input paths before migration.
  */
 const fs = require('node:fs')
 const path = require('node:path')
