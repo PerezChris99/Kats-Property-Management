@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from .extensions import db, limiter
 from .models import (
     User, RefreshSession, Permission, Role, RolePermission, Property, Building, Floor, Room, RoomStateHistory, Tenant, Lease,
-    Invoice, InvoiceLine, CreditNote, Payment, LedgerEntry, MaintenanceRequest, Expense, AuditLog, CaretakerAssignment, Inspection
+    Invoice, InvoiceLine, CreditNote, Payment, LedgerEntry, MaintenanceRequest, Expense, ExpenseEvent, AuditLog, CaretakerAssignment, Inspection
 )
 
 api = Blueprint("api", __name__)
@@ -552,7 +552,9 @@ def maintenance_create():
 @roles(*STAFF)
 def expenses(user):
     results = list_page(Expense, db.session.query(Expense).order_by(Expense.incurred_on.desc()))
-    return jsonify(items=[serialize(e, "id", "property_id", "category", "amount_ugx", "incurred_on") for e in results.items], total=results.total)
+    return jsonify(items=[serialize(e, "id", "property_id", "category", "description",
+                                   "amount_ugx", "incurred_on", "status", "created_by",
+                                   "reviewed_by") for e in results.items], total=results.total)
 
 @api.post("/expenses")
 @roles(*STAFF)
@@ -561,15 +563,93 @@ def add_expense(user):
     prop = db.session.get(Property, required_string(obj, "property_id"))
     if not prop:
         abort(404)
-    expense = Expense(property_id=prop.id, category=required_string(obj, "category", 80),
-                      description=required_string(obj, "description", 500),
-                      amount_ugx=ugx(obj.get("amount_ugx")),
-                      incurred_on=parse_date(obj.get("incurred_on")), created_by=user.id)
+    category=required_string(obj,"category",80)
+    description=required_string(obj,"description",500)
+    amount=ugx(obj.get("amount_ugx"),positive=True)
+    incurred=parse_date(obj.get("incurred_on"))
+    key=required_string(obj,"idempotency_key",128)
+    existing=db.session.query(Expense).filter_by(idempotency_key=key).first()
+    if existing:
+        if (existing.created_by!=user.id or existing.property_id!=prop.id or
+                existing.category!=category or existing.description!=description or
+                existing.amount_ugx!=amount or existing.incurred_on!=incurred):
+            return fail("Expense idempotency key was reused with different data",409)
+        return jsonify(expense=serialize(existing,"id","amount_ugx","status")),200
+    expense = Expense(property_id=prop.id, category=category, description=description,
+                      amount_ugx=amount, incurred_on=incurred,created_by=user.id,
+                      idempotency_key=key,status="PENDING_APPROVAL")
     db.session.add(expense)
-    db.session.flush()
-    audit(user, "expense.record", "expense", expense.id)
+    try:
+        db.session.flush()
+        db.session.add(ExpenseEvent(expense_id=expense.id,event="RECORDED",
+                                    amount_ugx=0,actor_id=user.id,reason="Awaiting independent review"))
+        audit(user, "expense.record", "expense", expense.id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("Expense command already submitted",409)
+    return jsonify(expense=serialize(expense, "id", "amount_ugx","status")), 201
+
+@api.post("/expenses/<expense_id>/review")
+@roles("OWNER","ACCOUNTANT","SUPER_ADMIN")
+def review_expense(user,expense_id):
+    obj=data()
+    decision=required_string(obj,"decision",20).upper()
+    reason=required_string(obj,"reason",500)
+    if decision not in ("APPROVE","REJECT"):
+        return fail("Decision must be APPROVE or REJECT")
+    expense=db.session.query(Expense).filter_by(id=expense_id).with_for_update().first()
+    if not expense:
+        abort(404)
+    if expense.status not in ("PENDING_APPROVAL","REVIEW_REQUIRED"):
+        return fail("Expense has already been reviewed",409)
+    if expense.created_by==user.id:
+        return fail("Expense must be reviewed by a different authorized user",403)
+    expense.status="APPROVED" if decision=="APPROVE" else "REJECTED"
+    expense.reviewed_by=user.id
+    expense.reviewed_at=datetime.now(timezone.utc)
+    db.session.add(ExpenseEvent(expense_id=expense.id,
+        event="APPROVED" if decision=="APPROVE" else "REJECTED",
+        amount_ugx=expense.amount_ugx if decision=="APPROVE" else 0,
+        actor_id=user.id,reason=reason))
+    audit(user,"expense.review","expense",expense.id,decision=decision,reason=reason)
     db.session.commit()
-    return jsonify(expense=serialize(expense, "id", "amount_ugx")), 201
+    return jsonify(expense=serialize(expense,"id","amount_ugx","status","reviewed_by"),
+                   notice="Approved accounting cost, not proof of cash disbursement")
+
+@api.post("/expenses/<expense_id>/reverse")
+@roles("OWNER","SUPER_ADMIN")
+def reverse_expense(user,expense_id):
+    reason=required_string(data(),"reason",500)
+    expense=db.session.query(Expense).filter_by(id=expense_id).with_for_update().first()
+    if not expense:
+        abort(404)
+    if expense.status=="REVERSED":
+        return jsonify(expense=serialize(expense,"id","status"))
+    if expense.status!="APPROVED":
+        return fail("Only approved expenses can be reversed",409)
+    if expense.reviewed_by==user.id:
+        return fail("An approved expense must be reversed by a different reviewer",403)
+    expense.status="REVERSED"
+    expense.reversal_reason=reason
+    db.session.add(ExpenseEvent(expense_id=expense.id,event="REVERSED",
+                                amount_ugx=-expense.amount_ugx,
+                                actor_id=user.id,reason=reason))
+    audit(user,"expense.reverse","expense",expense.id,reason=reason)
+    db.session.commit()
+    return jsonify(expense=serialize(expense,"id","status"),
+                   notice="Accounting reversal recorded; no bank/payment-provider refund initiated")
+
+@api.get("/expenses/<expense_id>/events")
+@roles(*STAFF)
+def expense_events(user,expense_id):
+    expense=db.session.get(Expense,expense_id)
+    if not expense:
+        abort(404)
+    events=db.session.query(ExpenseEvent).filter_by(expense_id=expense_id).order_by(
+        ExpenseEvent.created_at).all()
+    return jsonify(items=[serialize(e,"id","event","amount_ugx","actor_id",
+                                    "reason","created_at") for e in events])
 
 @api.get("/dashboard")
 @roles(*STAFF)
@@ -934,7 +1014,8 @@ def report_summary(user):
     ).filter(Invoice.period_start >= month_start, Invoice.period_start <= month_end,
              Invoice.status != "VOID").one()
     expenses = db.session.query(func.coalesce(func.sum(Expense.amount_ugx), 0)).filter(
-        Expense.incurred_on >= month_start, Expense.incurred_on <= month_end
+        Expense.incurred_on >= month_start, Expense.incurred_on <= month_end,
+        Expense.status == "APPROVED"
     ).scalar()
     rooms_total = db.session.query(func.count(Room.id)).filter(Room.status != "ARCHIVED").scalar() or 0
     occupied = db.session.query(func.count(Room.id)).filter(Room.status == "OCCUPIED").scalar() or 0
