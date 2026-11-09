@@ -9,14 +9,14 @@ def test_login_refresh_rotation_and_logout_revokes_access(app):
     login = client.post("/api/v1/auth/login", json=creds)
     assert login.status_code == 200, login.json
     assert client.get("/api/v1/auth/me").status_code == 200
-    saved_refresh = client.get_cookie("refresh_token_cookie").value
+    saved_refresh = client.get_cookie("refresh_token_cookie", path="/api/v1/auth").value
     refreshed = client.post("/api/v1/auth/refresh", headers={
-        "X-CSRF-TOKEN": client.get_cookie("csrf_refresh_token").value
+        "X-CSRF-TOKEN": client.get_cookie("csrf_refresh_token", path="/api/v1/auth").value
     })
     assert refreshed.status_code == 200, refreshed.json
     # Reusing a copied old token is prohibited even if it has not expired.
     replay = app.test_client()
-    replay.set_cookie("refresh_token_cookie", saved_refresh)
+    replay.set_cookie("refresh_token_cookie", saved_refresh, path="/api/v1/auth")
     from flask_jwt_extended import decode_token
     # Deliberately supply original valid CSRF extracted from token claims.
     csrf_refresh = decode_token(saved_refresh)["csrf"]

@@ -6,7 +6,7 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
     SECRET_KEY = os.getenv("SECRET_KEY", "development-only-unsafe-secret")
-    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "development-only-unsafe-jwt")
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "development-only-not-a-real-jwt-secret-use-env")
     JWT_TOKEN_LOCATION = ["cookies"]
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=7)
