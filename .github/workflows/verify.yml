@@ -41,6 +41,11 @@ jobs:
         env:
           APP_ENV: testing
           DATABASE_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
+      - name: PostgreSQL runtime invariants
+        run: python -m pytest -q tests/test_postgres_invariants.py
+        env:
+          APP_ENV: testing
+          TEST_POSTGRES_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
   frontend:
     runs-on: ubuntu-latest
     defaults:
