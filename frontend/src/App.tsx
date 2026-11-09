@@ -77,6 +77,7 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   const [editing,setEditing]=useState(false)
   const [values,setValues]=useState<Record<string,string>>({})
   const [busy,setBusy]=useState(false)
+  const [references,setReferences]=useState<Record<string,Row[]>>({})
   const canWrite=resource.writable?.includes(user.role)??false
   const load=useCallback(async()=>{
     setLoading(true);setError('')
@@ -85,6 +86,15 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
     finally {setLoading(false)}
   },[resource.path])
   useEffect(()=>{void load()},[load])
+  useEffect(()=>{
+    if(!editing)return
+    const entities:Record<string,string>={property_id:'properties',room_id:'rooms',tenant_id:'tenants',lease_id:'leases',invoice_id:'invoices'}
+    const related=resource.fields.filter(field=>entities[field.name])
+    Promise.all(related.map(async field=>{
+      try {const payload=await api(entities[field.name]);return [field.name,payload.items||[]] as const}
+      catch{return [field.name,[]] as const}
+    })).then(result=>setReferences(Object.fromEntries(result)))
+  },[editing,resource.fields])
   async function submit(event:FormEvent) {
     event.preventDefault();setBusy(true);setError('')
     const body:Record<string,string|number>={}
@@ -104,7 +114,7 @@ function ResourcePage({resource,user}: {resource:Resource;user:User}) {
   }
   return <section className="page"><div className="page-head"><div><span className="eyebrow">OPERATIONS</span><h1>{resource.title}</h1></div>{canWrite&&<button className="button" onClick={()=>setEditing(!editing)}>{editing?'Cancel':'Add '+resource.title.toLowerCase()}</button>}</div>
     {error&&<p role="alert" className="error">{error}</p>}
-    {editing&&canWrite&&<form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.map(field=><label key={field.name}>{field.label}{field.options?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select</option>{field.options.map(option=><option key={option}>{option}</option>)}</select>:<input required={field.required} type={field.type||'text'} min={field.type==='number'?'0':undefined} value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})}/>}</label>)}</div><button className="button" disabled={busy}>{busy?'Saving…':'Save record'}</button></form>}
+    {editing&&canWrite&&<form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.map(field=><label key={field.name}>{field.label}{field.options?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select</option>{field.options.map(option=><option key={option}>{option}</option>)}</select>:references[field.name]?.length?<select value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})} required={field.required}><option value="">Select a record</option>{references[field.name].map(row=><option key={String(row.id)} value={String(row.id)}>{String(row.name||row.number||row.full_name||row.invoice_number||row.title||row.id)}</option>)}</select>:<input required={field.required} type={field.type||'text'} min={field.type==='number'?'0':undefined} value={values[field.name]||''} onChange={e=>setValues({...values,[field.name]:e.target.value})}/>}</label>)}</div><button className="button" disabled={busy}>{busy?'Saving…':'Save record'}</button></form>}
     {loading?<p role="status">Loading records…</p>:rows.length===0?<div className="empty"><h2>No records yet</h2><p>Authorized records will appear here after they are created.</p></div>:<div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col=><th key={col}>{col.replaceAll('_',' ')}</th>)}{resource.path==='payments'&&canWrite&&<th>Review</th>}</tr></thead><tbody>{rows.map((item,i)=><tr key={String(item.id||i)}>{resource.columns.map(col=><td key={col}>{formats(col,item[col])}</td>)}{resource.path==='payments'&&canWrite&&<td>{item.status==='PENDING_REVIEW'?<button className="outline-button" disabled={busy} onClick={()=>approve(String(item.id))}>Approve*</button>:<span>—</span>}</td>}</tr>)}</tbody></table></div>}
     {resource.path==='payments'&&<p className="note">*Approval requires another staff member to verify source evidence. This action credits the invoice and cannot be undone through this interface.</p>}
     <p className="note">Records are scoped by server-side permissions. Copy IDs from existing records when linking items.</p></section>
@@ -117,13 +127,25 @@ function Dashboard({user}: {user:User}) {
   {[['Expected',summary.expected_ugx,true],['Collected',summary.collected_ugx,true],['Outstanding',summary.outstanding_ugx,true],['Occupied rooms',summary.occupied_rooms,false],['Vacant / other rooms',summary.vacant_rooms,false],['Open maintenance',summary.open_maintenance,false]].map(([label,value,currency])=><div className="stat" key={String(label)}><small>{label}</small><strong>{currency?'UGX ':''}{Number(value).toLocaleString('en-UG')}</strong></div>)}</div>}
   <div className="quick"><h2>Common actions</h2><Link to="/properties">Properties</Link><Link to="/rooms">Rooms</Link><Link to="/invoices">Invoices</Link><Link to="/payments">Payments</Link></div></section>
 }
+function TenantHome() {
+  const [summary,setSummary]=useState<Record<string,number>|null>(null)
+  const [lease,setLease]=useState<Row|null>(null)
+  const [error,setError]=useState('')
+  useEffect(()=>{Promise.all([api('tenant/dashboard'),api('tenant/lease')]).then(([s,l])=>{setSummary(s);setLease(l.lease)}).catch(err=>setError(String(err)))},[])
+  return <section className="page"><span className="eyebrow">TENANT PORTAL</span><h1>My rental account</h1><p>Your current lease and recorded rent activity.</p>
+    {error&&<p role="alert" className="error">{error}</p>}
+    {summary?<div className="stat-grid"><div className="stat"><small>Invoiced</small><strong>UGX {summary.total_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Paid</small><strong>UGX {summary.paid_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Outstanding</small><strong>UGX {summary.outstanding_ugx.toLocaleString('en-UG')}</strong></div></div>:<p>Loading rent summary…</p>}
+    <div className="quick"><h2>My lease</h2>{lease?<p>Room reference: {lease.room_id}. Rent: UGX {Number(lease.rent_ugx).toLocaleString('en-UG')}. Ends: {lease.end_date}.</p>:<p>No active lease is currently linked to your account.</p>}<Link to="/invoices">Invoices</Link><Link to="/payments">Payments</Link><Link to="/maintenance">Maintenance</Link></div>
+  </section>
+}
+
 function Portal({user,logout}: {user:User;logout:()=>void}) {
   const location=useLocation()
   const page=location.pathname.slice(1)
   const canOperate=roles.includes(user.role)
-  const nav = canOperate?['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses']:['invoices','payments','maintenance']
+  const nav = canOperate?['dashboard','properties','rooms','tenants','leases','invoices','payments','maintenance','expenses']:['dashboard','invoices','payments','maintenance']
   return <div className="portal"><aside className="side"><Link to="/" className="brand">Kats</Link><div className="role">{user.role.replaceAll('_',' ')}</div><nav aria-label="Workspace">{nav.map(key=><Link key={key} className={page===key?'active':''} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</nav><button className="link-button logout" onClick={logout}><LogOut size={16}/> Sign out</button></aside>
-  <div className="portal-main"><header className="portal-bar"><span>Kats Property Management</span><span>{user.full_name}</span></header><main>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='dashboard'&&canOperate?<Dashboard user={user}/>:RESOURCES[page]&&nav.includes(page)?<ResourcePage resource={RESOURCES[page]} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main></div><nav className="mobile-nav" aria-label="Mobile workspace navigation">{(canOperate?['dashboard','rooms','payments','maintenance']:['invoices','payments','maintenance']).map((key,i)=>{const Icon=[LayoutDashboard,Building2,CreditCard,Wrench][i];return <Link key={key} to={'/'+key} className={page===key?'active':''}><Icon size={20}/><span>{key[0].toUpperCase()+key.slice(1)}</span></Link>})}<Link to="/more"><Menu size={20}/><span>More</span></Link></nav></div>
+  <div className="portal-main"><header className="portal-bar"><span>Kats Property Management</span><span>{user.full_name}</span></header><main>{page==='more'?<section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key=><Link key={key} to={'/'+key}>{key[0].toUpperCase()+key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section>:page==='dashboard'?(canOperate?<Dashboard user={user}/>:user.role==='TENANT'?<TenantHome/>:<div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>):RESOURCES[page]&&nav.includes(page)?<ResourcePage resource={RESOURCES[page]} user={user}/>:<div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</main></div><nav className="mobile-nav" aria-label="Mobile workspace navigation">{(canOperate?['dashboard','rooms','payments','maintenance']:['dashboard','invoices','payments','maintenance']).map((key,i)=>{const Icon=[LayoutDashboard,Building2,CreditCard,Wrench][i];return <Link key={key} to={'/'+key} className={page===key?'active':''}><Icon size={20}/><span>{key[0].toUpperCase()+key.slice(1)}</span></Link>})}<Link to="/more"><Menu size={20}/><span>More</span></Link></nav></div>
 }
 export default function App() {
   const [user,setUser]=useState<User|null>(null)
