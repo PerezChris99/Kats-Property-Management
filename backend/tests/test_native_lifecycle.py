@@ -91,3 +91,11 @@ def test_auto_docker_selection_requires_running_daemon(monkeypatch):
     monkeypatch.setenv("KATS_DEV_BACKEND", "docker")
     with pytest.raises(native.StartupError, match="Docker"):
         native.select_backend_mode()
+
+
+def test_parallel_start_detects_both_backends_without_start_order_assumption():
+    source = (ROOT / "ops" / "run_windows.py").read_text(encoding="utf-8")
+    assert 'connected = False' in source
+    assert 'and reachable("http://127.0.0.1:5173/")' in source
+    assert 'and reachable("http://127.0.0.1:8000/readyz")' in source
+    assert 'verify_http_bridge()' in source

@@ -381,11 +381,8 @@ def launch(mode):
         if run_back:
             ready.append("Flask http://localhost:8000" + (" (SQLite PREVIEW)" if preview else ""))
         print("\n[READY] " + " | ".join(ready), flush=True)
-        if run_back and (run_front or reachable("http://127.0.0.1:5173/")):
-            verify_http_bridge()
-        elif run_front:
-            print("[frontend] Live Vite logs above. Start Flask and use the KATS connection-check task.", flush=True)
         print("[READY] Ctrl+C or stop.bat requests graceful shutdown.", flush=True)
+        connected = False
         while True:
             if stop_requested(started_at):
                 print("[stop] Stop requested from another terminal.", flush=True)
@@ -393,6 +390,14 @@ def launch(mode):
             for name, proc in processes:
                 if proc.poll() is not None:
                     raise StartupError(f"{name} exited (code {proc.returncode}).")
+            # Both VS Code tasks start in parallel. Whichever becomes ready
+            # last still triggers the same-origin API/SQL handshake, exactly
+            # once per launcher and only after both endpoints answer.
+            if (not connected
+                    and reachable("http://127.0.0.1:5173/")
+                    and reachable("http://127.0.0.1:8000/readyz")):
+                verify_http_bridge()
+                connected = True
             time.sleep(.5)
     except KeyboardInterrupt:
         print("\n[stop] Stopping all launched services...", flush=True)
