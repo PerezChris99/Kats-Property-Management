@@ -1,0 +1,24 @@
+{
+  email {$ACME_EMAIL}
+}
+
+{$KATS_DOMAIN} {
+  encode zstd gzip
+  @api path /api/* /healthz /readyz
+  handle @api {
+    reverse_proxy api:8000 {
+      header_up X-Forwarded-For {remote_host}
+      header_up X-Forwarded-Proto {scheme}
+      header_up X-Forwarded-Host {host}
+    }
+  }
+  handle {
+    reverse_proxy web:80
+  }
+  header {
+    Strict-Transport-Security "max-age=31536000"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "no-referrer"
+    -Server
+  }
+}
