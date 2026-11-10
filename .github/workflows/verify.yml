@@ -35,6 +35,8 @@ jobs:
         env:
           APP_ENV: testing
       - run: python -m compileall -q app
+      - name: Compile optional browser and test database harness
+        run: cd .. && python -m py_compile ops/test_browser_e2e.py backend/tests/prepare_postgres.py backend/tests/seed_e2e.py
       - run: python -m flask --app wsgi db upgrade
         env:
           APP_ENV: testing
@@ -75,12 +77,26 @@ jobs:
         with: {node-version: '22'}
       - run: npm ci --no-audit --no-fund
       - run: npm run build
+      - name: Check VS Code task JSON
+        run: node -e "JSON.parse(require('node:fs').readFileSync('../.vscode/tasks.json','utf8')); JSON.parse(require('node:fs').readFileSync('../.vscode/extensions.json','utf8'))"
       - name: Validate Nginx edge configuration
         run: docker run --rm --add-host api:127.0.0.1 -v "$PWD/nginx.conf:/etc/nginx/conf.d/default.conf:ro" nginx:stable-alpine nginx -t
       - name: Validate production Compose manifest using dummy example values
         run: |
           cd ..
           KATS_ENV_FILE=ops/production.env.sample docker compose --env-file ops/production.env.sample -f compose.production.yml config --quiet
+      - name: Validate PowerShell developer commands (no Docker execution)
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $env:GITHUB_WORKSPACE 'ops/dev.ps1'), [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -gt 0) { $parseErrors | Format-List; exit 1 }
+          & pwsh -NoProfile -File ../ops/dev.ps1 -Action help
+      - name: Validate isolated browser E2E Compose configuration
+        run: |
+          cd ..
+          KATS_E2E_SECRET_KEY=ci_disposable_secret_0123456789abcdef KATS_E2E_JWT_SECRET_KEY=ci_disposable_jwt_secret_0123456789abcdef docker compose -f compose.e2e.yml config --quiet
       - name: Validate Caddy production edge
         run: |
           cd ..

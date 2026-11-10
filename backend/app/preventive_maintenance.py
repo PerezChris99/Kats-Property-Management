@@ -1,6 +1,7 @@
 """Bounded automatic preventive-maintenance request generation."""
 from datetime import datetime,timedelta
 from zoneinfo import ZoneInfo
+from sqlalchemy import tuple_
 from .extensions import db
 from .models import MaintenanceRequest,AuditLog
 from .maintenance_plan_models import MaintenancePlan,MaintenanceOccurrence
@@ -22,10 +23,17 @@ def generate_due_maintenance(today=None):
             .limit(100).with_for_update().all())
         if not plans:break
         cursor=plans[-1].id
+        # Retrieve all existing occurrence keys in one indexed batch query.
+        # Previously this issued one SELECT per plan (N+1) on every daily run.
+        due_keys=[(plan.id,plan.next_due_on) for plan in plans]
+        existing=set(db.session.query(
+            MaintenanceOccurrence.plan_id,MaintenanceOccurrence.scheduled_for
+        ).filter(tuple_(
+            MaintenanceOccurrence.plan_id,MaintenanceOccurrence.scheduled_for
+        ).in_(due_keys)).all())
         for plan in plans:
             scheduled=plan.next_due_on
-            if db.session.query(MaintenanceOccurrence.id).filter_by(
-                    plan_id=plan.id,scheduled_for=scheduled).first():
+            if (plan.id,scheduled) in existing:
                 # Heal stale schedule pointer after interrupted earlier run.
                 while plan.next_due_on<=today:
                     plan.next_due_on+=timedelta(days=plan.cadence_days)

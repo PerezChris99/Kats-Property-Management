@@ -72,6 +72,10 @@ async function performApi(path, options, method) {
         }
     }
     catch (reason) {
+        if (reason instanceof DOMException && reason.name === 'AbortError') {
+            // A deliberately cancelled page request is not a network outage.
+            throw reason;
+        }
         if (reason instanceof DOMException && reason.name === 'TimeoutError') {
             throw new Error('Request timed out. Check your connection and retry.');
         }
