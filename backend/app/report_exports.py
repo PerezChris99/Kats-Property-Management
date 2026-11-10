@@ -7,6 +7,7 @@ from html import escape
 from io import BytesIO
 from flask import Blueprint, Response, abort
 from flask_jwt_extended import jwt_required
+from sqlalchemy import func
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_RIGHT
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -85,20 +86,24 @@ def scoped_tenant(user, tenant_id):
 def statement_pdf(tenant_id):
     user=current_user()
     tenant=scoped_tenant(user,tenant_id)
+    # Balance always includes entire history, not only the displayed excerpt.
+    outstanding, all_count = db.session.query(
+        func.coalesce(func.sum(Invoice.total_ugx - Invoice.credit_ugx - Invoice.paid_ugx), 0),
+        func.count(Invoice.id)).filter(
+            Invoice.tenant_id == tenant.id, Invoice.status != "VOID").one()
     invoices=db.session.query(Invoice).filter_by(tenant_id=tenant.id).order_by(
-        Invoice.period_start,Invoice.created_at).limit(200).all()
+        Invoice.period_start.desc(),Invoice.created_at.desc()).limit(200).all()
     rows=[]
-    outstanding=0
     for invoice in invoices:
         due=invoice.total_ugx-invoice.credit_ugx-invoice.paid_ugx
-        outstanding+=due if invoice.status!="VOID" else 0
         rows.append([invoice.invoice_number,invoice.period_start.isoformat(),
                      money(invoice.total_ugx),money(invoice.credit_ugx),
-                     money(invoice.paid_ugx),money(due)])
+                     money(invoice.paid_ugx),money(due if invoice.status!="VOID" else 0)])
     pdf=pdf_document("Kats · Tenant statement",
       ["Tenant: "+tenant.full_name,"Generated: "+datetime.now().date().isoformat(),
        "Currency: Uganda shillings (UGX)",
-       "Outstanding invoiced balance: "+money(outstanding)],
+       "Outstanding invoiced balance (ALL non-void invoices): "+money(outstanding),
+       "Showing up to 200 most recent invoices; older records are included in the balance."],
       headers=["Invoice","Period","Invoiced","Credits","Paid","Open"],rows=rows,
       footer="Internal statement. Not a URA tax invoice or official fiscal receipt.")
     return file_response(pdf,"application/pdf","kats-tenant-statement.pdf")

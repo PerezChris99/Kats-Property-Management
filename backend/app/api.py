@@ -397,8 +397,12 @@ def add_lease(user):
     start, end = parse_date(obj.get("start_date")), parse_date(obj.get("end_date"))
     if end <= start:
         return fail("Lease end must follow start")
+    rent_amount = ugx(obj.get("rent_ugx"), positive=True)
+    deposit_amount = ugx(obj.get("deposit_ugx"), positive=True)
+    if deposit_amount > rent_amount:
+        return fail("Security deposit cannot exceed one month's rent (Landlord and Tenant Act section 30)", 409)
     lease = Lease(room_id=room.id, tenant_id=tenant.id, start_date=start, end_date=end,
-                  rent_ugx=ugx(obj.get("rent_ugx"), positive=True), deposit_ugx=ugx(obj.get("deposit_ugx", 0)),
+                  rent_ugx=rent_amount, deposit_ugx=deposit_amount,
                   due_day=obj.get("due_day", 1))
     if type(lease.due_day) is not int or not 1 <= lease.due_day <= 28:
         return fail("Due day must be an integer between 1 and 28")
@@ -435,7 +439,8 @@ def invoices():
 @roles(*STAFF)
 def add_invoice(user):
     obj = data()
-    lease = db.session.get(Lease, required_string(obj, "lease_id"))
+    # Serialize all manual rent issuance with proration and the scheduler.
+    lease = db.session.query(Lease).filter_by(id=required_string(obj, "lease_id")).with_for_update().first()
     if not lease or lease.status != "ACTIVE":
         return fail("Active lease required")
     start, end, due = [parse_date(obj.get(key)) for key in ("period_start", "period_end", "due_date")]
@@ -468,6 +473,14 @@ def add_invoice(user):
     else:
         total = ugx(obj.get("total_ugx"), positive=True)
         prepared = [("RENT", "Rent and approved charges", 1, total, total)]
+    if any(line[0] == "RENT" for line in prepared):
+        overlap = (db.session.query(Invoice.id)
+                   .join(InvoiceLine, InvoiceLine.invoice_id == Invoice.id)
+                   .filter(Invoice.lease_id == lease.id, Invoice.status != "VOID",
+                           Invoice.period_start <= end, Invoice.period_end >= start,
+                           InvoiceLine.charge_type == "RENT").first())
+        if overlap:
+            return fail("Rent is already invoiced for an overlapping period", 409)
     from .models import new_id
     invoice = Invoice(lease_id=lease.id, tenant_id=lease.tenant_id, period_start=start, period_end=end,
                       due_date=due, total_ugx=total, invoice_number="KATS-" + new_id()[:12].upper())
@@ -717,10 +730,14 @@ def expense_events(user,expense_id):
 def dashboard(user):
     rooms_count = db.session.query(func.count(Room.id)).scalar() or 0
     occupied = db.session.query(func.count(Room.id)).filter(Room.status == "OCCUPIED").scalar() or 0
+    actually_vacant = db.session.query(func.count(Room.id)).filter(Room.status == "VACANT").scalar() or 0
+    reserved = db.session.query(func.count(Room.id)).filter(Room.status == "RESERVED").scalar() or 0
+    unavailable = db.session.query(func.count(Room.id)).filter(Room.status.in_(("MAINTENANCE", "UNAVAILABLE", "DISPUTE"))).scalar() or 0
     expected = db.session.query(func.coalesce(func.sum(Invoice.total_ugx - Invoice.credit_ugx), 0)).filter(Invoice.status != "VOID").scalar() or 0
     paid = db.session.query(func.coalesce(func.sum(Invoice.paid_ugx), 0)).filter(Invoice.status != "VOID").scalar() or 0
     open_maintenance = db.session.query(func.count(MaintenanceRequest.id)).filter(MaintenanceRequest.status.in_(["OPEN","ASSIGNED","IN_PROGRESS","ON_HOLD"])).scalar() or 0
-    return jsonify(rooms=rooms_count, occupied_rooms=occupied, vacant_rooms=max(0, rooms_count - occupied),
+    return jsonify(rooms=rooms_count, occupied_rooms=occupied, vacant_rooms=actually_vacant,
+                   reserved_rooms=reserved, unavailable_rooms=unavailable,
                    expected_ugx=int(expected), collected_ugx=int(paid), outstanding_ugx=int(expected - paid),
                    open_maintenance=open_maintenance)
 
@@ -755,13 +772,15 @@ def tenant_dashboard(user):
     tenant_id = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
     if not tenant_id:
         return jsonify(total_ugx=0, paid_ugx=0, outstanding_ugx=0, invoices=0)
-    total, paid, count = db.session.query(
+    total, paid, credited, count = db.session.query(
         func.coalesce(func.sum(Invoice.total_ugx), 0),
         func.coalesce(func.sum(Invoice.paid_ugx), 0),
+        func.coalesce(func.sum(Invoice.credit_ugx), 0),
         func.count(Invoice.id)
-    ).filter(Invoice.tenant_id == tenant_id).one()
+    ).filter(Invoice.tenant_id == tenant_id, Invoice.status != "VOID").one()
     return jsonify(total_ugx=int(total), paid_ugx=int(paid),
-                   outstanding_ugx=int(total - paid), invoices=int(count))
+                   credited_ugx=int(credited),
+                   outstanding_ugx=int(total - paid - credited), invoices=int(count))
 
 
 @api.post("/billing/generate-monthly")
