@@ -278,14 +278,44 @@ export function AuditPage() {
     useEffect(() => { getRows('audit').then(setRows).catch(e => setError(err(e))); }, []);
     return <section className="page"><span className="eyebrow">ACCOUNTABILITY</span><h1>Audit history</h1><Notice error={error}/>{!rows.length ? <Empty>No audit events in the first page.</Empty> : <div className="module-list">{rows.map(r => <article key={txt(r.id)} className="module-card"><strong>{txt(r.action)}</strong><p>{txt(r.target_type)} · {txt(r.target_id)}</p><small>{txt(r.created_at)}</small></article>)}</div>}</section>;
 }
-export function RenewalsPage() {
+export function RenewalsPage({role}) {
     const [leases, setLeases] = useState([]), [history, setHistory] = useState([]);
+    const [notices, setNotices] = useState([]), [noticeId, setNoticeId] = useState('');
+    const [servedOn, setServedOn] = useState(''), [deliveryMethod, setDeliveryMethod] = useState('EMAIL');
+    const [deliveryReference, setDeliveryReference] = useState('');
     const [selected, setSelected] = useState(''), [date, setDate] = useState(''), [amount, setAmount] = useState(''), [reason, setReason] = useState('');
     const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false);
     const load = useCallback(() => getRows('leases').then(setLeases).catch(e => setError(err(e))), []);
     useEffect(() => { void load(); }, [load]);
-    useEffect(() => { if (selected)
-        getRows('leases/' + selected + '/amendments').then(setHistory).catch(e => setError(err(e))); }, [selected]);
+    useEffect(() => {
+        setHistory([]);setNotices([]);setNoticeId('');
+        if (!selected) return;
+        getRows('leases/' + selected + '/amendments').then(setHistory).catch(e => setError(err(e)));
+        getRows('leases/' + selected + '/notices').then(setNotices).catch(e => setError(err(e)));
+    }, [selected]);
+    const selectedLease = leases.find(l => l.id === selected);
+    const effectiveDate = selectedLease?.end_date ? (() => {
+        const d=new Date(selectedLease.end_date + 'T12:00:00Z');
+        d.setUTCDate(d.getUTCDate()+1);
+        return d.toISOString().slice(0,10);
+    })() : '';
+    async function recordNotice(e) {
+        e.preventDefault();setBusy(true);setError('');setMessage('');
+        try {
+            const r=await api('leases/' + encodeURIComponent(selected) + '/notices',{
+                method:'POST',body:JSON.stringify({
+                    notice_type:'RENT_INCREASE',
+                    served_on:servedOn,effective_on:effectiveDate,
+                    proposed_rent_ugx:Number(amount),
+                    delivery_method:deliveryMethod,delivery_reference:deliveryReference,
+                    reason:reason || 'Notice of proposed rent increase'
+                })
+            });
+            setNoticeId(r.notice.id);
+            setNotices(await getRows('leases/' + selected + '/notices'));
+            setMessage('Notice record saved. Keep proof of legal delivery; recording it is not proof of service.');
+        }catch(e){setError(err(e))}finally{setBusy(false)}
+    }
     async function submit(e) {
         e.preventDefault();
         setBusy(true);
@@ -294,6 +324,8 @@ export function RenewalsPage() {
             const fields = { new_end_date: date, reason };
             if (amount)
                 fields.new_rent_ugx = Number(amount);
+            if (noticeId)
+                fields.rent_notice_id = noticeId;
             const res = await api('leases/' + selected + '/renew', { method: 'POST', body: JSON.stringify(fields) });
             setMessage('Lease renewed until ' + txt(res.lease.end_date) + '. New terms take effect on ' + txt(res.amendment.effective_date) + '.');
             await load();
@@ -307,12 +339,29 @@ export function RenewalsPage() {
         }
     }
     return <section className="page"><span className="eyebrow">LEASE HISTORY</span><h1>Renewals and amendments</h1><p>Future rent changes are effective-dated. Previous invoices and historical rent are preserved.</p><Notice error={error}/>{message && <p role="status">{message}</p>}
-    <form className="resource-form" onSubmit={submit}><h2>Renew an active lease</h2><div className="fields">
+    {['OWNER','MANAGER','SUPER_ADMIN'].includes(role) && selected && <form className="resource-form" onSubmit={recordNotice}>
+      <h2>Record rent-increase notice</h2><p>Default policy: at most 10% annually and evidence of service at least 60 days before the new rent takes effect. Contract-specific exceptions require independent review.</p>
+      <div className="fields">
+        <label>Notice served on<input type="date" value={servedOn} onChange={e=>setServedOn(e.target.value)} required/></label>
+        <label>Delivery method<select value={deliveryMethod} onChange={e=>setDeliveryMethod(e.target.value)}>
+          <option>EMAIL</option><option>IN_PERSON</option><option>REGISTERED_POST</option><option>SMS</option><option>OTHER</option>
+        </select></label>
+        <label>Delivery evidence reference<input value={deliveryReference} onChange={e=>setDeliveryReference(e.target.value)} required maxLength={300}/></label>
+        <label>Proposed rent (UGX)<input type="number" min="1" required value={amount} onChange={e=>setAmount(e.target.value)}/></label>
+        <label>Effective on<input type="date" readOnly value={effectiveDate}/></label>
+      </div><button className="outline-button" disabled={busy}>{busy?'Saving notice…':'Record notice evidence'}</button>
+    </form>}
+    {['OWNER','MANAGER','SUPER_ADMIN'].includes(role) && <form className="resource-form" onSubmit={submit}><h2>Renew an active lease</h2><div className="fields">
       <label>Lease<select required value={selected} onChange={e => setSelected(e.target.value)}><option value="">Select active lease</option>{leases.filter(l => l.status === 'ACTIVE').map(l => <option value={txt(l.id)} key={txt(l.id)}>{txt(l.room_id)} · through {txt(l.end_date)}</option>)}</select></label>
       <label>New end date<input required type="date" value={date} onChange={e => setDate(e.target.value)}/></label>
       <label>New rent (UGX, optional)<input type="number" min="1" value={amount} onChange={e => setAmount(e.target.value)}/></label>
       <label>Reason<input required value={reason} onChange={e => setReason(e.target.value)}/></label>
-    </div><button className="button" disabled={busy}>{busy ? 'Renewing…' : 'Record renewal'}</button></form>
+      <label>Rent-increase notice (required if rent rises)<select value={noticeId} onChange={e=>setNoticeId(e.target.value)}>
+        <option value="">No rent increase notice</option>{notices.filter(n=>n.notice_type==='RENT_INCREASE').map(n=><option value={txt(n.id)} key={txt(n.id)}>{txt(n.served_on)} · {money(n.proposed_rent_ugx)}</option>)}
+      </select></label>
+    </div><button className="button" disabled={busy}>{busy ? 'Renewing…' : 'Record renewal'}</button></form>}
+    {selected && <><h2>Recorded notices</h2>{!notices.length ? <Empty>No legal notices recorded for this lease.</Empty> :
+      <div className="module-list">{notices.map(n=><article key={txt(n.id)} className="module-card"><strong>{txt(n.notice_type)} · {money(n.proposed_rent_ugx)}</strong><p>Served {txt(n.served_on)}; effective {txt(n.effective_on)}</p><small>{txt(n.delivery_method)} · {txt(n.delivery_reference)}</small></article>)}</div>}</>}
     <h2>Rent history</h2>{history.length === 0 ? <Empty>Select a lease to view previous amendments.</Empty> : <div className="module-list">{history.map(h => <article className="module-card" key={txt(h.id)}><strong>{txt(h.effective_date)} · {money(h.new_rent_ugx)}</strong><p>Through {txt(h.new_end_date)}. {txt(h.reason)}</p></article>)}</div>}
   </section>;
 }
