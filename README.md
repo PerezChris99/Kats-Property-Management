@@ -11,7 +11,7 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 > [!IMPORTANT]
 > **Release status: implementation is not production acceptance.** Automated backend, frontend, and PostgreSQL checks exist. MTN/Airtel money settlement, URA EFRIS fiscal documents, production storage, email/SMS providers, HostWares deployment, legal approval, and customer/device testing still need independent validation. Successful CI does not authorize processing live money.
 
-**Automated testing on Windows:** Test scripts live in [`tests/`](tests/README.md), not the repository root. Run `tests\test-all.bat` in CMD or `.\tests\test-all.bat` in PowerShell from the repository root. All 16 category launchers also live in `tests/`. See [Windows testing instructions](docs/WINDOWS_TEST_LAUNCHERS.md). External staging load is approval-gated.
+**Automated testing on Windows:** Test scripts live in [`tests/`](tests/README.md), not the repository root. Run `tests\test-all.bat` in CMD or `.\tests\test-all.bat` in PowerShell from the repository root. All 16 category launchers also live in `tests/`. See [Windows testing instructions](docs/WINDOWS_TEST_LAUNCHERS.md) · [Native startup, API bridge, live logs and shutdown](docs/NATIVE_DEVELOPMENT.md). External staging load is approval-gated.
 
 [Architecture](docs/ARCHITECTURE.md) · [React JSX guide](docs/FRONTEND_JSX.md) · [Production security](docs/PRODUCTION_SECURITY.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [Production deployment](docs/PRODUCTION_DEPLOYMENT.md) · [Uganda implementation register](docs/UGANDA_AUTOPILOT_REGISTER.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
 
@@ -225,10 +225,7 @@ Individual launch commands `start-frontend.bat`, `start-backend.bat` (Flask only
 
 ## Property-first public website (November 2026)
 
-The public KATS site has a dedicated identity in deep navy, sky blue, white
-and restrained yellow, visually separate from ProcurePilot AI. The public
-Home, Features, How It Works, About, Contact, Sign In and Legal routes use
-one persistent accessible header and footer on both mobile and desktop.
+The KATS public entry is deliberately minimal: **Home, Features, How It Works, About, Request Access**. Account access and legal routes remain available. The operational product is the authenticated, role-scoped property-management system—not the public entry pages.
 
 The hero now uses **five verified Ugandan property photographs** licensed
 CC BY-SA 4.0, with compact glass text, a smooth GPU parallax layer,
@@ -243,8 +240,7 @@ performance or actual operational values. Real account metrics remain
 protected within role-based workspaces. Feature descriptions distinguish
 shipped workflows from optional provider integrations.
 
-The Contact page posts real inquiries to /api/v1/public/contact-requests,
-preserving validation, consent, anti-spam fields and status feedback.
+The Request Access page posts to /api/v1/public/access-requests, requires consent, and queues the application for owner review. It **does not create an account**. The legacy contact API is retained for backwards compatibility.
 Sign In retains the real authentication and optional MFA flow; unimplemented
 social sign-in is not advertised. Existing portal routes remain intact.
 
