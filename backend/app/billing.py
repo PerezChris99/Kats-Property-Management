@@ -48,6 +48,42 @@ def generate_monthly_rent(target_month: date, actor: User | None = None):
         if not leases:
             break
         last_lease_id = leases[-1].id
+        # Preload the invoice and rent-change state once per bounded batch.
+        # A per-lease SELECT for amendments, full-period duplicates and rent
+        # overlap was previously 4*N reads for an N-lease monthly run.
+        eligible_ids = [
+            lease.id for lease in leases
+            if lease.start_date <= first and lease.end_date >= last
+        ]
+        changed_midmonth = set()
+        rates = {}
+        duplicate_ids = set()
+        overlapping_ids = set()
+        if eligible_ids:
+            amendments = (db.session.query(LeaseAmendment)
+                .filter(LeaseAmendment.lease_id.in_(eligible_ids),
+                        LeaseAmendment.effective_date <= last)
+                .order_by(LeaseAmendment.effective_date.desc()).all())
+            for amendment in amendments:
+                if amendment.effective_date > first:
+                    changed_midmonth.add(amendment.lease_id)
+                elif amendment.lease_id not in rates:
+                    rates[amendment.lease_id] = amendment.new_rent_ugx
+            duplicate_ids = {
+                lease_id for (lease_id,) in db.session.query(Invoice.lease_id)
+                .filter(Invoice.lease_id.in_(eligible_ids),
+                        Invoice.period_start == first,
+                        Invoice.period_end == last).all()
+            }
+            overlapping_ids = {
+                lease_id for (lease_id,) in db.session.query(Invoice.lease_id)
+                .join(InvoiceLine, InvoiceLine.invoice_id == Invoice.id)
+                .filter(Invoice.lease_id.in_(eligible_ids),
+                        Invoice.status != "VOID",
+                        Invoice.period_start <= last,
+                        Invoice.period_end >= first,
+                        InvoiceLine.charge_type == "RENT").all()
+            }
         for lease in leases:
             # If the lease has no exposure in this month, skip entirely.
             if lease.end_date < first or lease.start_date > last:
@@ -55,37 +91,16 @@ def generate_monthly_rent(target_month: date, actor: User | None = None):
             if lease.start_date > first or lease.end_date < last:
                 needs_review += 1
                 continue
-            # A rent increase taking effect mid-month must be prorated through a
-            # manager-approved manual invoice; never silently charge either rate.
-            change_in_month = db.session.query(LeaseAmendment.id).filter(
-                LeaseAmendment.lease_id == lease.id,
-                LeaseAmendment.effective_date > first,
-                LeaseAmendment.effective_date <= last
-            ).first()
-            if change_in_month:
+            # Midmonth amendments always require approved manual proration.
+            if lease.id in changed_midmonth:
                 needs_review += 1
                 continue
-            amendment = db.session.query(LeaseAmendment).filter(
-                LeaseAmendment.lease_id == lease.id,
-                LeaseAmendment.effective_date <= first
-            ).order_by(LeaseAmendment.effective_date.desc()).first()
-            monthly_rent = amendment.new_rent_ugx if amendment else lease.rent_ugx
-            duplicate = db.session.query(Invoice.id).filter_by(
-                lease_id=lease.id, period_start=first, period_end=last
-            ).first()
-            if duplicate:
+            monthly_rent = rates.get(lease.id, lease.rent_ugx)
+            if lease.id in duplicate_ids:
                 existing += 1
                 continue
-            # Exact-period uniqueness alone cannot catch a manual invoice
-            # covering only part of this month. Never double-charge it.
-            overlap = (db.session.query(Invoice.id)
-                .join(InvoiceLine, InvoiceLine.invoice_id == Invoice.id)
-                .filter(Invoice.lease_id == lease.id,
-                        Invoice.status != "VOID",
-                        Invoice.period_start <= last,
-                        Invoice.period_end >= first,
-                        InvoiceLine.charge_type == "RENT").first())
-            if overlap:
+            # A previously issued partial rent invoice still blocks this run.
+            if lease.id in overlapping_ids:
                 needs_review += 1
                 continue
             due = date(first.year, first.month, lease.due_day)
