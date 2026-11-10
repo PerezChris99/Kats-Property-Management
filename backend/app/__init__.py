@@ -106,6 +106,7 @@ def create_app(test_config=None):
     from . import models  # noqa: F401
     from . import extra_models  # noqa: F401
     from . import utility_models  # noqa: F401
+    from . import privacy_models  # noqa: F401
     from . import account_models  # noqa: F401
     from .api import api
     app.register_blueprint(api, url_prefix="/api/v1")
@@ -133,6 +134,8 @@ def create_app(test_config=None):
     app.register_blueprint(report_api, url_prefix="/api/v1")
     from .utilities import utility_api
     app.register_blueprint(utility_api, url_prefix="/api/v1")
+    from .privacy import privacy_api
+    app.register_blueprint(privacy_api, url_prefix="/api/v1")
     from .cli import register_commands
     register_commands(app)
     return app
