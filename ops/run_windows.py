@@ -8,7 +8,11 @@ No operational .env or database is read or modified.
 from __future__ import annotations
 import argparse
 import hashlib
+import json
 import os
+import signal
+import threading
+import urllib.error
 from pathlib import Path
 import secrets
 import shutil
@@ -230,12 +234,88 @@ def reachable(url):
     except OSError:
         return False
 
-def kill_tree(process):
+def stream_logs(name, process):
+    """Mirror every live child stdout/stderr line into the running VS Code pane."""
+    try:
+        for line in process.stdout:
+            print(f"[{name}] {line.rstrip()}", flush=True)
+    except (OSError, ValueError):
+        pass
+
+
+def start_service(name, command, *, cwd, env, flags):
+    # Avoid cmd.exe wrappers so Node/Python can receive process-group signals.
+    proc = subprocess.Popen(
+        command, cwd=str(cwd), env=env, creationflags=flags,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        encoding="utf-8", errors="replace", bufsize=1
+    )
+    threading.Thread(target=stream_logs, args=(name, proc), daemon=True).start()
+    print(f"[launch] {name} started (pid {proc.pid}); live logs follow.", flush=True)
+    return name, proc
+
+
+def kill_tree(process, timeout=8):
+    """Ask a whole Windows process group to exit; force only after timeout."""
+    if process.poll() is not None:
+        return
+    try:
+        if os.name == "nt":
+            process.send_signal(signal.CTRL_BREAK_EVENT)
+        else:
+            process.terminate()
+        process.wait(timeout=timeout)
+        return
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        print(f"[stop] PID {process.pid} did not exit cleanly; forcing stop.", flush=True)
     if process.poll() is None:
-        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        else:
+            process.kill()
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            pass
+
+
+STOP_FILE = STATE / "stop-request"
+
+
+def stop_requested(started_at):
+    try:
+        return STOP_FILE.stat().st_mtime >= started_at
+    except FileNotFoundError:
+        return False
+
+
+def verify_http_bridge():
+    """Prove browser -> Vite -> Flask -> SQL, not a Vite index.html fallback."""
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:5173/readyz", timeout=5) as response:
+            payload = json.load(response)
+            if (response.status != 200 or payload.get("status") != "ready"
+                    or not response.headers.get("X-Request-ID")):
+                raise StartupError("Frontend /readyz is not Flask + database JSON.")
+        with urllib.request.urlopen("http://127.0.0.1:8000/readyz", timeout=5) as response:
+            payload = json.load(response)
+            if response.status != 200 or payload.get("status") != "ready":
+                raise StartupError("Flask database readiness check failed.")
+        try:
+            urllib.request.urlopen("http://127.0.0.1:5173/api/v1/auth/me", timeout=5)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (401, 422) or not exc.headers.get("X-Request-ID"):
+                raise StartupError("Proxied auth endpoint is not Flask-protected.") from exc
+        else:
+            raise StartupError("Unauthenticated auth/me unexpectedly allowed access.")
+    except (OSError, ValueError, KeyError) as exc:
+        raise StartupError("Frontend / API / database connection check failed. "
+                           "Start both services and inspect the Flask log.") from exc
+    print("[CONNECTED] React :5173 -> Flask :8000 -> SQL readiness, auth 401: PASS", flush=True)
 
 def launch(mode):
+    started_at = time.time()
     settings = config()
     base = environment(settings)
     run_front = mode in ("start", "frontend")
@@ -249,30 +329,33 @@ def launch(mode):
     npm = frontend() if run_front else None
     python = backend() if run_back else None
     runtime = prepare_backend(settings, python, backend_mode) if run_back else base
+    if stop_requested(started_at):
+        print('[stop] Startup cancelled by stop request.', flush=True)
+        return
     processes = []
     flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     try:
         if run_front:
-            processes.append(("React", subprocess.Popen(
-                [npm, "run", "dev", "--", "--host", "127.0.0.1", "--strictPort"],
-                cwd=str(FRONT), env=base, creationflags=flags)))
+            node = require("node")
+            # Spawn Node directly instead of npm.cmd so Ctrl+Break is deliverable.
+            vite = FRONT / "node_modules" / "vite" / "bin" / "vite.js"
+            processes.append(start_service("React", [node, str(vite),
+                "--host", "127.0.0.1", "--port", "5173", "--strictPort"],
+                cwd=FRONT, env=base, flags=flags))
         if run_back:
-            processes.append(("Flask", subprocess.Popen(
-                [str(python), "-m", "flask", "--app", "wsgi", "run",
-                 "--host", "127.0.0.1", "--port", "8000", "--no-reload"],
-                cwd=str(BACK), env=runtime, creationflags=flags)))
+            runtime["PYTHONUNBUFFERED"] = "1"
+            processes.append(start_service("Flask", [str(python), "-m", "flask",
+                "--app", "wsgi", "run", "--host", "127.0.0.1", "--port", "8000",
+                "--no-reload"], cwd=BACK, env=runtime, flags=flags))
             if mode in ("start", "backend-stack") and not preview:
                 STATE.mkdir(parents=True, exist_ok=True)
-                # Windows Celery workers must use the solo pool, not prefork.
-                processes.append(("Celery worker", subprocess.Popen(
-                    [str(python), "-m", "celery", "-A", "app.tasks.celery_app",
-                     "worker", "--pool=solo", "--loglevel=warning"],
-                    cwd=str(BACK), env=runtime, creationflags=flags)))
-                processes.append(("Celery beat", subprocess.Popen(
-                    [str(python), "-m", "celery", "-A", "app.tasks.celery_app",
-                     "beat", "--loglevel=warning",
-                     "--schedule", str(STATE / "celerybeat-schedule")],
-                    cwd=str(BACK), env=runtime, creationflags=flags)))
+                processes.append(start_service("Celery worker", [str(python), "-m", "celery",
+                    "-A", "app.tasks.celery_app", "worker", "--pool=solo",
+                    "--loglevel=info"], cwd=BACK, env=runtime, flags=flags))
+                processes.append(start_service("Celery beat", [str(python), "-m", "celery",
+                    "-A", "app.tasks.celery_app", "beat", "--loglevel=info",
+                    "--schedule", str(STATE / "celerybeat-schedule")],
+                    cwd=BACK, env=runtime, flags=flags))
         until = time.monotonic() + 45
         while time.monotonic() < until:
             for name, proc in processes:
@@ -290,8 +373,15 @@ def launch(mode):
         if run_back:
             ready.append("Flask http://localhost:8000" + (" (SQLite PREVIEW)" if preview else ""))
         print("\n[READY] " + " | ".join(ready), flush=True)
-        print("[READY] Press Ctrl+C here to stop all application processes.", flush=True)
+        if run_back and (run_front or reachable("http://127.0.0.1:5173/")):
+            verify_http_bridge()
+        elif run_front:
+            print("[frontend] Live Vite logs above. Start Flask and use the KATS connection-check task.", flush=True)
+        print("[READY] Ctrl+C or stop.bat requests graceful shutdown.", flush=True)
         while True:
+            if stop_requested(started_at):
+                print("[stop] Stop requested from another terminal.", flush=True)
+                break
             for name, proc in processes:
                 if proc.poll() is not None:
                     raise StartupError(f"{name} exited (code {proc.returncode}).")
@@ -299,9 +389,10 @@ def launch(mode):
     except KeyboardInterrupt:
         print("\n[stop] Stopping all launched services...", flush=True)
     finally:
-        for _, proc in reversed(processes):
+        for name, proc in reversed(processes):
+            print(f"[stop] Asking {name} to exit...", flush=True)
             kill_tree(proc)
-        # DB/Redis persist for subsequent runs; stop.bat stops containers.
+        # Database files and PostgreSQL volumes survive application shutdown.
 
 def windows_terminal_command(executable, root=ROOT):
     """Build two side-by-side panes in ONE Windows Terminal window.
@@ -357,20 +448,37 @@ def start_split():
 
 def main():
     parser = argparse.ArgumentParser(description="Windows KATS launcher")
-    parser.add_argument("action", choices=("split", "start", "frontend", "backend", "backend-stack", "owner", "stop"))
+    parser.add_argument("action", choices=("split", "setup", "doctor", "start", "frontend", "backend", "backend-stack", "owner", "stop"))
     action = parser.parse_args().action
     try:
         if os.name != "nt":
             raise StartupError("Windows .bat launcher only. Use Docker on Linux/macOS.")
         if action == "split":
             start_split()
+        elif action == "setup":
+            settings = config()
+            frontend()
+            python = backend()
+            mode = select_backend_mode()
+            prepare_backend(settings, python, mode)
+            print("[setup] Schema and permissions ready (" + mode + " mode).", flush=True)
+        elif action == "doctor":
+            verify_http_bridge()
         elif action == "stop":
+            STATE.mkdir(parents=True, exist_ok=True)
+            STOP_FILE.write_text(str(time.time()) + "\\n", encoding="utf-8")
+            print("[stop] Graceful shutdown requested in all running native terminals.", flush=True)
+            # Don't shut down PostgreSQL while the API and workers are draining.
+            deadline = time.monotonic() + 12
+            while time.monotonic() < deadline:
+                if not reachable("http://127.0.0.1:8000/healthz"):
+                    break
+                time.sleep(0.4)
             if CONFIG.exists() and select_backend_mode() == "docker":
                 dependencies(["down"], config())
-                print("[stop] PostgreSQL/Redis stopped; volumes retained.")
+                print("[stop] PostgreSQL/Redis stopped; volumes retained.", flush=True)
             else:
-                print("[stop] SQLite preview has no Docker services to stop; "
-                      "preview database retained in .local.", flush=True)
+                print("[stop] SQLite preview database retained in .local.", flush=True)
         elif action == "owner":
             settings = config()
             python = backend()

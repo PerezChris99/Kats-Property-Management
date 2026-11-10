@@ -367,7 +367,7 @@ function CaretakerHome() {
     <div className="quick"><Link to="/rooms">Rooms</Link><Link to="/maintenance">Maintenance</Link><Link to="/payments">Cash records</Link></div>
   </section>;
 }
-function Portal({ user, logout }) {
+function Portal({ user, logout, systemReady }) {
     const location = useLocation();
     const page = location.pathname.slice(1);
     const canOperate = roles.includes(user.role);
@@ -382,10 +382,10 @@ function Portal({ user, logout }) {
           <span>Workspace <span aria-hidden="true">/</span> {pageTitle}</span>
           <strong>{pageTitle}</strong>
         </div>
-        <div className="portal-identity" title={user.full_name}>
+        <div className="portal-header-tools"><span className={'portal-system-state ' + (systemReady === true ? 'is-connected' : systemReady === false ? 'is-disconnected' : '')} role="status"><span className="portal-status-dot" aria-hidden="true"/>{systemReady === null ? 'Checking API' : systemReady ? 'System connected' : 'API unavailable'}</span><div className="portal-identity" title={user.full_name}>
           <span className="identity-avatar" aria-hidden="true">{user.full_name.trim().charAt(0).toUpperCase()}</span>
           <span><strong>{user.full_name}</strong><small>{user.role.replaceAll('_', ' ')}</small></span>
-        </div>
+        </div></div>
       </header>
       <main className="portal-content" key={page}><Suspense fallback={<p className="data-loading" role="status">Opening workspace…</p>}>{page === 'more' ? <section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key => <Link key={key} to={'/' + key}>{key[0].toUpperCase() + key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section> : page === 'statements' && nav.includes(page) ? (user.role === 'TENANT' ? <TenantStatementSelfPage /> : <TenantStatementsPage />) :
             page === 'receipts' && nav.includes(page) ? <ReceiptsPage /> :
@@ -416,6 +416,25 @@ export default function App() {
     const [user, setUser] = useState(null);
     const [ready, setReady] = useState(false);
     const [online, setOnline] = useState(navigator.onLine);
+    // A successful Vite HTML fallback must never count as backend readiness.
+    // Only Flask's JSON response plus request ID confirms API ↔ DB availability.
+    const [systemReady, setSystemReady] = useState(null);
+    useEffect(() => {
+        let active = true;
+        const check = async () => {
+            try {
+                const response = await fetch('/readyz', { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+                const result = await response.json();
+                if (active) setSystemReady(response.ok && result.status === 'ready'
+                    && Boolean(response.headers.get('X-Request-ID')));
+            } catch {
+                if (active) setSystemReady(false);
+            }
+        };
+        void check();
+        const id = window.setInterval(() => { if (!document.hidden) void check(); }, 30000);
+        return () => { active = false; window.clearInterval(id); };
+    }, []);
     const navigate = useNavigate();
     useEffect(() => { api('auth/me').then(p => setUser(p.user)).catch(() => { }).finally(() => setReady(true)); }, []);
     useEffect(() => {
@@ -443,7 +462,7 @@ export default function App() {
         <Route key={slug} path={'/'+slug} element={<LegalPage slug={slug}/>}/>
       )}
     </Route>
-    {['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'expenses', 'expense-approvals', 'reports', 'trends', 'statements', 'receipts', 'users', 'invitations', 'permissions', 'assignments', 'notifications', 'inspections', 'renewals', 'deposits', 'work-orders', 'settings', 'mobile-money', 'efris', 'documents', 'legal', 'audit', 'inquiries', 'privacy-requests', 'disputes', 'preventive-maintenance', 'security', 'more'].map(path => <Route key={path} path={'/' + path} element={user ? <Portal user={user} logout={logout}/> : <Navigate to="/login" replace/>}/>)}
+    {['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'expenses', 'expense-approvals', 'reports', 'trends', 'statements', 'receipts', 'users', 'invitations', 'permissions', 'assignments', 'notifications', 'inspections', 'renewals', 'deposits', 'work-orders', 'settings', 'mobile-money', 'efris', 'documents', 'legal', 'audit', 'inquiries', 'privacy-requests', 'disputes', 'preventive-maintenance', 'security', 'more'].map(path => <Route key={path} path={'/' + path} element={user ? <Portal user={user} logout={logout} systemReady={systemReady}/> : <Navigate to="/login" replace/>}/>)}
     {['dashboard', 'payments', 'invoices', 'receipts', 'maintenance', 'lease', 'profile'].map(path => <Route key={'tenant-' + path} path={'/tenant/' + path} element={<Navigate to={path === 'lease' ? '/dashboard' : path === 'profile' ? '/security' : '/' + path} replace/>}/>)}
     {['dashboard', 'rooms', 'maintenance', 'inspections', 'payments', 'profile'].map(path => <Route key={'caretaker-' + path} path={'/caretaker/' + path} element={<Navigate to={path === 'profile' ? '/security' : '/' + path} replace/>}/>)}
     {['users', 'roles', 'permissions', 'integrations', 'efris', 'payments', 'audit-logs', 'legal-pages', 'system-settings'].map(path => <Route key={'admin-' + path} path={'/admin/' + path} element={<Navigate to={path === 'audit-logs' ? '/audit' : path === 'legal-pages' ? '/legal' : path === 'system-settings' ? '/security' :

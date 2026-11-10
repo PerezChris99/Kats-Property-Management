@@ -228,7 +228,8 @@ def setting_update(user, key):
     return jsonify(setting=serialize(item, "key", "value"))
 
 
-@extra_api.post("/public/contact-requests")
+@extra_api.post("/public/access-requests")
+@extra_api.post("/public/contact-requests")  # Existing clients; do not break the API.
 @limiter.limit("3 per hour")
 def public_contact():
     obj=data()
@@ -244,7 +245,7 @@ def public_contact():
     if len(message)<20:
         return fail("Please include at least 20 characters describing your request")
     subject=required_string(obj,"subject",120)
-    if subject not in ("DEMO","PRICING","SUPPORT","OTHER"):
+    if subject not in ("ACCESS","DEMO","PRICING","SUPPORT","OTHER"):
         return fail("Invalid request subject")
     if obj.get("consent") is not True:
         return fail("Privacy consent is required")
@@ -255,7 +256,7 @@ def public_contact():
                           message=message,consent=True,status="NEW")
     db.session.add(record)
     db.session.commit()
-    return jsonify(request_id=record.id,message="Your request has been recorded."),201
+    return jsonify(request_id=record.id,message=("Request submitted for administrator review. No account has been created." if subject == "ACCESS" else "Your request has been recorded.")),201
 
 @extra_api.get("/admin/contact-requests")
 @roles("OWNER","SUPER_ADMIN")

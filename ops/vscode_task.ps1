@@ -2,12 +2,14 @@
 # Avoid nested cmd.exe /c command strings through PowerShell's task shell.
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('frontend', 'backend-stack', 'backend', 'owner', 'stop', 'test-all', 'test-frontend', 'test-frontend-unit', 'test-lint', 'test-build', 'test-backend', 'test-api', 'test-security', 'test-database', 'test-migrations', 'test-performance', 'test-e2e', 'test-smoke', 'test-config', 'test-coverage', 'test-load')]
+    [ValidateSet('frontend', 'backend-stack', 'backend', 'owner', 'stop', 'setup', 'doctor', 'test-all', 'test-frontend', 'test-frontend-unit', 'test-lint', 'test-build', 'test-backend', 'test-api', 'test-security', 'test-database', 'test-migrations', 'test-performance', 'test-e2e', 'test-smoke', 'test-config', 'test-coverage', 'test-load')]
     [string]$Target
 )
 $ErrorActionPreference = 'Stop'
 $Root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $Entrypoints = @{
+    'setup' = @{ Script = 'ops/launch.bat'; Args = @('setup') }
+    'doctor' = @{ Script = 'ops/launch.bat'; Args = @('doctor') }
     'frontend' = @{ Script = 'start-frontend.bat'; Args = @() }
     'backend-stack' = @{ Script = 'ops/launch.bat'; Args = @('backend-stack') }
     'backend' = @{ Script = 'start-backend.bat'; Args = @() }

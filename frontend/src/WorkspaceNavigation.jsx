@@ -41,7 +41,7 @@ const PAGE_META = {
     utilities: { label: 'Utilities', icon: Gauge },
     'work-orders': { label: 'Work orders', icon: ClipboardCheck },
     assignments: { label: 'Assignments', icon: Users },
-    inquiries: { label: 'Inquiries', icon: Mail },
+    inquiries: { label: 'Access requests', icon: Mail },
     users: { label: 'Users', icon: Users },
     invitations: { label: 'Invitations', icon: Mail },
     permissions: { label: 'Permissions', icon: ShieldCheck },

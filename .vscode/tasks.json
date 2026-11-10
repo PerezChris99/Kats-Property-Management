@@ -12,6 +12,54 @@
       "problemMatcher": []
     },
     {
+      "label": "KATS: Native setup (database + build)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "setup"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "kats-native-split"
+      },
+      "problemMatcher": [],
+      "detail": "Create local config, install frontend/backend dependencies, initialize SQLite preview or PostgreSQL schema, seed role permissions."
+    },
+    {
+      "label": "KATS: Verify frontend ↔ backend ↔ database",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "doctor"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "kats-native-split"
+      },
+      "problemMatcher": [],
+      "detail": "Check live React/Vite proxy ↔ Flask ↔ SQL and anonymous API access. Run after starting both services."
+    },
+    {
       "label": "KATS: Setup",
       "type": "shell",
       "command": "powershell",
