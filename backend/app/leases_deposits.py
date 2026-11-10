@@ -1,12 +1,12 @@
 """Lease amendments and accounting-only deposit movement approvals."""
-from datetime import timedelta, datetime, timezone
+from datetime import date, timedelta, datetime, timezone
 from flask import Blueprint, abort, jsonify
 from flask_jwt_extended import jwt_required
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from .extensions import db
 from .api import roles, current_user, data, parse_date, ugx, required_string, serialize, fail, audit, list_page
-from .models import Lease, LeaseAmendment, DepositMovement, Tenant, Inspection
+from .models import Lease, LeaseAmendment, TenancyNotice, DepositMovement, Tenant, Inspection
 
 lifecycle_api = Blueprint("lease_lifecycle", __name__)
 FINANCE = {"OWNER", "MANAGER", "ACCOUNTANT", "SUPER_ADMIN"}
@@ -48,7 +48,61 @@ def amendments(lease_id):
     rows=db.session.query(LeaseAmendment).filter_by(lease_id=lease.id).order_by(
         LeaseAmendment.effective_date.desc()).all()
     return jsonify(items=[serialize(x,"id","previous_end_date","new_end_date","effective_date",
-                                    "previous_rent_ugx","new_rent_ugx","reason","created_at") for x in rows])
+                                    "previous_rent_ugx","new_rent_ugx","rent_notice_id",
+                                    "reason","created_at") for x in rows])
+
+
+@lifecycle_api.get("/leases/<lease_id>/notices")
+@jwt_required()
+def list_tenancy_notices(lease_id):
+    user = current_user()
+    visible_lease(user, lease_id)
+    rows = db.session.query(TenancyNotice).filter_by(lease_id=lease_id).order_by(
+        TenancyNotice.created_at.desc()).limit(100).all()
+    return jsonify(items=[serialize(n, "id", "notice_type", "proposed_rent_ugx",
+        "served_on", "effective_on", "delivery_method", "delivery_reference",
+        "reason", "created_at") for n in rows],
+        warning="Delivery metadata records a staff assertion; retain legal evidence.")
+
+
+@lifecycle_api.post("/leases/<lease_id>/notices")
+@roles("OWNER", "MANAGER", "SUPER_ADMIN")
+def record_tenancy_notice(user, lease_id):
+    obj = data()
+    lease = db.session.get(Lease, lease_id)
+    if not lease or lease.status != "ACTIVE":
+        return fail("Active lease required", 409)
+    notice_type = required_string(obj, "notice_type", 30).upper()
+    if notice_type != "RENT_INCREASE":
+        return fail("Only rent-increase notice records are supported", 400)
+    method = required_string(obj, "delivery_method", 30).upper()
+    if method not in ("IN_PERSON", "EMAIL", "REGISTERED_POST", "SMS", "OTHER"):
+        return fail("Unsupported delivery method")
+    served_on = parse_date(obj.get("served_on"))
+    effective_on = parse_date(obj.get("effective_on"))
+    if served_on > date.today() or (effective_on - served_on).days < 60:
+        return fail("A rent increase requires an evidenced notice at least 60 days before taking effect", 409)
+    monthly_rent = rent_at(lease, lease.end_date)
+    proposed = ugx(obj.get("proposed_rent_ugx"), positive=True)
+    if proposed <= monthly_rent or proposed * 10 > monthly_rent * 11:
+        return fail("Default rent increase limited to 10%; contract exceptions require independent legal review", 409)
+    if effective_on <= lease.end_date:
+        return fail("Increase under fixed term requires a separately approved agreement; renewal begins after term", 409)
+    item = TenancyNotice(lease_id=lease.id, notice_type="RENT_INCREASE",
+        proposed_rent_ugx=proposed, served_on=served_on, effective_on=effective_on,
+        delivery_method=method,
+        delivery_reference=required_string(obj, "delivery_reference", 300),
+        reason=required_string(obj, "reason", 500), served_by=user.id)
+    db.session.add(item)
+    db.session.flush()
+    audit(user, "tenancy.notice_recorded", "tenancy_notice", item.id,
+          lease_id=lease.id, served_on=served_on.isoformat(),
+          warning="Staff-attested service record, verify actual prescribed delivery")
+    db.session.commit()
+    return jsonify(notice=serialize(item, "id", "lease_id", "notice_type",
+                   "served_on", "effective_on", "proposed_rent_ugx"),
+                   service_evidence_requires_review=True), 201
+
 
 @lifecycle_api.post("/leases/<lease_id>/renew")
 @roles("OWNER", "MANAGER", "SUPER_ADMIN")
@@ -63,9 +117,29 @@ def renew_lease(user,lease_id):
         return fail("Renewal requires an active lease and a later end date",409)
     current_rent=rent_at(lease,lease.end_date)
     new_rent=ugx(obj.get("new_rent_ugx",current_rent),positive=True)
+    effective = lease.end_date + timedelta(days=1)
+    notice = None
+    if new_rent > current_rent:
+        if new_rent * 10 > current_rent * 11:
+            return fail("Default rent increase must not exceed 10% annually; contractual exception requires independent review", 409)
+        notice_id = obj.get("rent_notice_id")
+        if not isinstance(notice_id, str):
+            return fail("Recorded 60-day rent-increase notice is required", 409)
+        notice = db.session.query(TenancyNotice).filter_by(
+            id=notice_id, lease_id=lease.id, notice_type="RENT_INCREASE",
+            proposed_rent_ugx=new_rent, effective_on=effective).first()
+        if (notice is None or (effective - notice.served_on).days < 60
+                or notice.served_on > date.today()):
+            return fail("Matching rent-increase notice and 60-day service record required", 409)
+        latest = db.session.query(LeaseAmendment).filter(
+            LeaseAmendment.lease_id == lease.id,
+            LeaseAmendment.new_rent_ugx > LeaseAmendment.previous_rent_ugx
+        ).order_by(LeaseAmendment.effective_date.desc()).first()
+        if latest and (effective - latest.effective_date).days < 365:
+            return fail("Rent increases must be at least twelve months apart", 409)
     change=LeaseAmendment(
         lease_id=lease.id,previous_end_date=lease.end_date,new_end_date=new_end,
-        effective_date=lease.end_date+timedelta(days=1),
+        effective_date=effective, rent_notice_id=notice.id if notice else None,
         previous_rent_ugx=current_rent,new_rent_ugx=new_rent,
         reason=reason,created_by=user.id)
     lease.end_date=new_end
@@ -73,7 +147,8 @@ def renew_lease(user,lease_id):
     db.session.flush()
     audit(user,"lease.renew","lease",lease.id,amendment_id=change.id,
           previous_rent_ugx=current_rent,new_rent_ugx=new_rent,
-          effective_date=change.effective_date.isoformat())
+          effective_date=change.effective_date.isoformat(),
+          rent_notice_id=change.rent_notice_id)
     db.session.commit()
     return jsonify(lease=serialize(lease,"id","end_date","status"),
                    amendment=serialize(change,"id","effective_date","new_rent_ugx")),201
