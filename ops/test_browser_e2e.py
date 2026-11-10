@@ -57,7 +57,7 @@ def test_public_pages_have_no_horizontal_overflow(browser, viewport, route):
             const width = document.documentElement.clientWidth;
             const selectors = [
               '.pm-hero-panel', '.pm-feature-card', '.pm-chart-panel',
-              '.pm-contact-form', '.pm-contact-form input:not([type="checkbox"])',
+              '.pm-contact-form', '.pm-contact-form input:not([type="checkbox"]):not(.pm-honeypot)',
               '.pm-contact-form select', '.pm-contact-form textarea',
               '.pm-login-layout', '.pm-login-card', '.pm-legal-body',
               '.pm-step-grid article', '.pm-trust-grid article',
