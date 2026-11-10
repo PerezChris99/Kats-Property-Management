@@ -1,5 +1,7 @@
 # KATS — VS Code local test and acceptance guide
 
+For the **native Python virtualenv and React launch from CMD/PowerShell .bat files**, see the [Windows batch launcher guide](WINDOWS_BATCH_LAUNCHERS.md). The Docker-based acceptance commands below remain independent; never launch both application variants on 5173/8000 together.
+
 **Source:** Kats Property Management · **State:** local code verification, not business go-live
 
 This guide runs the actual React/JSX UI, Flask API, Celery/Redis and PostgreSQL

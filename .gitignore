@@ -14,3 +14,6 @@ backups/
 uploads/
 *.pem
 *.key
+
+# Native Windows development state/Celery schedule
+.local/
