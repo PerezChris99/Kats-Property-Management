@@ -65,7 +65,7 @@ def test_unsafe_native_config_fails_closed(tmp_path, monkeypatch, tamper):
 
 def test_all_batch_entrypoints_present_and_not_duplicate_action():
     for name, action in (
-        ("start.bat", "start"),
+        ("start.bat", "split"),
         ("start-frontend.bat", "frontend"),
         ("start-backend.bat", "backend"),
         ("create-owner.bat", "owner"),
@@ -111,3 +111,56 @@ def test_windows_dispatcher_anchors_root_before_argument_handling():
     assert '%PYTHON_CMD% "%KATS_SCRIPT%" "%ACTION%"' in command
     assert 'if not exist "%KATS_SCRIPT%"' in command
     assert '"%KATS_PATH_CHECK_ONLY%"=="1"' in command
+
+
+def test_split_windows_terminal_command_produces_two_side_by_side_panes():
+    content=(ROOT/"start.bat").read_text(encoding="utf-8")
+    assert 'ops\\launch.bat" split %*' in content
+    cmd=launcher.windows_terminal_command("wt.exe",ROOT/"Kats Property Management")
+    assert cmd[:3]==["wt.exe","-w","new"]
+    assert cmd.count("new-tab")==1
+    assert cmd.count("split-pane")==1
+    assert cmd[cmd.index("split-pane")+1]=="-V"
+    assert cmd.count("--title")==2 and cmd.count("--startingDirectory")==2
+    parts=[cmd[i+1] for i,x in enumerate(cmd[:-1]) if x=="/k"]
+    assert len(parts)==2
+    assert 'start-frontend.bat' in parts[0]
+    assert '"'+str(ROOT/"Kats Property Management"/"start-frontend.bat")+'"' in parts[0]
+    assert 'launch.bat' in parts[1] and 'backend-stack' in parts[1]
+
+
+def test_backend_stack_starts_its_own_celery_worker_beat_and_schedule_directory():
+    text=SOURCE.read_text(encoding="utf-8")
+    assert 'run_front = mode in ("start", "frontend")' in text
+    assert 'run_back = mode in ("start", "backend", "backend-stack")' in text
+    assert 'if mode in ("start", "backend-stack"):' in text
+    assert 'STATE.mkdir(parents=True, exist_ok=True)' in text
+    assert 'if action == "split":' in text
+    assert 'start_split()' in text
+
+
+def test_concurrent_frontend_backend_share_complete_config(tmp_path,monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    monkeypatch.setattr(launcher,"CONFIG",tmp_path/".env.native")
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        configs=list(pool.map(lambda _: launcher.config(),range(20)))
+    assert all(data==configs[0] for data in configs)
+    assert len(configs[0]["SECRET_KEY"])==64
+    assert len(configs[0]["JWT_SECRET_KEY"])==64
+    assert not list(tmp_path.glob(".env.native.*.tmp"))
+
+
+def test_vscode_uses_parallel_background_tasks_in_one_split_terminal_group():
+    import json
+    tasks=json.loads((ROOT/".vscode"/"tasks.json").read_text(encoding="utf-8"))["tasks"]
+    byname={task["label"]:task for task in tasks}
+    master=byname["KATS: Native start (split in VS Code)"]
+    assert master["dependsOrder"]=="parallel"
+    assert master["dependsOn"]==["KATS: Native frontend (BAT)","KATS: Native backend stack (BAT)"]
+    front=byname["KATS: Native frontend (BAT)"]
+    back=byname["KATS: Native backend stack (BAT)"]
+    assert "start-frontend.bat" in front["args"][-1]
+    assert "backend-stack" in back["args"][-1]
+    assert front["isBackground"] and back["isBackground"]
+    assert front["presentation"]["group"]==back["presentation"]["group"]=="kats-native-split"
+    assert front["presentation"]["panel"]==back["presentation"]["panel"]=="dedicated"

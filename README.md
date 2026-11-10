@@ -209,22 +209,18 @@ The frontend menu does **not** grant authorization. The backend enforces role ce
 
 **Design language:** midnight navy, sky blue, whitesmoke, carefully restrained warm yellow; legible type, clean data hierarchy, mobile navigation, keyboard search, short transitions, and reduced-motion support.
 
-## Native Windows launcher — CMD and PowerShell
+## Native Windows startup — frontend and backend side by side
 
-From the repository root, use **start.bat** in CMD or **.\start.bat** in PowerShell.
-This builds React first, prepares the root Python .venv, installs backend dependencies,
-runs Flask migrations, then starts Vite, Flask, Celery worker and scheduler in the
-**same VS Code integrated terminal**. Docker Desktop supplies only a separate
-localhost PostgreSQL/Redis dependency pair; no external terminal windows.
+**Within VS Code:** Open **Terminal → Run Task → KATS: Native start (split in VS Code)**. VS Code opens two **side-by-side integrated terminal panes**: React on the left and Flask + Celery worker + Celery beat on the right. The two tasks run independently and preserve their logs.
 
-Individual files: **start-frontend.bat**, **start-backend.bat**,
-**create-owner.bat**, **stop.bat**. See the
-[Windows batch launcher guide](docs/WINDOWS_BATCH_LAUNCHERS.md).
+**From CMD or PowerShell:** Run `start.bat` or `.\start.bat` respectively. The script automatically opens **one Windows Terminal window with two side-by-side panes**. Direct batch files cannot create VS Code integrated terminal panes; for those use the VS Code task. `wt.exe` (Windows Terminal) is needed only for direct invocation.
 
-**Do not run the standard Docker application and native launcher together:**
-both would claim ports 5173 and 8000. Native mode never uses the operational
-database; it generates ignored .env.native credentials and stores development
-records in a dedicated kats_native PostgreSQL volume. Live providers are disabled.
+React builds successfully before its Vite dev server starts. The backend creates/reuses `.venv`, installs Python requirements, provisions isolated local PostgreSQL/Redis, migrates/seeds permissions, then launches Flask and background tasks. Both panes share atomically initialized `.env.native` development credentials. Ctrl+C stops the service(s) in that pane. Database volumes are retained.
+
+Individual launch commands `start-frontend.bat`, `start-backend.bat` (Flask only), `create-owner.bat` and `stop.bat` are still supported. Full instructions: [Windows startup guide](docs/WINDOWS_BATCH_LAUNCHERS.md).
+
+**Do not start the separate Docker application simultaneously:** both environments may claim ports 5173 and 8000. Live payment/tax/SMS connectors remain disabled in native development mode.
+
 ## 6. Quick start
 
 ### Prerequisites
