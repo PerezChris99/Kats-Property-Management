@@ -50,9 +50,21 @@ def config():
             "SECRET_KEY": secrets.token_hex(32),
             "JWT_SECRET_KEY": secrets.token_hex(32),
         }
-        with CONFIG.open("x", encoding="utf-8") as target:
-            target.writelines(f"{key}={value}\n" for key, value in new.items())
-        print("[setup] Generated ignored .env.native with isolated local secrets.", flush=True)
+        # Frontend/backend start concurrently in split terminal panes.
+        # Write a complete temp file and atomically create the final path with
+        # os.link; the losing process reads the winner's FULL config. Never
+        # overwrite an existing file (including an edited local config).
+        temp = CONFIG.with_name(CONFIG.name + "." + secrets.token_hex(8) + ".tmp")
+        try:
+            with temp.open("x", encoding="utf-8") as target:
+                target.writelines(f"{key}={value}\n" for key, value in new.items())
+            try:
+                os.link(temp, CONFIG)
+                print("[setup] Generated ignored .env.native with isolated local secrets.", flush=True)
+            except FileExistsError:
+                pass
+        finally:
+            temp.unlink(missing_ok=True)
     result = {}
     for line in CONFIG.read_text(encoding="utf-8").splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
@@ -173,8 +185,8 @@ def kill_tree(process):
 def launch(mode):
     settings = config()
     base = environment(settings)
-    run_front = mode != "backend"
-    run_back = mode != "frontend"
+    run_front = mode in ("start", "frontend")
+    run_back = mode in ("start", "backend", "backend-stack")
     if run_front:
         check_port(5173)
     if run_back:
@@ -202,7 +214,8 @@ def launch(mode):
                 [str(python), "-m", "flask", "--app", "wsgi", "run",
                  "--host", "127.0.0.1", "--port", "8000", "--no-reload"],
                 cwd=str(BACK), env=runtime, creationflags=flags)))
-            if mode == "start":
+            if mode in ("start", "backend-stack"):
+                STATE.mkdir(parents=True, exist_ok=True)
                 # Windows Celery workers must use the solo pool, not prefork.
                 processes.append(("Celery worker", subprocess.Popen(
                     [str(python), "-m", "celery", "-A", "app.tasks.celery_app",
@@ -238,14 +251,68 @@ def launch(mode):
             kill_tree(proc)
         # DB/Redis persist for subsequent runs; stop.bat stops containers.
 
+def windows_terminal_command(executable, root=ROOT):
+    """Build two side-by-side panes in ONE Windows Terminal window.
+
+    Each pane has an independent process, exit status and Ctrl+C handler.
+    -V creates a vertical divider (left/right), not an upper/lower split.
+    """
+    root = Path(root)
+    frontend_batch = root / "start-frontend.bat"
+    backend_batch = root / "ops" / "launch.bat"
+    return [
+        str(executable), "-w", "new",
+        "new-tab", "--startingDirectory", str(root),
+        "--title", "KATS Frontend",
+        "cmd.exe", "/k", f'call "{frontend_batch}"',
+        ";",
+        "split-pane", "-V", "--startingDirectory", str(root),
+        "--title", "KATS Backend + Celery",
+        "cmd.exe", "/k", f'call "{backend_batch}" backend-stack',
+    ]
+
+
+def start_split():
+    """Entry for start.bat: spawn two live Windows Terminal panes.
+
+    The VS Code task uses the frontend/backend-stack modes instead; VS Code
+    integrated terminal panes cannot be created from an arbitrary .bat file.
+    """
+    # Prepare before spawning panes so both use the same local credentials.
+    config()
+    terminal = shutil.which("wt.exe") or shutil.which("wt")
+    if not terminal:
+        raise StartupError(
+            "Windows Terminal (wt.exe) is required for direct side-by-side "
+            "start.bat. Install Windows Terminal, or in VS Code use "
+            "Terminal > Run Task > KATS: Native start (split in VS Code)."
+        )
+    for entry in (ROOT / "start-frontend.bat", ROOT / "ops" / "launch.bat"):
+        if not entry.is_file():
+            raise StartupError(f"Cannot launch split terminal: missing {entry}")
+    args = windows_terminal_command(terminal)
+    try:
+        subprocess.Popen(args, cwd=str(ROOT))
+    except OSError as exc:
+        raise StartupError(f"Cannot open Windows Terminal split panes: {exc}") from exc
+    print("[launch] Opened a Windows Terminal window with side-by-side panes:", flush=True)
+    print("         LEFT: React (http://localhost:5173)", flush=True)
+    print("         RIGHT: Flask + Celery worker + Celery beat (http://localhost:8000)", flush=True)
+    print("         Stop each pane with Ctrl+C; stop.bat preserves local database volumes.", flush=True)
+    print("[VS Code] For side-by-side INTEGRATED terminals instead, run task:", flush=True)
+    print("          KATS: Native start (split in VS Code)", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Windows KATS launcher")
-    parser.add_argument("action", choices=("start", "frontend", "backend", "owner", "stop"))
+    parser.add_argument("action", choices=("split", "start", "frontend", "backend", "backend-stack", "owner", "stop"))
     action = parser.parse_args().action
     try:
         if os.name != "nt":
             raise StartupError("Windows .bat launcher only. Use Docker on Linux/macOS.")
-        if action == "stop":
+        if action == "split":
+            start_split()
+        elif action == "stop":
             if CONFIG.exists():
                 dependencies(["down"], config())
             print("[stop] PostgreSQL/Redis stopped, volumes retained.")

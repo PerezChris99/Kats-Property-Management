@@ -1,146 +1,85 @@
-# KATS — Windows batch launchers
+# KATS — Windows startup with side-by-side frontend and backend
 
-Use the batch files from the **repository root**, inside the VS Code integrated
-terminal. They work in CMD and PowerShell without changing PowerShell's
-execution policy, and they do **not open additional terminal windows**.
+## Choose your terminal host
 
-## Prerequisites
+### VS Code: two integrated panes (recommended)
 
-Windows 10/11, VS Code, Python 3.12+, Node.js 22+ (including npm), Git,
-and Docker Desktop running Linux containers. Docker is needed only for the
-development PostgreSQL and Redis dependencies, not to build React or Flask.
+Open the repository folder in VS Code. Choose **Terminal → Run Task** and select **KATS: Native start (split in VS Code)**.
 
-## One command to start the application
+The compound VS Code task runs the frontend and backend in parallel using the same terminal presentation group. VS Code displays **two terminal panes side by side in its own terminal panel**, with separate output, tasks and Ctrl+C handling. No external window is launched. This relies on VS Code's built-in task API, not an extension.
 
-**CMD**
+### Direct start.bat: two Windows Terminal panes
+
+From the repository root in CMD:
 
 ~~~cmd
 start.bat
 ~~~
 
-**PowerShell**
+From PowerShell:
 
 ~~~powershell
 .\start.bat
 ~~~
 
-The script performs these actions in order:
+This opens a **new Windows Terminal window** (`wt.exe`) with a vertical split: **left pane React**, **right pane Flask + Celery worker + Celery beat**. The launcher immediately returns to the original shell after dispatch. The two panes each retain their own logs and processes. If you want the panes **inside VS Code**, use the VS Code task above instead: a standalone batch process cannot instruct VS Code's UI to split its integrated terminal without VS Code's task/extension APIs.
 
-1. Detects a compatible Python installation, Node 22+ and npm.
-2. Installs locked Node dependencies when missing or changed.
-3. Executes npm run build, including JSX checks, ESLint, and JavaScript tests.
-4. Finds the repository root .venv or creates it using Python 3.12+.
-5. Detects whether the project virtual environment was already active. If
-   not, it configures VIRTUAL_ENV, PATH and the exact venv Python executable
-   for the backend child processes. This achieves normal virtualenv activation
-   inside those processes without modifying the calling PowerShell session.
-6. Executes python -m pip install -r backend/requirements.txt inside the venv.
-7. Generates a gitignored .env.native with fresh secrets if missing. It never
-   replaces an existing file.
-8. Starts a dedicated kats-native Docker Compose project with PostgreSQL 16
-   and Redis, isolated from the normal application database.
-9. Runs Alembic database migrations and seeds default role permissions.
-10. Starts React (Vite), Flask, a Windows-compatible Celery solo worker and
-    one Celery Beat scheduler, with logs in the current integrated terminal.
-11. Verifies the frontend and backend readiness. Press Ctrl+C to stop the
-    launched application processes. PostgreSQL data is preserved.
+Windows Terminal is included on many Windows 11 systems; if `wt.exe` is unavailable, install it or use the VS Code task. Do not substitute two floating Command Prompt windows.
 
-Vite builds successfully before startup but then runs in hot-reload
-development mode. To serve production-built static assets, use the separate
-existing Docker web application instead of Vite's development server.
+## Prerequisites
 
-## Individual launch commands
+Windows 10/11, Python 3.12+, Node.js 22+ with npm, Git, and Docker Desktop with Linux containers running. Use VS Code to get integrated split panes, or Windows Terminal to start from a standalone batch file. Internet access is needed to install the project's dependencies on the first run.
 
-| Task | CMD | PowerShell |
+## What runs in each pane
+
+| Left — frontend | Right — backend |
+| --- | --- |
+| `start-frontend.bat` | `ops\launch.bat backend-stack` |
+| Install locked npm dependencies if needed | Create/reuse `.venv`, install backend Python dependencies |
+| Validate JSX-only source, run ESLint, Node tests and Vite build | Start isolated native PostgreSQL and Redis containers |
+| Start Vite development server on localhost:5173 | Apply Alembic migrations, seed permissions |
+| Show React/Vite logs and exit status | Run Flask on localhost:8000, Celery solo worker and Celery Beat |
+
+The panes start **concurrently**, rather than serially: the frontend may become ready before the backend finishes migrating. They share a safely and atomically generated, gitignored `.env.native`, and **never** use the main application's operational PostgreSQL data. The backend ensures the Celery schedule directory exists before launch. Both panes check for port conflicts; avoid running the existing Docker-based application simultaneously.
+
+Each pane can be stopped independently with Ctrl+C. The backend pane stops its Flask, Celery worker and Celery Beat process tree. Stop both panes before running `stop.bat` to stop Docker dependencies. Local database volumes are preserved.
+
+## Individual commands
+
+| Operation | CMD | PowerShell |
 | --- | --- | --- |
-| Entire application | start.bat | .\start.bat |
-| React only (build and run) | start-frontend.bat | .\start-frontend.bat |
-| Flask only (prepare venv, install, migrate, run) | start-backend.bat | .\start-backend.bat |
-| Create owner interactively | create-owner.bat | .\create-owner.bat |
-| Stop local database and Redis | stop.bat | .\stop.bat |
+| Full stack (Windows Terminal split) | `start.bat` | `.\start.bat` |
+| React independently | `start-frontend.bat` | `.\start-frontend.bat` |
+| Flask independently (without Celery) | `start-backend.bat` | `.\start-backend.bat` |
+| Create first owner interactively | `create-owner.bat` | `.\create-owner.bat` |
+| Stop native PostgreSQL + Redis | `stop.bat` | `.\stop.bat` |
 
-The React-only command expects an existing backend for authenticated data.
-The Flask-only command does not also launch Celery; the full start command
-does. If you launch both standalone scripts, use separate VS Code integrated
-terminal tabs; neither script opens an external command window itself.
+From **VS Code Terminal → Run Task** you can also run **KATS: Native frontend (BAT)**, **KATS: Native backend (BAT)**, or **KATS: Native backend stack (BAT)** individually.
 
-VS Code has equivalent tasks under **Terminal > Run Task**, prefixed
-"KATS: Native". Those tasks always run inside the VS Code terminal.
+## Local endpoints
 
-## Local addresses
-
-| Component | URL / endpoint |
+| Service | Address |
 | --- | --- |
 | React UI | http://localhost:5173 |
 | Flask API | http://localhost:8000 |
-| Health check | http://localhost:8000/healthz |
-| Database readiness | http://localhost:8000/readyz |
-| Native PostgreSQL | 127.0.0.1:55432 |
-| Native Redis | 127.0.0.1:56379 |
-
-The Vite API proxy explicitly targets Flask at 127.0.0.1:8000 to avoid
-Windows localhost IPv4/IPv6 DNS mismatch errors. Native database
-credentials live exclusively in ignored .env.native and are not the same
-credentials used by the normal Docker Compose application.
-
-## Creating the first owner
-
-Run this in a separate VS Code terminal after initialization:
-
-~~~powershell
-.\create-owner.bat
-~~~
-
-The backend prompts for email, display name and password interactively.
-Use a fresh 12+ character password; never paste secrets in GitHub issues
-or public terminal screenshots.
-
-## Shutdown and restarting
-
-Press Ctrl+C in the start.bat terminal to stop Vite, Flask and Celery.
-Then run stop.bat (or .\stop.bat from PowerShell) to stop only the native
-PostgreSQL and Redis containers.
-
-Both database and Redis persistent volumes remain intact. On the next
-startup, Alembic upgrades are idempotent and permissions are seeded only
-for new routes. Never delete the database volume just to resolve a test
-failure. stop.bat does not forcibly terminate an unrelated standalone
-frontend or backend process; stop those with Ctrl+C in their terminals.
+| Flask readiness | http://localhost:8000/readyz |
+| PostgreSQL (local only) | 127.0.0.1:55432 |
+| Redis (local only) | 127.0.0.1:56379 |
 
 ## Troubleshooting
 
-- **`can't open file '...\\ops\\run_windows.py'` in the parent folder:**
-  This was caused by the old launcher calling `SHIFT` before using
-  `%~dp0`, making it resolve the parent of the cloned repository.
-  The dispatcher now computes its absolute path first and never shifts the
-  script name. From your existing checkout run `git pull origin main`,
-  then run `.\start.bat` again. The corrected command also works when the
-  checkout path includes spaces, such as `D:\\NEW PROJECTS\\...`.
+- If `wt.exe` is unavailable, enable its **App Execution Alias** in Windows Settings, install Windows Terminal, or use the VS Code task for integrated panes.
+- If direct `start.bat` opened a new window rather than splitting VS Code's terminal, this is expected. Use **KATS: Native start (split in VS Code)** for true integrated split panes.
+- If the frontend fails, inspect the **left pane** for npm, ESLint, JSX, test or build errors.
+- If Flask, migrations or Celery fail, inspect the **right pane**; it owns database setup, Flask and background workers.
+- If a port is occupied (5173/8000), stop the existing local development stack first.
+- If Python 3.12+/Node 22+ is missing, install it and reopen VS Code.
+- If Docker Desktop is not started, start it before the backend task.
+- If local `.venv` was created under incompatible Python, rename it and rerun the backend.
+- The startup configuration is for **development only**; it disables MTN/Airtel/URA and external mail/SMS/storage integrations and is not a live-service acceptance run.
 
-- Ports 5173 or 8000 already in use: stop the standard Docker app or the
-  other Vite/Flask process before launching the native stack.
-- Ports 55432 or 56379 in use: another local program is occupying the
-  dedicated native dependency port.
-- Docker Desktop is not running: start its engine and retry.
-- Python not detected: install Python 3.12+ and reopen the terminal.
-- Existing .venv incompatible with Python 3.12+: close all local Python
-  processes, rename the broken local venv, and run start-backend.bat again.
-- npm missing or build fails: install Node 22+ and inspect the actual
-  ESLint/tests/build failure before attempting to start the frontend.
-- Celery worker problems on Windows: the full launcher uses --pool=solo.
-  Test worker schedules and background jobs before claiming operational
-  acceptance. Celery still requires real-device and environment validation.
-- Backend fails its migration or readiness check: inspect the SQL error
-  and preserve the local database. Do not apply destructive migration
-  commands to business data.
+## Test scripts
 
-## Security and production boundaries
+All test batch scripts remain in `tests/`. From PowerShell run `.\tests\test-all.bat` for the full locally automated test suite. For details, see [Windows test commands](WINDOWS_TEST_LAUNCHERS.md).
 
-This is a **local developer runtime**, never production. The application
-forces external MTN MoMo, Airtel, EFRIS, SMS, email and private S3 connectors
-off in native launch mode. The database is localhost-only, isolated and
-persistent. The script deliberately does not reuse the standard .env.
-
-For independent regression tests and six-role synthetic browser checks,
-follow [VS Code testing](LOCAL_VSCODE_TESTING.md). For real release
-approval, follow [Go-live checklist](GO_LIVE_CHECKLIST.md).
+User acceptance, real payment gateways, and production infrastructure still need separate verification. See the [go-live checklist](GO_LIVE_CHECKLIST.md).

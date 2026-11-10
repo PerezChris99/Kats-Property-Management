@@ -174,22 +174,13 @@
       }
     },
     {
-      "label": "KATS: Native start (BAT)",
-      "type": "shell",
-      "command": "cmd.exe",
-      "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\start.bat\""
+      "label": "KATS: Native start (split in VS Code)",
+      "dependsOn": [
+        "KATS: Native frontend (BAT)",
+        "KATS: Native backend stack (BAT)"
       ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "new"
-      },
-      "options": {
-        "cwd": "${workspaceFolder}"
-      }
+      "dependsOrder": "parallel",
+      "problemMatcher": []
     },
     {
       "label": "KATS: Native frontend (BAT)",
@@ -203,7 +194,33 @@
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
-        "panel": "new"
+        "panel": "dedicated",
+        "group": "kats-native-split",
+        "focus": false,
+        "showReuseMessage": false
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true
+    },
+    {
+      "label": "KATS: Native backend stack (BAT)",
+      "type": "shell",
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "call \"${workspaceFolder}\\ops\\launch.bat\" backend-stack"
+      ],
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "kats-native-split",
+        "focus": false,
+        "showReuseMessage": false
       },
       "options": {
         "cwd": "${workspaceFolder}"
