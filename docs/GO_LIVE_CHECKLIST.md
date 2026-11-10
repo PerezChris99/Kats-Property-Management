@@ -14,6 +14,8 @@ The owner must approve this checklist based on evidence; source code alone does 
 - [ ] Verify meter baseline, consumption, maker/checker approval, disputed utility tariffs and each bill against lease terms.
 - [ ] Validate rent-increase notices, delivery evidence, lease exceptions, deposit 0-to-one-month policy and accounting reversals.
 - [ ] Inspections, maintenance closure, move-out, notifications, attachments and legal pages work with actual roles.
+- [ ] Former/current tenants can submit scoped disputes, receive reviewed responses, and escalate appropriately; human adjudication and local statutory procedures verified.
+- [ ] Recurring preventive-maintenance plans generate exactly one actionable task per due date under worker failure/retry, with caretaker visibility, pause/retire tests and contractor handoff.
 - [ ] Mobile performance and accessibility verified at 360px, on mid-range Android and an iPhone.
 - [ ] All privileged accounts enrolled and recovered with MFA, securely protected encryption key and human-approved recovery process.
 - [ ] Data protection requests independently fulfilled; privacy counsel/PDPO registration or applicability reviewed.
