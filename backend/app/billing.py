@@ -48,7 +48,8 @@ def generate_monthly_rent(target_month: date, actor: User | None = None):
         if not leases:
             break
         last_lease_id = leases[-1].id
-        for lease in leases:            # If the lease has no exposure in this month, skip entirely.
+        for lease in leases:
+            # If the lease has no exposure in this month, skip entirely.
             if lease.end_date < first or lease.start_date > last:
                 continue
             if lease.start_date > first or lease.end_date < last:
