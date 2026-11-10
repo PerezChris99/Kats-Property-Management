@@ -4,7 +4,8 @@ Readings use integer thousandths of the unit (kWh or m3) to avoid float
 rounding; each charge is snapshotted. A reading never credits a paid invoice
 or silently sends money through a provider.
 """
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from flask import Blueprint, abort, jsonify, request
 from flask_jwt_extended import jwt_required
 from sqlalchemy.exc import IntegrityError
@@ -92,18 +93,18 @@ def record_reading(meter_id):
     key=required_string(obj,"idempotency_key",128)
     current=ugx(obj.get("current_milli_units"))
     observed=parse_date(obj.get("observed_on"))
-    if observed>date.today():
+    if observed>datetime.now(ZoneInfo("Africa/Kampala")).date():
         return fail("A meter reading cannot be dated in the future",409)
-    previous_record=db.session.query(UtilityReading).filter_by(meter_id=meter.id).order_by(
-        UtilityReading.observed_on.desc(),UtilityReading.created_at.desc()).first()
-    previous=previous_record.current_milli_units if previous_record else meter.baseline_milli_units
-    if (current<previous or (previous_record and observed<previous_record.observed_on)):
-        return fail("Meter reading must be monotonic in usage and date",409)
     replay=db.session.query(UtilityReading).filter_by(idempotency_key=key).first()
     if replay:
         if replay.meter_id!=meter.id or replay.current_milli_units!=current or replay.observed_on!=observed:
             return fail("Idempotency key reused for different readings",409)
         return jsonify(reading=serialize(replay,"id","charge_ugx","invoice_line_id"),reused=True)
+    previous_record=db.session.query(UtilityReading).filter_by(meter_id=meter.id).order_by(
+        UtilityReading.observed_on.desc(),UtilityReading.created_at.desc()).first()
+    previous=previous_record.current_milli_units if previous_record else meter.baseline_milli_units
+    if (current<previous or (previous_record and observed<previous_record.observed_on)):
+        return fail("Meter reading must be monotonic in usage and date",409)
     used=current-previous
     charge=(used*meter.tariff_ugx_per_unit+500)//1000
     if charge>10**15:return fail("Computed charge exceeds safe bounds",409)
@@ -132,6 +133,8 @@ def bill_reading(user,reading_id):
     if not reading:abort(404)
     if reading.invoice_line_id:
         return fail("Reading is already billed; never bill the same usage twice",409)
+    if reading.recorded_by == user.id:
+        return fail("Utility billing requires an independent approver",403)
     meter=db.session.get(UtilityMeter,reading.meter_id)
     invoice=db.session.query(Invoice).filter_by(id=required_string(obj,"invoice_id")).with_for_update().first()
     if not invoice:abort(404)
