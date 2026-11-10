@@ -413,7 +413,7 @@ def add_lease(user):
     if end <= start:
         return fail("Lease end must follow start")
     rent_amount = ugx(obj.get("rent_ugx"), positive=True)
-    deposit_amount = ugx(obj.get("deposit_ugx"), positive=True)
+    deposit_amount = ugx(obj.get("deposit_ugx", 0))
     if deposit_amount > rent_amount:
         return fail("Security deposit cannot exceed one month's rent (Landlord and Tenant Act section 30)", 409)
     lease = Lease(room_id=room.id, tenant_id=tenant.id, start_date=start, end_date=end,
