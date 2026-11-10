@@ -1,1 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="22" fill="#0B1B3D"/><path d="M24 64 64 28l40 36v39H78V75H50v28H24Z" fill="#38BDF8"/><path d="m24 64 40-36 40 36" fill="none" stroke="#F5F5F7" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-labelledby="katsLogoTitle">
+<title id="katsLogoTitle">KATS property management symbol</title>
+<path d="M9 47 58 9l53 39v10L58 22 9 59Z" fill="#38BDF8"/>
+<path d="M19 56 58 26l39 30v47H19Z" fill="#FFFFFF"/>
+<path d="M25 61 58 35 90 61v35H25Z" fill="#E8F6FC"/>
+<path d="M22 94V66h13v28M38 94V54h13v40M55 94V44h13v50" fill="#0B1B3D"/>
+<path d="M41 94V54h12v40M25 94V75h9v19" fill="#38BDF8"/>
+<path d="M50 40h13v54H50Z" fill="#0B1B3D"/>
+<path d="m74 58-14 18 14 18h-13L47 76l14-18Z" fill="#0B1B3D"/>
+<path d="M75 46h7v7h-7zm9 0h7v7h-7zm-9 9h7v7h-7zm9 0h7v7h-7z" fill="#F8C945"/>
+<path d="M9 101c27 15 71 15 103-2" fill="none" stroke="#F8C945" stroke-width="5" stroke-linecap="round"/>
+</svg>

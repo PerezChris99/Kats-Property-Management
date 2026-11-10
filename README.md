@@ -223,6 +223,33 @@ Individual launch commands `start-frontend.bat`, `start-backend.bat` (Flask only
 
 **Do not start the separate Docker application simultaneously:** both environments may claim ports 5173 and 8000. Live payment/tax/SMS connectors remain disabled in native development mode.
 
+## Property-first public website (November 2026)
+
+The public KATS site has a dedicated identity in deep navy, sky blue, white
+and restrained yellow, visually separate from ProcurePilot AI. The public
+Home, Features, How It Works, About, Contact, Sign In and Legal routes use
+one persistent accessible header and footer on both mobile and desktop.
+
+The hero uses five verified Unsplash architecture photos with photo controls,
+full-bleed cover, parallax, smooth scrolling and reduced-motion support.
+Source images and credits are documented in frontend/src/site/media.js.
+These are licensed photographs of buildings, not customer endorsements.
+An original SVG KATS mark is included at frontend/public/brand-mark.svg.
+
+The About charts are explicitly illustrative and never claim customer
+performance or actual operational values. Real account metrics remain
+protected within role-based workspaces. Feature descriptions distinguish
+shipped workflows from optional provider integrations.
+
+The Contact page posts real inquiries to /api/v1/public/contact-requests,
+preserving validation, consent, anti-spam fields and status feedback.
+Sign In retains the real authentication and optional MFA flow; unimplemented
+social sign-in is not advertised. Existing portal routes remain intact.
+
+Legal pages are informational drafts until a property operator approves and
+publishes specific versions in the Legal admin workspace. The public site
+prioritizes published text over drafts. Review is required for local law,
+privacy controller identity, retention schedules, hosting and support terms.
 ## 6. Quick start
 
 ### Prerequisites

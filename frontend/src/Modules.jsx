@@ -180,11 +180,6 @@ export function LegalAdminPage() {
     <h2>Versions</h2>{!rows.length ? <Empty>No legal drafts yet.</Empty> : <div className="module-list">{rows.map(p => <article key={txt(p.id)} className="module-card"><strong>{txt(p.slug)} · v{txt(p.version)}</strong><p>{txt(p.title)} · {p.published ? 'Published' : 'Draft'}</p>{!p.published && <button className="outline-button" onClick={() => publish(txt(p.id))}>Publish reviewed version</button>}</article>)}</div>}
   </section>;
 }
-export function PublicLegalPage({ slug }) {
-    const [page, setPage] = useState(null), [error, setError] = useState('');
-    useEffect(() => { setPage(null); api('public/legal/' + slug).then(x => setPage(x.page)).catch(() => setError('The legal page has not been published yet.')); }, [slug]);
-    return <main className="section simple"><Link to="/">Back to Kats</Link><h1>{txt(page?.title || slug.toUpperCase())}</h1>{error ? <p role="status">{error}</p> : !page ? <p>Loading policy…</p> : <article className="legal-copy">{txt(page.content)}</article>}</main>;
-}
 export function DocumentsPage() {
     const [rows, setRows] = useState([]), [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false);
     const [file, setFile] = useState(null), [category, setCategory] = useState('LEASE'), [lease, setLease] = useState(''), [leases, setLeases] = useState([]);
@@ -588,41 +583,6 @@ export function TenantStatementSelfPage() {
     {tenant ? <a className="button" href={'/api/v1/tenants/' + txt(tenant.id) + '/statement.pdf'}>Download my PDF statement</a> :
             <p>No tenant record is currently linked to your account.</p>}
   </section>;
-}
-export function ContactPage() {
-    const [values, setValues] = useState({ full_name: '', email: '', phone: '', subject: 'DEMO', message: '', consent: false, website: '' });
-    const [busy, setBusy] = useState(false), [error, setError] = useState(''), [result, setResult] = useState('');
-    async function submit(e) {
-        e.preventDefault();
-        setBusy(true);
-        setError('');
-        setResult('');
-        try {
-            const res = await api('public/contact-requests', { method: 'POST', body: JSON.stringify(values) });
-            setResult(txt(res.message || 'Request recorded.'));
-            setValues({ full_name: '', email: '', phone: '', subject: 'DEMO', message: '', consent: false, website: '' });
-        }
-        catch (e) {
-            setError(err(e));
-        }
-        finally {
-            setBusy(false);
-        }
-    }
-    return <main className="section simple"><Link to="/">Back to Kats</Link>
-    <span className="eyebrow">CONTACT & SUPPORT</span><h1>How can we help?</h1>
-    <p>Request a demo, ask about pricing, or contact the rental-management team.</p><Notice error={error}/>
-    {result && <p role="status" className="module-card">{result}</p>}
-    <form className="resource-form" onSubmit={submit}><div className="fields">
-      <label>Full name<input required maxLength={160} value={values.full_name} onChange={e => setValues({ ...values, full_name: e.target.value })}/></label>
-      <label>Email<input required type="email" maxLength={254} value={values.email} onChange={e => setValues({ ...values, email: e.target.value })}/></label>
-      <label>Phone (optional)<input inputMode="tel" maxLength={30} value={values.phone} onChange={e => setValues({ ...values, phone: e.target.value })}/></label>
-      <label>Request type<select value={values.subject} onChange={e => setValues({ ...values, subject: e.target.value })}><option value="DEMO">Book a demo</option><option value="PRICING">Pricing</option><option value="SUPPORT">Support</option><option value="OTHER">Other</option></select></label></div>
-      <label>Message<textarea rows={6} required minLength={20} maxLength={3000} value={values.message} onChange={e => setValues({ ...values, message: e.target.value })}/></label>
-      <label className="check-row"><input type="checkbox" required checked={values.consent} onChange={e => setValues({ ...values, consent: e.target.checked })}/> I agree to the processing of this inquiry according to the <Link to="/privacy">Privacy Policy</Link>.</label>
-      <input tabIndex={-1} style={{ position: 'absolute', left: '-9999px' }} value={values.website} onChange={e => setValues({ ...values, website: e.target.value })} aria-hidden="true" autoComplete="off"/>
-      <button className="button" disabled={busy}>{busy ? 'Sending request…' : 'Submit request'}</button></form>
-  </main>;
 }
 export function ContactInboxPage() {
     const [rows, setRows] = useState([]), [error, setError] = useState('');
