@@ -184,3 +184,36 @@ jobs:
               if ($LASTEXITCODE -ne 0) { throw "Task failed: $($task.label) (exit $LASTEXITCODE)" }
             }
           } finally { Pop-Location }
+
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.14'}
+      - name: Install backend dependencies for Windows Python 3.14 regression suite
+        shell: pwsh
+        run: |
+          $repo = Join-Path $env:GITHUB_WORKSPACE 'Kats Property Management'
+          python -m pip install -r (Join-Path $repo 'backend/requirements.txt')
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to install Windows backend dependencies' }
+          python -m pip install 'pytest-cov>=5,<7'
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to install Windows test coverage dependencies' }
+      - name: Run full backend coverage on Windows under SQLite test-runner settings
+        shell: pwsh
+        env:
+          APP_ENV: testing
+          DATABASE_URL: 'sqlite:///:memory:'
+          RATELIMIT_STORAGE_URI: 'memory://'
+          RATELIMIT_ENABLED: 'false'
+          MTN_MOMO_ENABLED: 'false'
+          AIRTEL_MONEY_ENABLED: 'false'
+          EFRIS_ENABLED: 'false'
+          EMAIL_PROVIDER_ENABLED: 'false'
+          SMS_PROVIDER_ENABLED: 'false'
+          PUBLIC_REGISTRATION_ENABLED: 'false'
+        run: |
+          $repo = Join-Path $env:GITHUB_WORKSPACE 'Kats Property Management'
+          Push-Location (Join-Path $repo 'backend')
+          try {
+            python -m pytest -q --cov=app --cov-report=term
+            if ($LASTEXITCODE -ne 0) { throw "Windows backend coverage suite failed: $LASTEXITCODE" }
+          } finally {
+            Pop-Location
+          }

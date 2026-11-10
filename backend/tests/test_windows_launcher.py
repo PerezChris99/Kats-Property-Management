@@ -278,7 +278,8 @@ def test_preview_setup_never_calls_docker_or_migrations(monkeypatch, tmp_path):
     assert env["KATS_PREVIEW_MODE"]=="1"
     assert tmp_path.exists()
     assert len(commands)==2
-    assert commands[0][0][-1].endswith("ops/init_preview.py")
+    # Compare normalized paths rather than assuming Unix separators on Windows.
+    assert Path(commands[0][0][-1]).resolve() == (ROOT / "ops" / "init_preview.py").resolve()
     assert commands[0][0][0]=="python-preview"
     assert commands[1][0][-1]=="seed-permissions"
     assert not any("upgrade" in command[0] for command in commands)
