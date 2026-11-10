@@ -743,7 +743,7 @@ def expense_events(user,expense_id):
 @api.get("/dashboard")
 @roles(*STAFF)
 def dashboard(user):
-    rooms_count = db.session.query(func.count(Room.id)).scalar() or 0
+    rooms_count = db.session.query(func.count(Room.id)).filter(Room.status != "ARCHIVED").scalar() or 0
     occupied = db.session.query(func.count(Room.id)).filter(Room.status == "OCCUPIED").scalar() or 0
     actually_vacant = db.session.query(func.count(Room.id)).filter(Room.status == "VACANT").scalar() or 0
     reserved = db.session.query(func.count(Room.id)).filter(Room.status == "RESERVED").scalar() or 0
