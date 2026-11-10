@@ -245,6 +245,26 @@ export function DocumentsPage() {
 }
 export function SecurityPage({ onSignedOut }) {
     const [values, setValues] = useState({ current_password: '', new_password: '', confirm: '' });
+    const [mfa, setMfa] = useState(null), [setup, setSetup] = useState(null);
+    const [mfaPassword, setMfaPassword] = useState(''), [mfaCode, setMfaCode] = useState('');
+    const [mfaInfo, setMfaInfo] = useState('');
+    useEffect(() => {api('auth/mfa/status').then(setMfa).catch(()=>{});},[]);
+    async function mfaAction(e, action) {
+        e.preventDefault();setBusy(true);setError('');setMfaInfo('');
+        try {
+            const endpoint=action==='enroll'?'enroll':action==='confirm'?'confirm':'disable';
+            const response=await api('auth/mfa/'+endpoint,{method:'POST',body:JSON.stringify({
+                current_password:mfaPassword,mfa_code:mfaCode
+            })});
+            if(action==='enroll'){
+                setSetup(response);
+                setMfaInfo('Copy the secret to a trusted authenticator, then enter its six-digit code below. Never share or screenshot the secret.');
+            }else{
+                setSetup(null);setMfaCode('');setMfaPassword('');
+                onSignedOut();
+            }
+        }catch(e){setError(err(e))}finally{setBusy(false)}
+    }
     const [error, setError] = useState(''), [busy, setBusy] = useState(false);
     async function change(e) {
         e.preventDefault();
@@ -268,6 +288,26 @@ export function SecurityPage({ onSignedOut }) {
         }
     }
     return <section className="page"><h1>Account security</h1><p>Changing your password signs out every active session, including other devices.</p><Notice error={error}/>
+    <div className="resource-form"><h2>Two-factor authentication</h2>
+      <p>Authenticator app verification protects privileged accounts against stolen passwords. Status: <strong>{mfa?.mfa_enabled ? 'Enabled' : 'Not enabled'}</strong>.</p>
+      {mfaInfo && <p role="status">{mfaInfo}</p>}
+      {!mfa?.mfa_enabled && !setup && <form onSubmit={e=>mfaAction(e,'enroll')}>
+        <label>Confirm current password<input required type="password" autoComplete="current-password" value={mfaPassword} onChange={e=>setMfaPassword(e.target.value)}/></label>
+        <button className="outline-button" disabled={busy}>{busy?'Checking…':'Start authenticator enrollment'}</button>
+      </form>}
+      {setup && <form onSubmit={e=>mfaAction(e,'confirm')}>
+        <p>Save the following private setup key in an authenticator app, then enter a code to activate MFA. Do not store it in messages, emails or public screenshots.</p>
+        <label>Private setup key<input readOnly value={setup.secret} onFocus={e=>e.target.select()} /></label>
+        <label>Authenticator code<input required type="text" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" maxLength={6} value={mfaCode} onChange={e=>setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))}/></label>
+        <button className="button" disabled={busy}>{busy?'Confirming…':'Activate MFA and sign out'}</button>
+      </form>}
+      {mfa?.mfa_enabled && <form onSubmit={e=>mfaAction(e,'disable')}>
+        <p>Disabling MFA is audited, requires your password and a fresh authenticator code, and signs out all sessions.</p>
+        <label>Current password<input required type="password" value={mfaPassword} autoComplete="current-password" onChange={e=>setMfaPassword(e.target.value)}/></label>
+        <label>Authenticator code<input required type="text" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={e=>setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))}/></label>
+        <button className="outline-button" disabled={busy}>{busy?'Verifying…':'Disable MFA and sign out'}</button>
+      </form>}
+    </div>
     <form className="resource-form" onSubmit={change}><label>Current password<input type="password" autoComplete="current-password" required value={values.current_password} onChange={e => setValues({ ...values, current_password: e.target.value })}/></label>
       <label>New password<input type="password" autoComplete="new-password" required minLength={12} value={values.new_password} onChange={e => setValues({ ...values, new_password: e.target.value })}/></label>
       <label>Confirm new password<input type="password" autoComplete="new-password" required minLength={12} value={values.confirm} onChange={e => setValues({ ...values, confirm: e.target.value })}/></label>

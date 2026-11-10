@@ -106,6 +106,7 @@ function Login({ onSuccess }) {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [mfaCode, setMfaCode] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     async function submit(event) {
@@ -113,7 +114,7 @@ function Login({ onSuccess }) {
         setBusy(true);
         setError('');
         try {
-            const payload = await api('auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+            const payload = await api('auth/login', { method: 'POST', body: JSON.stringify({ email, password, mfa_code:mfaCode }) });
             onSuccess(payload.user);
             navigate('/dashboard');
         }
@@ -124,7 +125,7 @@ function Login({ onSuccess }) {
             setBusy(false);
         }
     }
-    return <div className="auth-layout"><div className="auth-card"><Link to="/" className="brand"><Building2 /> Kats</Link><h1>Sign in</h1><p>Secure access for authorized users.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required/></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required/></label>{error && <p role="alert" className="error">{error}</p>}<button className="button full" disabled={busy}>{busy ? 'Signing in…' : 'Continue'}</button></form><Link to="/forgot-password" className="back">Forgot your password?</Link> <Link to="/" className="back">Back to website</Link></div></div>;
+    return <div className="auth-layout"><div className="auth-card"><Link to="/" className="brand"><Building2 /> Kats</Link><h1>Sign in</h1><p>Secure access for authorized users.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required/></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required/></label><label>Authenticator code (if enabled)<input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))}/></label>{error && <p role="alert" className="error">{error}</p>}<button className="button full" disabled={busy}>{busy ? 'Signing in…' : 'Continue'}</button></form><Link to="/forgot-password" className="back">Forgot your password?</Link> <Link to="/" className="back">Back to website</Link></div></div>;
 }
 function ResourcePage({ resource, user }) {
     const [rows, setRows] = useState([]);
