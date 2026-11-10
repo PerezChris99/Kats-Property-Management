@@ -100,7 +100,11 @@ def test_vscode_test_tasks_resolve_to_tests_folder():
     names = [task for task in tasks if task.get("label", "").startswith("KATS Test:")]
     assert len(names) == len(EXPECTED)
     for task in names:
-        assert any("\\tests\\test-" in arg for arg in task["args"])
+        assert task["type"] == "process"
+        assert task["command"] == "powershell.exe"
+        assert task["args"][4].endswith(r"\ops\vscode_task.ps1")
+        assert task["args"][6].startswith("test-")
+        assert (ROOT / "tests" / (task["args"][6] + ".bat")).is_file()
 
 
 def test_test_dispatcher_resolves_absolute_path_from_ops_directory():

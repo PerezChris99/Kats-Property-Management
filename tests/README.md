@@ -34,3 +34,12 @@ and excluded from test-all.
 
 See [full testing guide](../docs/WINDOWS_TEST_LAUNCHERS.md) for all
 16 categories, prerequisites, coverage, and safety constraints.
+
+## Running test tasks from VS Code
+
+Press **Ctrl+Shift+P → Tasks: Run Task** and choose a `KATS Test:` task.
+Every test category now launches via `ops/vscode_task.ps1` using a VS Code
+**process task** rather than a nested `cmd.exe /c` shell command. This
+preserves folder paths containing spaces (for example,
+`D:\\NEW PROJECTS\\Kats-Property-Management`) and returns the test's
+real success/failure code. No separate terminal window is opened.

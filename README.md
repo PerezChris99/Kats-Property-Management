@@ -213,6 +213,8 @@ The frontend menu does **not** grant authorization. The backend enforces role ce
 
 **Within VS Code:** Press **Ctrl+Shift+P**, run **Tasks: Run Task**, then choose **KATS: Start Dev (Frontend + Backend)** (also available as **KATS: Native start (split in VS Code)**). VS Code opens two **side-by-side integrated terminal panes**: React on the left and Flask + Celery worker + Celery beat on the right. The two tasks run independently and preserve their logs.
 
+**Paths containing spaces:** VS Code's native launch and test tasks use argument-safe process execution, so `D:\NEW PROJECTS\Kats-Property-Management` works without the previous PowerShell/`cmd.exe /c` quoting error.
+
 **From CMD or PowerShell:** Run `start.bat` or `.\start.bat` respectively. The script automatically opens **one Windows Terminal window with two side-by-side panes**. Direct batch files cannot create VS Code integrated terminal panes; for those use the VS Code task. `wt.exe` (Windows Terminal) is needed only for direct invocation.
 
 React builds successfully before its Vite dev server starts. The backend creates/reuses `.venv`, installs Python requirements, provisions isolated local PostgreSQL/Redis, migrates/seeds permissions, then launches Flask and background tasks. Both panes share atomically initialized `.env.native` development credentials. Ctrl+C stops the service(s) in that pane. Database volumes are retained.

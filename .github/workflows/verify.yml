@@ -112,8 +112,8 @@ jobs:
 
   windows-launcher-paths:
     # On Windows, SHIFT can alter %0 and break nested batch-file root paths.
-    # Run only on PRs to avoid running extra Windows minutes on every push.
-    if: github.event_name == 'pull_request'
+    # Run on PRs or an explicitly marked push; conserve Windows CI minutes.
+    if: github.event_name == 'pull_request' || contains(github.event.head_commit.message, '[windows-task-check]')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -140,4 +140,15 @@ jobs:
               & cmd.exe /d /c '..\tests\test-all.bat'
               if ($LASTEXITCODE -ne 0) { throw 'tests\test-all.bat nested dispatch failed' }
             } finally { Pop-Location }
+            # Execute all Windows VS Code process tasks through argument arrays,
+            # with path-only mode preventing services or test suite execution.
+            $tasks = (Get-Content (Join-Path $repo '.vscode/tasks.json') -Raw | ConvertFrom-Json).tasks
+            $targets = @($tasks | Where-Object { $_.type -eq 'process' -and ($_.label -like 'KATS: Native *' -or $_.label -like 'KATS Test:*') })
+            if ($targets.Count -ne 21) { throw "Expected 21 process tasks, got $($targets.Count)" }
+            foreach ($task in $targets) {
+              $taskArgs = @($task.args | ForEach-Object { $_.Replace('${workspaceFolder}', $repo) })
+              Write-Host "Checking VS Code task: $($task.label)"
+              & $task.command @taskArgs
+              if ($LASTEXITCODE -ne 0) { throw "Task failed: $($task.label) (exit $LASTEXITCODE)" }
+            }
           } finally { Pop-Location }

@@ -194,14 +194,29 @@
     },
     {
       "label": "KATS: Native frontend (BAT)",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\start-frontend.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "frontend"
       ],
-      "problemMatcher": [],
+      "problemMatcher": [
+        {
+          "owner": "kats-native",
+          "pattern": {
+            "regexp": "a^"
+          },
+          "background": {
+            "activeOnStart": true,
+            "endsPattern": "^\\[READY\\]"
+          }
+        }
+      ],
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
@@ -216,15 +231,30 @@
     },
     {
       "label": "KATS: Native backend stack (BAT)",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\ops\\launch.bat\" backend-stack"
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "backend-stack"
       ],
       "isBackground": true,
-      "problemMatcher": [],
+      "problemMatcher": [
+        {
+          "owner": "kats-native",
+          "pattern": {
+            "regexp": "a^"
+          },
+          "background": {
+            "activeOnStart": true,
+            "endsPattern": "^\\[READY\\]"
+          }
+        }
+      ],
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
@@ -238,12 +268,16 @@
     },
     {
       "label": "KATS: Native backend (BAT)",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\start-backend.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "backend"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -256,12 +290,16 @@
     },
     {
       "label": "KATS: Native create owner (BAT)",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\create-owner.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "owner"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -274,12 +312,16 @@
     },
     {
       "label": "KATS: Native stop dependencies (BAT)",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\stop.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "stop"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -292,12 +334,16 @@
     },
     {
       "label": "KATS Test: Full local automated suite",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-all.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-all"
       ],
       "problemMatcher": [],
       "options": {
@@ -310,12 +356,16 @@
     },
     {
       "label": "KATS Test: Frontend full JSX/lint/unit/build",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-frontend.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-frontend"
       ],
       "problemMatcher": [],
       "options": {
@@ -328,12 +378,16 @@
     },
     {
       "label": "KATS Test: Frontend unit",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-frontend-unit.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-frontend-unit"
       ],
       "problemMatcher": [],
       "options": {
@@ -346,12 +400,16 @@
     },
     {
       "label": "KATS Test: JSX + ESLint",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-lint.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-lint"
       ],
       "problemMatcher": [],
       "options": {
@@ -364,12 +422,16 @@
     },
     {
       "label": "KATS Test: React build",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-build.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-build"
       ],
       "problemMatcher": [],
       "options": {
@@ -382,12 +444,16 @@
     },
     {
       "label": "KATS Test: Backend full pytest",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-backend.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-backend"
       ],
       "problemMatcher": [],
       "options": {
@@ -400,12 +466,16 @@
     },
     {
       "label": "KATS Test: API authorization",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-api.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-api"
       ],
       "problemMatcher": [],
       "options": {
@@ -418,12 +488,16 @@
     },
     {
       "label": "KATS Test: Security / secrets",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-security.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-security"
       ],
       "problemMatcher": [],
       "options": {
@@ -436,12 +510,16 @@
     },
     {
       "label": "KATS Test: PostgreSQL / RLS",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-database.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-database"
       ],
       "problemMatcher": [],
       "options": {
@@ -454,12 +532,16 @@
     },
     {
       "label": "KATS Test: Alembic migrations",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-migrations.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-migrations"
       ],
       "problemMatcher": [],
       "options": {
@@ -472,12 +554,16 @@
     },
     {
       "label": "KATS Test: Performance regressions",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-performance.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-performance"
       ],
       "problemMatcher": [],
       "options": {
@@ -490,12 +576,16 @@
     },
     {
       "label": "KATS Test: Six-role browser E2E",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-e2e.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-e2e"
       ],
       "problemMatcher": [],
       "options": {
@@ -508,12 +598,16 @@
     },
     {
       "label": "KATS Test: Local HTTP smoke",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-smoke.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-smoke"
       ],
       "problemMatcher": [],
       "options": {
@@ -526,12 +620,16 @@
     },
     {
       "label": "KATS Test: Static / configuration",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-config.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-config"
       ],
       "problemMatcher": [],
       "options": {
@@ -544,12 +642,16 @@
     },
     {
       "label": "KATS Test: Coverage report",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-coverage.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-coverage"
       ],
       "problemMatcher": [],
       "options": {
@@ -562,12 +664,16 @@
     },
     {
       "label": "KATS Test: Approved staging load",
-      "type": "shell",
-      "command": "cmd.exe",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
-        "/d",
-        "/c",
-        "call \"${workspaceFolder}\\tests\\test-load.bat\""
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "test-load"
       ],
       "problemMatcher": [],
       "options": {
