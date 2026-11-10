@@ -34,6 +34,10 @@ celery_app.conf.update(
             "task": "app.tasks.poll_mobile_transactions",
             "schedule": crontab(minute="*/5"),
         },
+        "preventive-maintenance-daily": {
+            "task": "app.tasks.generate_preventive_maintenance",
+            "schedule": crontab(minute=25, hour=7),
+        },
         "prune-temporary-credentials-daily": {
             "task": "app.tasks.prune_ephemeral_tokens",
             "schedule": crontab(minute=40, hour=3),
@@ -119,3 +123,12 @@ def prune_ephemeral_tokens():
     from app.retention import prune_ephemeral_credentials
     with create_app().app_context():
         return prune_ephemeral_credentials()
+
+@celery_app.task(name="app.tasks.generate_preventive_maintenance",
+                 autoretry_for=(Exception,),retry_backoff=True,retry_jitter=True,
+                 retry_kwargs={"max_retries":3})
+def generate_preventive_maintenance():
+    from app import create_app
+    from app.preventive_maintenance import generate_due_maintenance
+    with create_app().app_context():
+        return generate_due_maintenance()
