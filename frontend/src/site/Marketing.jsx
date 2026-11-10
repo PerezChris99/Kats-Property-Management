@@ -3,13 +3,13 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   ArrowDown, ArrowRight, ArrowUpRight, Bell, BookOpen, Building2, CalendarDays,
   ChartNoAxesCombined, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleHelp,
-  ClipboardCheck, CreditCard, FileCheck2, FileText, FolderLock, KeyRound, Layers3,
-  LockKeyhole, Mail, Menu, MessageSquare, SearchCheck, ShieldCheck, Sparkles,
-  Users, Wallet, Wrench, X
+  CreditCard, FileCheck2, FolderLock, KeyRound, Mail, Menu, SearchCheck,
+  ShieldCheck, Users, Wallet, Wrench, X
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { PHOTOS } from './media';
 import { POLICY_LINKS, POLICY_PAGES } from './legal';
+import './site.css';
 
 const PRINCIPLES = [
   { icon: Building2, title: 'Owners', detail: 'See the portfolio and the records behind each decision.' },
@@ -86,7 +86,7 @@ function PublicFooter() {
 
 export function PublicShell({ user, logout }) {
   const { pathname } = useLocation();
-  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }); document.title = pathname === '/' ? 'KATS · A clearer way to manage property' : 'KATS Property Management · ' + (pathname.slice(1).replaceAll('-', ' ') || 'Home'); }, [pathname]);
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'auto' }); document.title = pathname === '/' ? 'KATS · A clearer way to manage property' : 'KATS Property Management · ' + (pathname.slice(1).replaceAll('-', ' ') || 'Home'); }, [pathname]);
   return <div className="kats-public"><a className="pm-skip" href="#pm-content">Skip to content</a><PublicHeader user={user} logout={logout}/><div id="pm-content"><Outlet/></div><PublicFooter/></div>;
 }
 

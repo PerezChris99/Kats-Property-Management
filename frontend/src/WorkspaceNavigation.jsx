@@ -149,7 +149,7 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }) {
     return <>
     <aside className="side" aria-label="Workspace navigation">
       <Link to="/dashboard" className="workspace-brand">
-        <span className="brand-symbol" aria-hidden="true"><Building2 size={23} strokeWidth={2.2}/></span>
+        <span className="brand-symbol" aria-hidden="true"><img src="/brand-mark.svg" alt="" width="39" height="39"/></span>
         <span><strong>KATS</strong><small>PROPERTY MANAGEMENT</small></span>
       </Link>
       <div className="side-account">

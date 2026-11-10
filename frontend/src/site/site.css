@@ -382,3 +382,11 @@
   .pm-slide{transition:none}
   .pm-product-preview{transform:none}
 }
+
+/* Correctly positioned, keyboard-operable password visibility affordance. */
+.pm-password-field{position:relative}
+.pm-password-field input{padding-right:52px!important}
+.pm-reveal-password{position:absolute;right:8px;top:50%;transform:translateY(-50%);height:36px;width:38px;min-height:36px;display:grid;place-items:center;border:0;border-radius:6px;background:transparent;color:#54718a;cursor:pointer}
+.pm-reveal-password:hover{color:#0a85be;background:#e7f5fd}
+.pm-reveal-password:focus-visible{outline:3px solid #38bdf8;outline-offset:1px}
+.kats-public .pm-login-card .pm-brand strong{color:#0b1b3d}
