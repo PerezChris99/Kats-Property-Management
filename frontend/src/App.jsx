@@ -32,7 +32,7 @@ const TenantStatementSelfPage = lazy(() => import('./Modules').then(m => ({ defa
 const ContactInboxPage = lazy(() => import('./Modules').then(m => ({ default: m.ContactInboxPage })));
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Building2, CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
-import { PublicShell, LandingPage, FeaturesPage, HowItWorksPage, AboutPage, ContactPage, LegalPage, PricingPage } from './site/Marketing';
+import { PublicShell, LandingPage, FeaturesPage, HowItWorksPage, AboutPage, RequestAccessPage, LegalPage } from './site/Marketing';
 import { PHOTOS } from './site/media';
 const RESOURCES = {
     properties: { title: 'Properties', path: 'properties', columns: ['name', 'address', 'district'], writable: ['OWNER', 'MANAGER', 'SUPER_ADMIN'],
@@ -118,7 +118,7 @@ function Login({ onSuccess }) {
       <label>Authenticator code (if enabled)<input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Six-digit code"/></label>
       {error && <p role="alert" className="error">{error}</p>}
       <button className="pm-cta pm-cta-yellow" disabled={busy}>{busy ? 'Signing in…' : 'Sign in securely'} <ArrowRight size={18}/></button></form>
-      <div className="pm-login-links"><Link to="/forgot-password">Forgot your password?</Link><Link to="/contact">Need an account invitation?</Link></div><div className="pm-login-security"><ShieldCheck size={23}/><span>Session protection and role-based authorization help keep private property records in the right hands. No third-party social login is claimed.</span></div></section></div></main>;
+      <div className="pm-login-links"><Link to="/forgot-password">Forgot your password?</Link><Link to="/request-access">Request access</Link></div><div className="pm-login-security"><ShieldCheck size={23}/><span>Session protection and role-based authorization help keep private property records in the right hands. No third-party social login is claimed.</span></div></section></div></main>;
 }
 function ResourcePage({ resource, user }) {
     const [rows, setRows] = useState([]);
@@ -408,7 +408,7 @@ function Portal({ user, logout, systemReady }) {
                                                                 page === 'work-orders' && nav.includes(page) ? <WorkOrdersPage user={user}/> :
                                                                     page === 'settings' && nav.includes(page) ? <SettingsAdminPage /> : page === 'security' && nav.includes(page) ? <SecurityPage onSignedOut={logout}/> :
                                                                         page === 'reports' && canOperate ? <ReportsPage /> : page === 'dashboard' ? (canOperate ? <Dashboard user={user}/> : user.role === 'TENANT' ? <TenantHome /> : user.role === 'CARETAKER' ? <CaretakerHome /> : <div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>) : viewResource && nav.includes(page) ? <ResourcePage resource={viewResource} user={user}/> : <div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</Suspense></main>
-      <div className="portal-footnote"><span>© {new Date().getFullYear()} KATS Property Management</span><nav aria-label="Workspace legal and support"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/data-protection">Data protection</Link><Link to="/contact">Contact</Link></nav></div>
+      <div className="portal-footnote"><span>© {new Date().getFullYear()} KATS Property Management</span><nav aria-label="Workspace legal and support"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/data-protection">Data protection</Link><Link to="/request-access">Request access</Link></nav></div>
     </div>
   </div>;
 }
@@ -435,6 +435,7 @@ export default function App() {
         const id = window.setInterval(() => { if (!document.hidden) void check(); }, 30000);
         return () => { active = false; window.clearInterval(id); };
     }, []);
+
     const navigate = useNavigate();
     useEffect(() => { api('auth/me').then(p => setUser(p.user)).catch(() => { }).finally(() => setReady(true)); }, []);
     useEffect(() => {
@@ -452,8 +453,9 @@ export default function App() {
       <Route path="/features" element={<FeaturesPage/>}/>
       <Route path="/how-it-works" element={<HowItWorksPage/>}/>
       <Route path="/about" element={<AboutPage/>}/>
-      <Route path="/contact" element={<ContactPage/>}/>
-      <Route path="/pricing" element={<PricingPage/>}/>
+      <Route path="/request-access" element={<RequestAccessPage/>}/>
+      <Route path="/contact" element={<Navigate to="/request-access" replace/>}/>
+      <Route path="/pricing" element={<Navigate to="/request-access" replace/>}/>
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace/> : <Login onSuccess={setUser}/>}/>
       <Route path="/forgot-password" element={<ForgotPasswordPage/>}/>
       <Route path="/reset-password" element={<CompleteAccountLinkPage kind="reset"/>}/>
