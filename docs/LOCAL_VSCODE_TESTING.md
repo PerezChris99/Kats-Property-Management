@@ -187,6 +187,25 @@ For each workflow exercise good input, invalid input, empty state, duplicates,
 concurrency, reconnection, role denial, pagination, keyboard/mobile layout,
 timezones, and eventual reversal where legally permitted.
 
+## Authorized performance measurements (staging only)
+
+For load testing, use an **approved staging HTTPS host**, never your live
+rent/payment environment or third-party payment gateway. Install k6 locally
+and explicitly authorize the target before running:
+
+~~~powershell
+$env:KATS_LOAD_TEST_APPROVED = 'yes'
+$env:BASE_URL = 'https://your-approved-staging-host.example'
+k6 run ops/load-test.js
+Remove-Item Env:KATS_LOAD_TEST_APPROVED,Env:BASE_URL -ErrorAction SilentlyContinue
+~~~
+
+The baseline measures read-only public APIs and reports p95/p99 latency and
+error thresholds. It **does not** establish authenticated high-volume billing
+performance or real-provider safety. Check PostgreSQL connection limits,
+slow-query plans, lock waits, Celery queue depth, concurrent access,
+memory/CPU, and realistic tenant/owner usage before changing production sizes.
+
 ## 7. Gates that local tests CANNOT close
 
 The current application still lacks or has unverified code for contract
