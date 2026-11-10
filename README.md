@@ -230,10 +230,12 @@ and restrained yellow, visually separate from ProcurePilot AI. The public
 Home, Features, How It Works, About, Contact, Sign In and Legal routes use
 one persistent accessible header and footer on both mobile and desktop.
 
-The hero uses five verified Unsplash architecture photos with photo controls,
-full-bleed cover, parallax, smooth scrolling and reduced-motion support.
-Source images and credits are documented in frontend/src/site/media.js.
-These are licensed photographs of buildings, not customer endorsements.
+The hero now uses **five verified Ugandan property photographs** licensed
+CC BY-SA 4.0, with compact glass text, a smooth GPU parallax layer,
+carousel controls and reduced-motion support. Cards and forms use fluid,
+screen-bounded grids. Sources and reuse terms are recorded in
+[IMAGE_SOURCES.md](docs/IMAGE_SOURCES.md) and credited in the public footer.
+Photos are illustrative, not KATS customer or partner endorsements.
 An original SVG KATS mark is included at frontend/public/brand-mark.svg.
 
 The About charts are explicitly illustrative and never claim customer

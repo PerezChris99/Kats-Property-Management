@@ -16,22 +16,50 @@ test('public pages have one shared header and footer layout without legacy place
   assert.equal(app.includes('<PublicLegalPage'), false);
 });
 
-test('homepage hero uses multiple known Unsplash photo sources, with parallax and accessibility', () => {
+test('Ugandan property photos have verified file sources, license and visible attribution', () => {
   const media = read('src/site/media.js');
   const ui = read('src/site/Marketing.jsx');
   const css = read('src/site/site.css');
-  const photos = [...media.matchAll(/images\.unsplash\.com\/photo-[^']+/g)];
+  const app = read('src/App.jsx');
+  const photos = [...media.matchAll(/https:\/\/(?:thumb|upload)\.wikimedia\.org\/wikipedia\/commons\/thumb\/[^']+/g)];
   assert.equal(photos.length, 5);
-  assert.equal(new Set(photos.map(x => x[0])).size, 5);
-  assert.ok(media.includes('unsplash.com/photos/'));
-  assert.ok(ui.includes('window.matchMedia'));
+  assert.equal(new Set(photos.map(p => p[0])).size, 5);
+  assert.ok(media.includes('Kololo, Kampala'));
+  assert.ok(media.includes('Entebbe'));
+  assert.ok(media.includes('creativecommons.org/licenses/by-sa/4.0'));
+  assert.ok(ui.includes('pm-credits'));
+  assert.ok(ui.includes('PHOTO_LICENSE'));
+  assert.ok(app.includes("'--pm-auth-photo'"));
+  assert.equal(css.includes('images.unsplash.com'), false);
+});
+
+test('the carousel uses smooth layer parallax, independent slides and reduced-motion protections', () => {
+  const ui = read('src/site/Marketing.jsx');
+  const css = read('src/site/site.css');
+  assert.ok(ui.includes('ref={heroRef}'));
+  assert.ok(ui.includes("window.requestAnimationFrame(tick)"));
+  assert.ok(ui.includes("hero.style.setProperty('--pm-parallax-y'"));
+  assert.ok(ui.includes("window.matchMedia('(prefers-reduced-motion: reduce)')"));
   assert.ok(ui.includes('setInterval(advance, 6500)'));
-  assert.ok(ui.includes('parallax'));
+  assert.equal(ui.includes('setParallax'), false);
+  assert.ok(css.includes('translate3d(0,var(--pm-parallax-y,0px),0)'));
+  assert.ok(css.includes('prefers-reduced-motion:reduce'));
+  assert.ok(css.includes('background-size:cover'));
   assert.ok(ui.includes('aria-label="Next residential photo"'));
   assert.ok(ui.includes('aria-label="Previous residential photo"'));
-  assert.ok(css.includes('background-size:cover'));
-  assert.ok(css.includes('prefers-reduced-motion:reduce'));
-  assert.ok(css.includes('backdrop-filter:blur'));
+});
+
+test('cards and forms have bounded grids and mobile layouts without shrinking checkboxes', () => {
+  const css = read('src/site/site.css');
+  const portal = read('src/styles.css');
+  assert.ok(css.includes('minmax(0,1fr)'));
+  assert.ok(css.includes('max-width:100%'));
+  assert.ok(css.includes('min-width:0'));
+  assert.ok(css.includes('@media(max-width:520px)'));
+  assert.ok(css.includes('.pm-hero-panel{width:min(535px,55%)'));
+  assert.ok(css.includes('input:not([type=checkbox])'));
+  assert.ok(portal.includes('.page .data-table-wrap{overflow-x:auto'));
+  assert.ok(portal.includes('.page .fields{gap:13px 15px}'));
 });
 
 test('contact form uses actual backend API with validation, consent and no fictitious reachability', () => {

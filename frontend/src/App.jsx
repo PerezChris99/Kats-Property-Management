@@ -33,6 +33,7 @@ const ContactInboxPage = lazy(() => import('./Modules').then(m => ({ default: m.
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Building2, CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { PublicShell, LandingPage, FeaturesPage, HowItWorksPage, AboutPage, ContactPage, LegalPage, PricingPage } from './site/Marketing';
+import { PHOTOS } from './site/media';
 const RESOURCES = {
     properties: { title: 'Properties', path: 'properties', columns: ['name', 'address', 'district'], writable: ['OWNER', 'MANAGER', 'SUPER_ADMIN'],
         fields: [{ name: 'name', label: 'Property name', required: true }, { name: 'address', label: 'Address', required: true }, { name: 'district', label: 'District', required: true }] },
@@ -110,7 +111,7 @@ function Login({ onSuccess }) {
         }
     }
     return <main className="auth-layout"><div className="pm-login-layout">
-      <div className="pm-login-aside"><div><span className="pm-kicker pm-kicker-light">WELCOME BACK</span><h2>Property work,<br/><span>simplified.</span></h2><p>Your properties, tenants, rent records and maintenance in one carefully organized workspace.</p><div className="pm-login-benefits"><div><Building2 size={23}/> See your property portfolio</div><div><CheckCircle2 size={23}/> Keep rental activity accountable</div><div><ShieldCheck size={23}/> Work with role-scoped access</div></div></div></div>
+      <div className="pm-login-aside" style={{ '--pm-auth-photo': 'url("' + PHOTOS[2].url + '")' }}><div><span className="pm-kicker pm-kicker-light">WELCOME BACK</span><h2>Property work,<br/><span>simplified.</span></h2><p>Your properties, tenants, rent records and maintenance in one carefully organized workspace.</p><div className="pm-login-benefits"><div><Building2 size={23}/> See your property portfolio</div><div><CheckCircle2 size={23}/> Keep rental activity accountable</div><div><ShieldCheck size={23}/> Work with role-scoped access</div></div></div></div>
       <section className="auth-card pm-login-card" aria-labelledby="pm-signin-title"><Link to="/" className="pm-brand" aria-label="KATS Property Management home"><img src="/brand-mark.svg" width="56" height="56" alt=""/><span><strong>KATS</strong><small>Property Management</small></span></Link><h1 id="pm-signin-title">Sign in to your account</h1><p className="pm-login-caption">Use the credentials issued by your property administrator. An authenticator code is required only if MFA is enabled for your account.</p>
       <form onSubmit={submit}><label>Email address<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} maxLength={254} required placeholder="you@company.com"/></label>
       <label>Password<div className="pm-password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Enter your password"/><button type="button" className="pm-reveal-password" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>{showPassword ? <EyeOff size={19}/> : <Eye size={19}/>}</button></div></label>
