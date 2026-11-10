@@ -7,7 +7,7 @@ import {
   ShieldCheck, Users, Wallet, Wrench, X
 } from 'lucide-react';
 import { api } from '../lib/api';
-import { PHOTOS } from './media';
+import { PHOTOS, PHOTO_LICENSE } from './media';
 import { POLICY_LINKS, POLICY_PAGES } from './legal';
 import './site.css';
 
@@ -75,12 +75,12 @@ function PublicHeader({ user, logout }) {
 function PublicFooter() {
   return <footer className="pm-footer">
     <div className="pm-footer-body">
-      <div className="pm-footer-brand"><Brand compact/><p>A clearer way to run rental properties, manage tenancy records and keep decisions accountable.</p><span className="pm-footer-note">Built for the day-to-day realities of property management.</span></div>
+      <div className="pm-footer-brand"><Brand compact/><p>A clear view of your properties, rent and maintenance.</p></div>
       <div><h3>Explore</h3><Link to="/">Home</Link><Link to="/features">Features</Link><Link to="/how-it-works">How it works</Link><Link to="/about">About KATS</Link><Link to="/contact">Contact</Link></div>
       <div><h3>Platform</h3><Link to="/login">Sign in</Link><Link to="/contact">Request a walkthrough</Link><Link to="/pricing">Pricing inquiries</Link><Link to="/accessibility">Accessibility</Link></div>
       <div className="pm-footer-legal"><h3>Legal & trust</h3>{POLICY_LINKS.map(([name, slug]) => <Link to={'/' + slug} key={slug}>{name}</Link>)}</div>
     </div>
-    <div className="pm-footer-base"><span>© {new Date().getFullYear()} KATS Property Management. All rights reserved.</span><span>Architectural photography from <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer">Unsplash</a> · Illustrations and examples are not customer endorsements.</span></div>
+    <div className="pm-footer-base"><span>© {new Date().getFullYear()} KATS Property Management.</span><span>Ugandan residential photos · <a href={PHOTO_LICENSE} target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> · No customer endorsement implied.</span></div><details className="pm-credits"><summary>Photo credits & license</summary><ul>{PHOTOS.map(photo => <li key={photo.credit}><a href={photo.credit} target="_blank" rel="noopener noreferrer">{photo.author} — {photo.location}</a> · <a href={PHOTO_LICENSE} target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> · CSS cropped for layout</li>)}</ul></details>
   </footer>;
 }
 
@@ -94,7 +94,7 @@ function SectionTitle({ eyebrow, title, text, center = false }) {
   return <div className={'pm-section-title' + (center ? ' is-centered' : '')}><span className="pm-kicker">{eyebrow}</span><h2>{title}</h2>{text && <p>{text}</p>}</div>;
 }
 function Photo({ photo, className = '' }) {
-  return <figure className={'pm-photo ' + className}><img loading="lazy" src={photo.url} alt={photo.alt}/><figcaption><a href={photo.credit} target="_blank" rel="noopener noreferrer">Photo: {photo.author} / Unsplash</a></figcaption></figure>;
+  return <figure className={'pm-photo ' + className}><img loading="lazy" src={photo.url} alt={photo.alt}/><figcaption><a href={photo.credit} target="_blank" rel="noopener noreferrer">{photo.location} · {photo.author}</a></figcaption></figure>;
 }
 function CTABanner({ title = 'Bring your whole property operation into focus.', description = 'Get a walkthrough of the workflows that matter to your portfolio.' }) {
   return <section className="pm-final-cta"><div className="pm-final-graphic" aria-hidden="true"><Building2 size={150} strokeWidth={0.9}/></div><div><span className="pm-kicker">NEXT STEP</span><h2>{title}</h2><p>{description}</p></div><Link className="pm-cta pm-cta-yellow" to="/contact">Request a walkthrough <ArrowUpRight size={19}/></Link></section>;
@@ -110,7 +110,7 @@ function MiniDashboard() {
 function HeroCarousel({ user }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [parallax, setParallax] = useState(0);
+  const heroRef = useRef(null);
   const { pathname } = useLocation();
   const raf = useRef(0);
   useEffect(() => {
@@ -121,24 +121,43 @@ function HeroCarousel({ user }) {
     return () => window.clearInterval(timer);
   }, [paused, pathname]);
   useEffect(() => {
+    // Smooth compositor-layer parallax; avoids re-rendering five photo slides.
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (reduceMotion.matches) return undefined;
-    function onScroll() {
-      if (raf.current) return;
-      raf.current = window.requestAnimationFrame(() => {
-        setParallax(Math.min(115, window.scrollY * 0.12));
-        raf.current = 0;
-      });
+    const hero = heroRef.current;
+    if (!hero || reduceMotion.matches) return undefined;
+    let current = 0;
+    let target = 0;
+    let live = true;
+    function tick() {
+      raf.current = 0;
+      if (!live) return;
+      const bounds = hero.getBoundingClientRect();
+      if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) return;
+      target = Math.max(-95, Math.min(95, -bounds.top * 0.20));
+      current += (target - current) * 0.22;
+      hero.style.setProperty('--pm-parallax-y', current.toFixed(2) + 'px');
+      if (Math.abs(target - current) > 0.4) raf.current = window.requestAnimationFrame(tick);
     }
+    function onScroll() {
+      if (!raf.current) raf.current = window.requestAnimationFrame(tick);
+    }
+    onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => { window.removeEventListener('scroll', onScroll); window.cancelAnimationFrame(raf.current); };
+    window.addEventListener('resize', onScroll);
+    return () => {
+      live = false;
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      window.cancelAnimationFrame(raf.current);
+      hero.style.removeProperty('--pm-parallax-y');
+    };
   }, []);
   function move(by) { setIndex(n => (n + by + PHOTOS.length) % PHOTOS.length); }
-  return <section className="pm-hero" aria-label="Property management introduction" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) setPaused(false); }}>
-    <div className="pm-hero-images" aria-hidden="true">{PHOTOS.map((item, n) => <div className={'pm-slide' + (n === index ? ' is-current' : '')} key={item.url} style={{ backgroundImage: 'url("' + item.url + '")', transform: 'translate3d(0,' + parallax + 'px,0)' }}/>)}</div>
+  return <section ref={heroRef} className="pm-hero" aria-label="Property management introduction" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) setPaused(false); }}>
+    <div className="pm-hero-images" aria-hidden="true">{PHOTOS.map((item, n) => <div className={'pm-slide' + (n === index ? ' is-current' : '')} key={item.url} style={{ backgroundImage: 'url("' + item.url + '")' }}/>)}</div>
     <div className="pm-hero-shade"/>
-    <div className="pm-hero-inner"><div className="pm-glass pm-hero-panel"><span className="pm-kicker pm-kicker-light"><span className="pm-spark" /> PROPERTY MANAGEMENT, RECONSIDERED</span><h1>Make room for <em>better property management.</em></h1><p>Bring properties, tenants, rent records and maintenance into a calmer, clearer workspace. Built for the people running rentals every day.</p><div className="pm-hero-actions"><Link className="pm-cta pm-cta-yellow" to={user ? '/dashboard' : '/contact'}>{user ? 'Open workspace' : 'Request a walkthrough'} <ArrowRight size={19}/></Link><Link className="pm-cta pm-cta-ghost" to="/how-it-works">See how it works <ArrowDown size={17}/></Link></div><div className="pm-hero-points"><span><Check size={15}/> UGX-native records</span><span><Check size={15}/> Role-specific access</span><span><Check size={15}/> Clear activity trails</span></div></div></div>
-    <div className="pm-carousel-bottom"><div className="pm-carousel-controls"><button onClick={() => move(-1)} aria-label="Previous residential photo"><ChevronLeft/></button><span className="pm-carousel-count">0{index + 1} / 0{PHOTOS.length}</span><button onClick={() => move(1)} aria-label="Next residential photo"><ChevronRight/></button></div><div className="pm-carousel-dots" aria-label="Choose a residential photo">{PHOTOS.map((p, n) => <button type="button" key={p.credit} aria-label={'Show photo ' + (n + 1)} aria-current={index === n ? 'true' : undefined} onClick={() => setIndex(n)} className={index === n ? 'is-current' : ''}/>)}</div><a className="pm-hero-credit" href={PHOTOS[index].credit} target="_blank" rel="noopener noreferrer">Photo: {PHOTOS[index].author} / Unsplash</a></div>
+    <div className="pm-hero-inner"><div className="pm-glass pm-hero-panel"><span className="pm-kicker pm-kicker-light"><span className="pm-spark" /> BUILT FOR UGANDAN RENTALS</span><h1>Manage property. <em>Know the full picture.</em></h1><p>Manage units, leases, rent and repairs in one place.</p><div className="pm-hero-actions"><Link className="pm-cta pm-cta-yellow" to={user ? '/dashboard' : '/contact'}>{user ? 'Open workspace' : 'Request a walkthrough'} <ArrowRight size={19}/></Link><Link className="pm-cta pm-cta-ghost" to="/how-it-works">See how it works <ArrowDown size={17}/></Link></div><div className="pm-hero-points"><span><Check size={15}/> UGX rent records</span><span><Check size={15}/> Secure role access</span></div></div></div>
+    <div className="pm-carousel-bottom"><div className="pm-carousel-controls"><button onClick={() => move(-1)} aria-label="Previous residential photo"><ChevronLeft/></button><span className="pm-carousel-count">0{index + 1} / 0{PHOTOS.length}</span><button onClick={() => move(1)} aria-label="Next residential photo"><ChevronRight/></button></div><div className="pm-carousel-dots" aria-label="Choose a residential photo">{PHOTOS.map((p, n) => <button type="button" key={p.credit} aria-label={'Show photo ' + (n + 1)} aria-current={index === n ? 'true' : undefined} onClick={() => setIndex(n)} className={index === n ? 'is-current' : ''}/>)}</div><a className="pm-hero-credit" href={PHOTOS[index].credit} target="_blank" rel="noopener noreferrer">{PHOTOS[index].location} · {PHOTOS[index].author}</a></div>
   </section>;
 }
 
