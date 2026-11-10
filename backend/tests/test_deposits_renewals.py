@@ -18,15 +18,22 @@ def test_lease_renewal_preserves_billing_history(app):
     first=generate_monthly_rent(date(2026,12,1),owner)
     assert first["issued"]==1
     owner_client=auth_client(app,owner)
+    notice=owner_client.post("/api/v1/leases/"+lease.id+"/notices",headers=csrf(owner_client),
+        json={"notice_type":"RENT_INCREASE","served_on":"2026-10-01",
+              "effective_on":"2027-01-01","proposed_rent_ugx":165000,
+              "delivery_method":"EMAIL","delivery_reference":"notice-email-2026-10-01",
+              "reason":"Served with renewal notice"})
+    assert notice.status_code==201,notice.json
     renewed=owner_client.post("/api/v1/leases/"+lease.id+"/renew",headers=csrf(owner_client),
-        json={"new_end_date":"2028-12-31","new_rent_ugx":180000,
+        json={"new_end_date":"2028-12-31","new_rent_ugx":165000,
+              "rent_notice_id":notice.json["notice"]["id"],
               "reason":"Tenant signed annual renewal"})
     assert renewed.status_code==201,renewed.json
     assert renewed.json["amendment"]["effective_date"]=="2027-01-01"
     after=generate_monthly_rent(date(2027,2,1),owner)
     assert after["issued"]==1
     billed=db.session.query(Invoice).order_by(Invoice.period_start).all()
-    assert [i.total_ugx for i in billed]==[150000,180000]
+    assert [i.total_ugx for i in billed]==[150000,165000]
     assert db.session.query(LeaseAmendment).count()==1
     assert db.session.get(Lease,lease.id).rent_ugx==150000
 

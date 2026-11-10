@@ -242,6 +242,7 @@ class LeaseAmendment(db.Model):
     previous_end_date = db.Column(db.Date, nullable=False)
     new_end_date = db.Column(db.Date, nullable=False)
     effective_date = db.Column(db.Date, nullable=False)
+    rent_notice_id = db.Column(db.String(36), db.ForeignKey("tenancy_notices.id", ondelete="RESTRICT"))
     previous_rent_ugx = db.Column(db.BigInteger, nullable=False)
     new_rent_ugx = db.Column(db.BigInteger, nullable=False)
     reason = db.Column(db.String(500), nullable=False)
@@ -251,6 +252,26 @@ class LeaseAmendment(db.Model):
         CheckConstraint("new_end_date > previous_end_date", name="ck_renewal_dates"),
         CheckConstraint("previous_rent_ugx > 0 AND new_rent_ugx > 0", name="ck_renewal_rent"),
     )
+
+class TenancyNotice(db.Model):
+    """Auditable service record, not independent legal proof of delivery."""
+    __tablename__ = "tenancy_notices"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    lease_id = db.Column(db.String(36), db.ForeignKey("leases.id", ondelete="RESTRICT"), nullable=False, index=True)
+    notice_type = db.Column(db.String(30), nullable=False)
+    proposed_rent_ugx = db.Column(db.BigInteger)
+    served_on = db.Column(db.Date, nullable=False)
+    effective_on = db.Column(db.Date, nullable=False)
+    delivery_method = db.Column(db.String(30), nullable=False)
+    delivery_reference = db.Column(db.String(300), nullable=False)
+    reason = db.Column(db.String(500), nullable=False)
+    served_by = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, index=True)
+    __table_args__ = (
+        CheckConstraint("effective_on >= served_on", name="ck_notice_dates"),
+        CheckConstraint("proposed_rent_ugx IS NULL OR proposed_rent_ugx > 0", name="ck_notice_rent"),
+    )
+
 
 class DepositMovement(db.Model):
     __tablename__ = "deposit_movements"
