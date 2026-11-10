@@ -133,7 +133,7 @@ def test_backend_stack_starts_its_own_celery_worker_beat_and_schedule_directory(
     text=SOURCE.read_text(encoding="utf-8")
     assert 'run_front = mode in ("start", "frontend")' in text
     assert 'run_back = mode in ("start", "backend", "backend-stack")' in text
-    assert 'if mode in ("start", "backend-stack"):' in text
+    assert 'if mode in ("start", "backend-stack") and not preview:' in text
     assert 'STATE.mkdir(parents=True, exist_ok=True)' in text
     assert 'if action == "split":' in text
     assert 'start_split()' in text
@@ -213,3 +213,82 @@ def test_windows_vscode_tasks_use_argument_safe_process_invocation():
     assert "exit $Code" in script
     for target in targets:
         assert "'"+target+"' = @{ Script = " in script
+
+
+
+def test_missing_docker_uses_isolated_preview_not_production(monkeypatch, tmp_path):
+    real_which=launcher.shutil.which
+    monkeypatch.setattr(launcher.shutil, "which",
+                        lambda name: None if name == "docker" else real_which(name))
+    monkeypatch.delenv("KATS_DEV_BACKEND", raising=False)
+    assert launcher.select_backend_mode() == "preview"
+    monkeypatch.setenv("KATS_DEV_BACKEND", "preview")
+    assert launcher.select_backend_mode() == "preview"
+    monkeypatch.setenv("KATS_DEV_BACKEND", "docker")
+    with pytest.raises(launcher.StartupError, match="Docker"):
+        launcher.select_backend_mode()
+    monkeypatch.setenv("KATS_DEV_BACKEND", "other")
+    with pytest.raises(launcher.StartupError, match="KATS_DEV_BACKEND"):
+        launcher.select_backend_mode()
+
+
+def test_preview_environment_is_local_only_and_never_inherits_live_providers(monkeypatch, tmp_path):
+    monkeypatch.setattr(launcher, "STATE", tmp_path)
+    for key, value in {
+        "APP_ENV": "production",
+        "DATABASE_URL": "postgresql://prod.example/real_money",
+        "MTN_MOMO_ENABLED": "true",
+        "AIRTEL_MONEY_ENABLED": "true",
+        "EFRIS_ENABLED": "true",
+        "S3_BUCKET": "real-customer-data",
+        "SMTP_HOST": "real-smtp",
+    }.items():
+        monkeypatch.setenv(key, value)
+    settings={"POSTGRES_PASSWORD": "f" * 48, "SECRET_KEY": "a" * 64,
+              "JWT_SECRET_KEY": "b" * 64}
+    env=launcher.environment(settings, preview=True)
+    assert env["APP_ENV"]=="development"
+    assert env["DATABASE_URL"]=="sqlite:///" + (tmp_path / "kats-preview.sqlite3").as_posix()
+    assert env["REDIS_URL"]=="memory://"
+    assert env["RATELIMIT_STORAGE_URI"]=="memory://"
+    assert env["CELERY_BROKER_URL"]=="memory://"
+    assert env["CELERY_RESULT_BACKEND"]=="cache+memory://"
+    assert env["KATS_PREVIEW_MODE"]=="1"
+    assert env["CELERY_TASK_ALWAYS_EAGER"]=="true"
+    assert not any(env[k]!="false" for k in
+                   ("MTN_MOMO_ENABLED","AIRTEL_MONEY_ENABLED","EFRIS_ENABLED"))
+    assert "S3_BUCKET" not in env and "SMTP_HOST" not in env
+    assert env["DATABASE_URL"]!="postgresql://prod.example/real_money"
+    full=launcher.environment(settings)
+    assert full["DATABASE_URL"].startswith("postgresql+psycopg://")
+    assert "KATS_PREVIEW_MODE" not in full
+    assert "CELERY_TASK_ALWAYS_EAGER" not in full
+
+
+def test_preview_setup_never_calls_docker_or_migrations(monkeypatch, tmp_path):
+    monkeypatch.setattr(launcher, "STATE", tmp_path)
+    commands=[]
+    monkeypatch.setattr(launcher, "invoke", lambda args, **kw: commands.append((args,kw)))
+    def must_not_touch_docker(*args, **kwargs):
+        raise AssertionError("Docker must not run in SQLite preview")
+    monkeypatch.setattr(launcher, "dependencies", must_not_touch_docker)
+    conf={"POSTGRES_PASSWORD": "f" * 48, "SECRET_KEY": "a" * 64,
+          "JWT_SECRET_KEY": "b" * 64}
+    env=launcher.prepare_backend(conf, "python-preview", "preview")
+    assert env["KATS_PREVIEW_MODE"]=="1"
+    assert tmp_path.exists()
+    assert len(commands)==2
+    assert commands[0][0][-1].endswith("ops/init_preview.py")
+    assert commands[0][0][0]=="python-preview"
+    assert commands[1][0][-1]=="seed-permissions"
+    assert not any("upgrade" in command[0] for command in commands)
+
+
+def test_preview_initializer_has_hardcoded_safe_path_and_env_guards():
+    init=(ROOT/"ops"/"init_preview.py").read_text(encoding="utf-8")
+    assert 'os.environ.get("APP_ENV") != "development"' in init
+    assert 'os.environ.get("KATS_PREVIEW_MODE") != "1"' in init
+    assert '"kats-preview.sqlite3"' in init
+    assert 'db.create_all()' in init
+    assert 'db.drop_all()' not in init
+    assert "dbfile.as_posix()" in init
