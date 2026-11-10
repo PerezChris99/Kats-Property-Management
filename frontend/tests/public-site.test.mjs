@@ -21,7 +21,7 @@ test('Ugandan property photos have verified file sources, license and visible at
   const ui = read('src/site/Marketing.jsx');
   const css = read('src/site/site.css');
   const app = read('src/App.jsx');
-  const photos = [...media.matchAll(/https:\/\/thumb\.wikimedia\.org\/wikipedia\/commons\/thumb\/[^']+/g)];
+  const photos = [...media.matchAll(/https:\/\/(?:thumb|upload)\.wikimedia\.org\/wikipedia\/commons\/thumb\/[^']+/g)];
   assert.equal(photos.length, 5);
   assert.equal(new Set(photos.map(p => p[0])).size, 5);
   assert.ok(media.includes('Kololo, Kampala'));

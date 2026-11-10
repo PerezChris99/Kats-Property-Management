@@ -30,7 +30,7 @@ export const PHOTOS = [
     credit: 'https://commons.wikimedia.org/wiki/File:Apartment_building_in_Uganda.jpg'
   },
   {
-    url: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3b/Ariel_view_of_Kampala_Urban_suburb%2C_Uganda.jpg/1280px-Ariel_view_of_Kampala_Urban_suburb%2C_Uganda.jpg',
+    url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Ariel_view_of_Kampala_Urban_suburb%2C_Uganda.jpg/1280px-Ariel_view_of_Kampala_Urban_suburb%2C_Uganda.jpg',
     alt: 'Rooftop view of an urban residential neighborhood in Kampala, Uganda',
     author: 'Chapelle musa', location: 'Kampala',
     credit: 'https://commons.wikimedia.org/wiki/File:Ariel_view_of_Kampala_Urban_suburb,_Uganda.jpg'
