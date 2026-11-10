@@ -19,7 +19,6 @@ const InspectionsPage = lazy(() => import('./Modules').then(m => ({ default: m.I
 const MobileMoneyPage = lazy(() => import('./Modules').then(m => ({ default: m.MobileMoneyPage })));
 const FiscalPage = lazy(() => import('./Modules').then(m => ({ default: m.FiscalPage })));
 const LegalAdminPage = lazy(() => import('./Modules').then(m => ({ default: m.LegalAdminPage })));
-const PublicLegalPage = lazy(() => import('./Modules').then(m => ({ default: m.PublicLegalPage })));
 const DocumentsPage = lazy(() => import('./Modules').then(m => ({ default: m.DocumentsPage })));
 const SecurityPage = lazy(() => import('./Modules').then(m => ({ default: m.SecurityPage })));
 const AuditPage = lazy(() => import('./Modules').then(m => ({ default: m.AuditPage })));
@@ -30,10 +29,10 @@ const SettingsAdminPage = lazy(() => import('./Modules').then(m => ({ default: m
 const ReceiptsPage = lazy(() => import('./Modules').then(m => ({ default: m.ReceiptsPage })));
 const TenantStatementsPage = lazy(() => import('./Modules').then(m => ({ default: m.TenantStatementsPage })));
 const TenantStatementSelfPage = lazy(() => import('./Modules').then(m => ({ default: m.TenantStatementSelfPage })));
-const ContactPage = lazy(() => import('./Modules').then(m => ({ default: m.ContactPage })));
 const ContactInboxPage = lazy(() => import('./Modules').then(m => ({ default: m.ContactInboxPage })));
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Building2, CreditCard, LayoutDashboard, ShieldCheck, Wrench } from 'lucide-react';
+import { ArrowRight, Building2, CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { PublicShell, LandingPage, FeaturesPage, HowItWorksPage, AboutPage, ContactPage, LegalPage, PricingPage } from './site/Marketing';
 const RESOURCES = {
     properties: { title: 'Properties', path: 'properties', columns: ['name', 'address', 'district'], writable: ['OWNER', 'MANAGER', 'SUPER_ADMIN'],
         fields: [{ name: 'name', label: 'Property name', required: true }, { name: 'address', label: 'Address', required: true }, { name: 'district', label: 'District', required: true }] },
@@ -85,31 +84,12 @@ function DataCell({ column, value }) {
     }
     return <>{formats(column, value)}</>;
 }
-function Header({ user, logout }) {
-    return <header className="site-header"><Link to="/" className="brand"><Building2 size={24} aria-hidden="true"/> Kats <small>Property Management</small></Link>
-  <nav aria-label="Main navigation">{user ? <><Link to="/dashboard">Workspace</Link><button className="link-button" onClick={logout}>Sign out</button></> : <><Link to="/features">Features</Link><Link to="/contact">Contact</Link><Link className="button small" to="/login">Sign in</Link></>}</nav></header>;
-}
-function Footer() { return <footer><span>© {new Date().getFullYear()} Kats Properties. All rights reserved. Proprietary software.</span><nav aria-label="Legal"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/cookies">Cookies</Link><Link to="/contact">Support</Link></nav></footer>; }
-function Landing({ user, logout }) {
-    const features = [{ icon: Building2, title: 'Property oversight', body: 'Know which units are occupied and what rent is due.' },
-        { icon: CreditCard, title: 'Verified collections', body: 'Review cash and bank records before counting them as collected.' },
-        { icon: Wrench, title: 'Maintenance tracking', body: 'Keep requests visible and actionable.' },
-        { icon: ShieldCheck, title: 'Fiscal readiness', body: 'Prepare records for applicable EFRIS requirements.' }];
-    return <><Header user={user} logout={logout}/><main><section className="hero"><div><span className="eyebrow">BUILT FOR UGANDAN RENTALS</span><h1>Manage your rentals, collect rent, and stay compliant.</h1><p>One organized view of rooms, tenants, rent, arrears, maintenance and property expenses.</p><div className="actions"><Link className="button" to={user ? '/dashboard' : '/contact'}>Get started</Link><Link className="button outline" to="/features">Explore features</Link></div></div>
-  <div className="mock"><div className="mock-top"><LayoutDashboard size={20}/> Rental portfolio</div><div className="mock-number"><small>Monthly collections</small><strong>UGX —</strong><span>Live totals are available after sign-in</span></div><div className="mock-duo"><div><small>Occupancy</small><strong>—</strong></div><div><small>Arrears</small><strong>—</strong></div></div><div className="mock-caption">No fabricated balances</div></div></section>
-  <section className="section"><span className="eyebrow">A SINGLE SOURCE OF TRUTH</span><h2>Leave scattered notebooks, Excel sheets and payment screenshots behind.</h2><p>From vacant rooms to unpaid invoices, bring the important facts into the same secure workflow.</p></section>
-  <section className="section"><h2>Tools for the work that matters.</h2><div className="features">{features.map(f => <article className="feature" key={f.title}><f.icon size={24}/><h3>{f.title}</h3><p>{f.body}</p></article>)}</div></section>
-  <section className="section process"><h2>How it works</h2><ol><li>Add properties and rooms</li><li>Register tenants and leases</li><li>Issue invoices and confirm collections</li><li>Track maintenance and property expenses</li><li>Review business performance</li></ol></section>
-  <section className="section highlight"><h2>One rental business. One clear picture.</h2><p>Designed for practical Ugandan rental workflows, with UGX-native accounting records and mobile-first navigation.</p><Link className="button" to="/contact">Get in touch</Link></section></main><Footer /></>;
-}
-function TextPage({ title, body, user, logout }) {
-    return <><Header user={user} logout={logout}/><main className="section simple"><h1>{title}</h1><p>{body}</p></main><Footer /></>;
-}
 function Login({ onSuccess }) {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [mfaCode, setMfaCode] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     async function submit(event) {
@@ -117,18 +97,27 @@ function Login({ onSuccess }) {
         setBusy(true);
         setError('');
         try {
-            const payload = await api('auth/login', { method: 'POST', body: JSON.stringify({ email, password, mfa_code:mfaCode }) });
+            const payload = await api('auth/login', {
+                method: 'POST',
+                body: JSON.stringify({ email, password, mfa_code: mfaCode })
+            });
             onSuccess(payload.user);
             navigate('/dashboard');
-        }
-        catch (err) {
+        } catch (err) {
             setError(err instanceof Error ? err.message : 'Unable to sign in');
-        }
-        finally {
+        } finally {
             setBusy(false);
         }
     }
-    return <div className="auth-layout"><div className="auth-card"><Link to="/" className="brand"><Building2 /> Kats</Link><h1>Sign in</h1><p>Secure access for authorized users.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required/></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required/></label><label>Authenticator code (if enabled)<input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))}/></label>{error && <p role="alert" className="error">{error}</p>}<button className="button full" disabled={busy}>{busy ? 'Signing in…' : 'Continue'}</button></form><Link to="/forgot-password" className="back">Forgot your password?</Link> <Link to="/" className="back">Back to website</Link></div></div>;
+    return <main className="auth-layout"><div className="pm-login-layout">
+      <div className="pm-login-aside"><div><span className="pm-kicker pm-kicker-light">WELCOME BACK</span><h2>Property work,<br/><span>simplified.</span></h2><p>Your properties, tenants, rent records and maintenance in one carefully organized workspace.</p><div className="pm-login-benefits"><div><Building2 size={23}/> See your property portfolio</div><div><CheckCircle2 size={23}/> Keep rental activity accountable</div><div><ShieldCheck size={23}/> Work with role-scoped access</div></div></div></div>
+      <section className="auth-card pm-login-card" aria-labelledby="pm-signin-title"><Link to="/" className="pm-brand" aria-label="KATS Property Management home"><img src="/brand-mark.svg" width="56" height="56" alt=""/><span><strong>KATS</strong><small>Property Management</small></span></Link><h1 id="pm-signin-title">Sign in to your account</h1><p className="pm-login-caption">Use the credentials issued by your property administrator. An authenticator code is required only if MFA is enabled for your account.</p>
+      <form onSubmit={submit}><label>Email address<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} maxLength={254} required placeholder="you@company.com"/></label>
+      <label>Password<div className="pm-password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Enter your password"/><button type="button" className="pm-reveal-password" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>{showPassword ? <EyeOff size={19}/> : <Eye size={19}/>}</button></div></label>
+      <label>Authenticator code (if enabled)<input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Six-digit code"/></label>
+      {error && <p role="alert" className="error">{error}</p>}
+      <button className="pm-cta pm-cta-yellow" disabled={busy}>{busy ? 'Signing in…' : 'Sign in securely'} <ArrowRight size={18}/></button></form>
+      <div className="pm-login-links"><Link to="/forgot-password">Forgot your password?</Link><Link to="/contact">Need an account invitation?</Link></div><div className="pm-login-security"><ShieldCheck size={23}/><span>Session protection and role-based authorization help keep private property records in the right hands. No third-party social login is claimed.</span></div></section></div></main>;
 }
 function ResourcePage({ resource, user }) {
     const [rows, setRows] = useState([]);
@@ -437,21 +426,26 @@ export default function App() {
     if (!ready)
         return <div className="loading">Loading Kats…</div>;
     return <>{!online && <div className="offline" role="status">Offline. Reconnect to view private records.</div>}<Suspense fallback={<div className="loading" role="status">Opening page…</div>}><Routes>
-    <Route path="/" element={<Landing user={user} logout={logout}/>}/>
-    <Route path="/login" element={user ? <Navigate to="/dashboard" replace/> : <Login onSuccess={setUser}/>}/>
-    <Route path="/forgot-password" element={<ForgotPasswordPage />}/>
-    <Route path="/reset-password" element={<CompleteAccountLinkPage kind="reset"/>}/>
-    <Route path="/account/activate" element={<CompleteAccountLinkPage kind="invitation"/>}/>
-    <Route path="/features" element={<TextPage title="Features" body="Manage units, leases, invoices, verified manual payments, maintenance and expenses. MTN/Airtel and EFRIS require provider verification." user={user} logout={logout}/>}/>
-    <Route path="/contact" element={<ContactPage />}/>
-    {['privacy', 'terms', 'cookies', 'refund'].map(slug => <Route key={slug} path={'/' + slug} element={<PublicLegalPage slug={slug}/>}/>)}
+    <Route element={<PublicShell user={user} logout={logout}/>}>
+      <Route path="/" element={<LandingPage user={user}/>}/>
+      <Route path="/features" element={<FeaturesPage/>}/>
+      <Route path="/how-it-works" element={<HowItWorksPage/>}/>
+      <Route path="/about" element={<AboutPage/>}/>
+      <Route path="/contact" element={<ContactPage/>}/>
+      <Route path="/pricing" element={<PricingPage/>}/>
+      <Route path="/login" element={user ? <Navigate to="/dashboard" replace/> : <Login onSuccess={setUser}/>}/>
+      <Route path="/forgot-password" element={<ForgotPasswordPage/>}/>
+      <Route path="/reset-password" element={<CompleteAccountLinkPage kind="reset"/>}/>
+      <Route path="/account/activate" element={<CompleteAccountLinkPage kind="invitation"/>}/>
+      {['privacy','terms','cookies','refund','data-protection','acceptable-use','disclaimer','accessibility'].map(slug=>
+        <Route key={slug} path={'/'+slug} element={<LegalPage slug={slug}/>}/>
+      )}
+    </Route>
     {['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'expenses', 'expense-approvals', 'reports', 'trends', 'statements', 'receipts', 'users', 'invitations', 'permissions', 'assignments', 'notifications', 'inspections', 'renewals', 'deposits', 'work-orders', 'settings', 'mobile-money', 'efris', 'documents', 'legal', 'audit', 'inquiries', 'privacy-requests', 'disputes', 'preventive-maintenance', 'security', 'more'].map(path => <Route key={path} path={'/' + path} element={user ? <Portal user={user} logout={logout}/> : <Navigate to="/login" replace/>}/>)}
     {['dashboard', 'payments', 'invoices', 'receipts', 'maintenance', 'lease', 'profile'].map(path => <Route key={'tenant-' + path} path={'/tenant/' + path} element={<Navigate to={path === 'lease' ? '/dashboard' : path === 'profile' ? '/security' : '/' + path} replace/>}/>)}
     {['dashboard', 'rooms', 'maintenance', 'inspections', 'payments', 'profile'].map(path => <Route key={'caretaker-' + path} path={'/caretaker/' + path} element={<Navigate to={path === 'profile' ? '/security' : '/' + path} replace/>}/>)}
     {['users', 'roles', 'permissions', 'integrations', 'efris', 'payments', 'audit-logs', 'legal-pages', 'system-settings'].map(path => <Route key={'admin-' + path} path={'/admin/' + path} element={<Navigate to={path === 'audit-logs' ? '/audit' : path === 'legal-pages' ? '/legal' : path === 'system-settings' ? '/security' :
                     path === 'integrations' ? '/efris' : path === 'roles' || path === 'permissions' ? '/permissions' : '/' + path} replace/>}/>)}
-    <Route path="/how-it-works" element={<TextPage title="How it works" body="Create properties and rooms, onboard tenants and leases, issue rent invoices, verify collections, track maintenance and review reports." user={user} logout={logout}/>}/>
-    <Route path="/pricing" element={<TextPage title="Pricing" body="Contact the property owner for deployment and service pricing." user={user} logout={logout}/>}/>
     <Route path="*" element={<Navigate to="/" replace/>}/>
   </Routes></Suspense></>;
 }

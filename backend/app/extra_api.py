@@ -12,7 +12,7 @@ from .models import User, Room, Lease, Tenant, Invoice, MaintenanceRequest, Care
 from .extra_models import Notification, WorkOrder, Document, FiscalSubmission, LegalPage, SystemSetting, ContactRequest
 
 extra_api = Blueprint("extra_api", __name__)
-LEGAL_SLUGS = {"privacy", "terms", "cookies", "refund"}
+LEGAL_SLUGS = {"privacy", "terms", "cookies", "refund", "data-protection", "acceptable-use", "disclaimer", "accessibility"}
 DOCUMENT_TYPES = {"LEASE", "ID", "RECEIPT", "INSPECTION", "PAYMENT_PROOF", "ROOM_PHOTO"}
 MIME = {"application/pdf", "image/jpeg", "image/png", "image/webp"}
 
