@@ -31,26 +31,55 @@ def page(browser):
 
 def test_public_landing_and_login_link(page):
     page.goto(BASE + "/", wait_until="domcontentloaded")
-    expect(page.get_by_role("heading", level=1)).to_contain_text("Manage your rentals")
+    expect(page.get_by_role("heading", level=1)).to_contain_text("Manage property")
     page.get_by_role("navigation", name="Main navigation").get_by_role("link", name="Sign in").click()
     expect(page).to_have_url(re.compile(r"/login$"))
-    expect(page.get_by_role("heading", name="Sign in")).to_be_visible()
+    expect(page.get_by_role("heading", name="Sign in to your account")).to_be_visible()
 
 
 @pytest.mark.parametrize("viewport", [
     {"width": 360, "height": 780},
+    {"width": 390, "height": 844},
     {"width": 768, "height": 1024},
+    {"width": 1024, "height": 768},
     {"width": 1440, "height": 900},
 ])
-def test_responsive_landing_has_no_horizontal_overflow(browser, viewport):
-    context = browser.new_context(viewport=viewport)
+@pytest.mark.parametrize("route", [
+    "/", "/features", "/about", "/contact", "/login", "/privacy",
+])
+def test_public_pages_have_no_horizontal_overflow(browser, viewport, route):
+    context = browser.new_context(viewport=viewport, reduced_motion="reduce")
     page = context.new_page()
     try:
-        page.goto(BASE + "/", wait_until="domcontentloaded")
-        expect(page.get_by_role("heading", level=1)).to_be_visible()
-        assert page.evaluate(
-            "() => document.documentElement.scrollWidth <= window.innerWidth + 2"
-        ), f"Landing page overflow at {viewport}"
+        page.goto(BASE + route, wait_until="domcontentloaded")
+        expect(page.locator("main")).to_be_visible()
+        result = page.evaluate("""() => {
+            const width = document.documentElement.clientWidth;
+            const selectors = [
+              '.pm-hero-panel', '.pm-feature-card', '.pm-chart-panel',
+              '.pm-contact-form', '.pm-contact-form input:not([type="checkbox"])',
+              '.pm-contact-form select', '.pm-contact-form textarea',
+              '.pm-login-layout', '.pm-login-card', '.pm-legal-body',
+              '.pm-step-grid article', '.pm-trust-grid article',
+              '.pm-footer-body'
+            ];
+            const escaped = selectors.flatMap(selector =>
+              [...document.querySelectorAll(selector)].filter(el => {
+                const box = el.getBoundingClientRect();
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' && box.width > 0 &&
+                  (box.right > width + 2 || box.left < -2 || box.width > width + 2);
+              }).map(el => ({
+                selector, left: Math.round(el.getBoundingClientRect().left),
+                right: Math.round(el.getBoundingClientRect().right), width
+              }))
+            );
+            return {scrollWidth: document.documentElement.scrollWidth, width, escaped};
+        }""")
+        assert result["scrollWidth"] <= result["width"] + 2, (
+            f"Page has horizontal scroll at {route} {viewport}: {result}"
+        )
+        assert not result["escaped"], f"Form/card overflows {route} {viewport}: {result['escaped']}"
     finally:
         context.close()
 
@@ -62,7 +91,7 @@ def test_responsive_landing_has_no_horizontal_overflow(browser, viewport):
 def test_anonymous_users_redirect_from_private_portals(page, route):
     page.goto(BASE + route, wait_until="domcontentloaded")
     expect(page).to_have_url(re.compile(r"/login$"))
-    expect(page.get_by_role("heading", name="Sign in")).to_be_visible()
+    expect(page.get_by_role("heading", name="Sign in to your account")).to_be_visible()
 
 
 def test_public_api_and_sensitive_headers(page):
@@ -78,9 +107,9 @@ def test_public_api_and_sensitive_headers(page):
 
 def test_failed_login_does_not_open_workspace(page):
     page.goto(BASE + "/login")
-    page.get_by_label("Email", exact=True).fill("unknown@example.invalid")
+    page.get_by_label("Email address", exact=True).fill("unknown@example.invalid")
     page.get_by_label("Password", exact=True).fill("incorrect-password")
-    page.get_by_role("button", name="Continue").click()
+    page.get_by_role("button", name="Sign in securely").click()
     expect(page.get_by_role("alert")).to_be_visible()
     expect(page).to_have_url(re.compile(r"/login$"))
 
@@ -118,12 +147,12 @@ def test_read_only_authenticated_role_portals(page, role):
     if not email or not password:
         pytest.skip(f"Provide disposable local {role} E2E credentials to test this role")
     page.goto(BASE + "/login")
-    page.get_by_label("Email", exact=True).fill(email)
+    page.get_by_label("Email address", exact=True).fill(email)
     page.get_by_label("Password", exact=True).fill(password)
     code = os.environ.get(f"KATS_E2E_{role}_TOTP")
     if code:
         page.get_by_label("Authenticator code (if enabled)").fill(code)
-    page.get_by_role("button", name="Continue").click()
+    page.get_by_role("button", name="Sign in securely").click()
     expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
     expect(page.locator("main.portal-content")).to_be_visible()
     auth = page.request.get(BASE + "/api/v1/auth/me")

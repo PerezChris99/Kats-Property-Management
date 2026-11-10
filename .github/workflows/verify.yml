@@ -109,6 +109,26 @@ jobs:
         with: {node-version: '22'}
       - run: npm ci --no-audit --no-fund
       - run: npm run build
+      # Run real Chromium layout checks, not only CSS string assertions.
+      # No live backend or external credentials are used: public pages only.
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install Chromium for responsive layout verification
+        run: |
+          python -m pip install 'pytest>=8,<10' 'playwright>=1.56,<2'
+          python -m playwright install --with-deps chromium
+      - name: Browser-test responsive pages at mobile, tablet and desktop widths
+        env:
+          KATS_BASE_URL: http://127.0.0.1:5173
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/kats-vite.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:5173/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -f http://127.0.0.1:5173/ > /dev/null
+          cd ..
+          python -m pytest -q ops/test_browser_e2e.py -k test_public_pages_have_no_horizontal_overflow
       - name: Check VS Code task JSON
         run: node -e "JSON.parse(require('node:fs').readFileSync('../.vscode/tasks.json','utf8')); JSON.parse(require('node:fs').readFileSync('../.vscode/extensions.json','utf8'))"
       - name: Validate Nginx edge configuration
