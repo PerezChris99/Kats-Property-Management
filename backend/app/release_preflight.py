@@ -5,6 +5,7 @@ restricted API database role. PASS does not imply regulatory/provider approval.
 """
 from __future__ import annotations
 import os
+import sys
 from pathlib import Path
 
 BACK = Path(__file__).resolve().parents[1]
