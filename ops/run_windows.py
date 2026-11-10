@@ -84,7 +84,7 @@ def environment(settings):
         "RATELIMIT_STORAGE_URI": "redis://127.0.0.1:56379/0",
         "CELERY_BROKER_URL": "redis://127.0.0.1:56379/1",
         "CELERY_RESULT_BACKEND": "redis://127.0.0.1:56379/2",
-        "CORS_ORIGINS": "http://localhost:5173",
+        "CORS_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
         "PUBLIC_APP_URL": "http://localhost:5173",
         "PUBLIC_REGISTRATION_ENABLED": "false",
         "COOKIE_SECURE": "false",

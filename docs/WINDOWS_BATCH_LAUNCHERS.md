@@ -78,7 +78,8 @@ VS Code has equivalent tasks under **Terminal > Run Task**, prefixed
 | Native PostgreSQL | 127.0.0.1:55432 |
 | Native Redis | 127.0.0.1:56379 |
 
-The Vite API proxy targets Flask on localhost port 8000. Native database
+The Vite API proxy explicitly targets Flask at 127.0.0.1:8000 to avoid
+Windows localhost IPv4/IPv6 DNS mismatch errors. Native database
 credentials live exclusively in ignored .env.native and are not the same
 credentials used by the normal Docker Compose application.
 

@@ -98,3 +98,4 @@ def test_launcher_preserves_virtualenv_and_worker_contract():
     assert '"--pool=solo"' in source
     assert '"db", "upgrade"' in source
     assert '"seed-permissions"' in source
+    assert "127.0.0.1:8000" in (ROOT / "frontend" / "vite.config.js").read_text(encoding="utf-8")
