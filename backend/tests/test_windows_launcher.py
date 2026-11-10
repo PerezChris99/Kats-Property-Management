@@ -164,3 +164,18 @@ def test_vscode_uses_parallel_background_tasks_in_one_split_terminal_group():
     assert front["isBackground"] and back["isBackground"]
     assert front["presentation"]["group"]==back["presentation"]["group"]=="kats-native-split"
     assert front["presentation"]["panel"]==back["presentation"]["panel"]=="dedicated"
+
+
+def test_vscode_command_palette_start_dev_entry_is_discoverable():
+    import json
+    tasks=json.loads((ROOT/".vscode"/"tasks.json").read_text(encoding="utf-8"))["tasks"]
+    aliases=[task for task in tasks if task.get("label")=="KATS: Start Dev (Frontend + Backend)"]
+    assert len(aliases)==1
+    alias=aliases[0]
+    assert alias["dependsOrder"]=="parallel"
+    assert alias["dependsOn"]==["KATS: Native frontend (BAT)","KATS: Native backend stack (BAT)"]
+    assert alias["problemMatcher"]==[]
+    assert all(task.get("label") in {t["label"] for t in tasks} for task in (
+        {"label":"KATS: Native frontend (BAT)"},{"label":"KATS: Native backend stack (BAT)"}
+    ))
+    assert alias["detail"].lower().find("side by side")!=-1

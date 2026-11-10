@@ -4,7 +4,7 @@
 
 ### VS Code: two integrated panes (recommended)
 
-Open the repository folder in VS Code. Choose **Terminal → Run Task** and select **KATS: Native start (split in VS Code)**.
+Open the repository folder in VS Code. Press **Ctrl+Shift+P**, select **Tasks: Run Task**, then select **KATS: Start Dev (Frontend + Backend)**. Alternatively use **Terminal → Run Task** or the existing **KATS: Native start (split in VS Code)** entry.
 
 The compound VS Code task runs the frontend and backend in parallel using the same terminal presentation group. VS Code displays **two terminal panes side by side in its own terminal panel**, with separate output, tasks and Ctrl+C handling. No external window is launched. This relies on VS Code's built-in task API, not an extension.
 
