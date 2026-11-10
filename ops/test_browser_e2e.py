@@ -186,7 +186,7 @@ def test_access_request_is_submitted_to_backend_without_auto_account(page):
     page.goto(BASE + "/request-access")
     page.get_by_label("Full name").fill("Test Property Manager")
     page.get_by_label("Email address").fill("request-test@example.invalid")
-    page.get_by_label("Role", exact=True).select_option(label="Manager")
+    page.get_by_role("combobox", name="Your role").select_option(label="Manager")
     page.get_by_label("Why do you need access?").fill("I manage our rental portfolio in Kampala.")
     page.get_by_label(re.compile(r"I agree to the handling")).check()
     page.get_by_role("button", name="Submit request").click()

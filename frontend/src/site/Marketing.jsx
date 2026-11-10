@@ -255,7 +255,7 @@ export function RequestAccessPage() {
           <div className="pm-fields">
             <label>Full name<input required maxLength="160" autoComplete="name" value={values.full_name} onChange={e => change('full_name', e.target.value)}/></label>
             <label>Email address<input required type="email" maxLength="254" autoComplete="email" value={values.email} onChange={e => change('email', e.target.value)}/></label>
-            <label>Role<select value={values.role} required onChange={e => change('role', e.target.value)}><option value="">Select your role</option><option>Owner</option><option>Manager</option><option>Accountant</option><option>Caretaker</option><option>Tenant</option></select></label>
+            <label>Role<select aria-label="Your role" value={values.role} required onChange={e => change('role', e.target.value)}><option value="">Select your role</option><option>Owner</option><option>Manager</option><option>Accountant</option><option>Caretaker</option><option>Tenant</option></select></label>
             <label>Phone (optional)<input type="tel" maxLength="30" autoComplete="tel" value={values.phone} onChange={e => change('phone', e.target.value)}/></label>
           </div>
           <label>Property or building (optional)<input maxLength="120" value={values.portfolio} onChange={e => change('portfolio', e.target.value)}/></label>
