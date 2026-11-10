@@ -1,0 +1,31 @@
+# Dedicated Windows-native development dependencies. No application containers.
+name: kats-native
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kats_native
+      POSTGRES_USER: kats_native
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Native env secrets are required}
+    ports: ["127.0.0.1:55432:5432"]
+    volumes: ["native_pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kats_native -d kats_native"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:56379:6379"]
+    volumes: ["native_redis:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+volumes:
+  native_pgdata:
+  native_redis:
