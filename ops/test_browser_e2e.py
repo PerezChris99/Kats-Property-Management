@@ -85,6 +85,30 @@ def test_failed_login_does_not_open_workspace(page):
     expect(page).to_have_url(re.compile(r"/login$"))
 
 
+
+STAFF_ROUTES = [
+    "dashboard", "properties", "buildings", "floors", "rooms",
+    "room-placement", "portfolio-editor", "tenants", "leases", "proration",
+    "invoices", "payments", "utilities", "maintenance",
+    "preventive-maintenance", "disputes", "expenses", "expense-approvals",
+    "reports", "trends", "statements", "receipts", "mobile-money",
+    "efris", "inspections", "renewals", "deposits", "work-orders",
+    "documents", "notifications", "privacy-requests", "security",
+]
+ADMIN_ROUTES = [
+    "settings", "users", "invitations", "permissions", "legal", "audit", "inquiries",
+]
+TENANT_ROUTES = [
+    "dashboard", "invoices", "payments", "utilities", "statements",
+    "receipts", "deposits", "maintenance", "disputes", "inspections",
+    "documents", "mobile-money", "notifications", "privacy-requests", "security",
+]
+CARETAKER_ROUTES = [
+    "dashboard", "rooms", "payments", "utilities", "maintenance",
+    "preventive-maintenance", "work-orders", "inspections", "documents",
+    "notifications", "privacy-requests", "security", "receipts",
+]
+
 @pytest.mark.parametrize("role", [
     "OWNER", "SUPER_ADMIN", "MANAGER", "ACCOUNTANT", "CARETAKER", "TENANT",
 ])
@@ -105,15 +129,25 @@ def test_read_only_authenticated_role_portals(page, role):
     auth = page.request.get(BASE + "/api/v1/auth/me")
     assert auth.status == 200, auth.text()
     assert auth.json()["user"]["role"] == role
-    if role in ("OWNER", "SUPER_ADMIN", "MANAGER", "ACCOUNTANT"):
-        routes = ("/properties", "/invoices", "/maintenance", "/utilities",
-                  "/disputes", "/preventive-maintenance")
+    if role in ("OWNER", "SUPER_ADMIN"):
+        routes = STAFF_ROUTES + ADMIN_ROUTES + ["assignments"]
+    elif role == "MANAGER":
+        routes = STAFF_ROUTES + ["assignments"]
+    elif role == "ACCOUNTANT":
+        routes = STAFF_ROUTES
+    elif role == "CARETAKER":
+        routes = CARETAKER_ROUTES
     else:
-        routes = ("/maintenance", "/utilities", "/security")
-        # Staff-only audit logs must be protected at the API boundary, not
-        # merely hidden by frontend navigation.
+        routes = TENANT_ROUTES
+    if role in ("CARETAKER", "TENANT"):
+        # Frontend hiding a page is not equivalent to denying backend access.
         forbidden = page.request.get(BASE + "/api/v1/audit")
         assert forbidden.status == 403, forbidden.text()
+    runtime_errors = []
+    page.on("pageerror", lambda error: runtime_errors.append(str(error)))
     for route in routes:
-        page.goto(BASE + route, wait_until="domcontentloaded")
+        page.goto(BASE + "/" + route, wait_until="domcontentloaded")
         expect(page.locator("main.portal-content")).to_be_visible()
+        # Allow lazy chunks and their initial data requests to settle.
+        page.wait_for_timeout(100)
+        assert not runtime_errors, f"{role} /{route} browser exception: {runtime_errors}"
