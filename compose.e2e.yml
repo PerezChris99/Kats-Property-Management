@@ -1,0 +1,68 @@
+# Disposable browser-acceptance stack: only web is reachable, on localhost:5174.
+name: kats-e2e
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kats_e2e
+      POSTGRES_USER: kats_e2e
+      POSTGRES_PASSWORD: disposable_browser_only
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kats_e2e -d kats_e2e"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  api:
+    build: ./backend
+    environment: &api_env
+      APP_ENV: testing
+      KATS_TEST_MODE: "1"
+      DATABASE_URL: postgresql+psycopg://kats_e2e:disposable_browser_only@db:5432/kats_e2e
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      CORS_ORIGINS: http://localhost:5174
+      PUBLIC_APP_URL: http://localhost:5174
+      SECRET_KEY: ${KATS_E2E_SECRET_KEY:?Use ops/dev.ps1 to generate disposable secrets}
+      JWT_SECRET_KEY: ${KATS_E2E_JWT_SECRET_KEY:?Use ops/dev.ps1 to generate disposable secrets}
+      COOKIE_SECURE: "false"
+      PUBLIC_REGISTRATION_ENABLED: "false"
+      RATELIMIT_ENABLED: "false"
+      MTN_MOMO_ENABLED: "false"
+      AIRTEL_MONEY_ENABLED: "false"
+      EFRIS_ENABLED: "false"
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    security_opt: ["no-new-privileges:true"]
+  worker:
+    build: ./backend
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=warning", "--concurrency=2"]
+    environment: *api_env
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    security_opt: ["no-new-privileges:true"]
+  beat:
+    build: ./backend
+    command: ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=warning"]
+    environment: *api_env
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    security_opt: ["no-new-privileges:true"]
+  web:
+    build: ./frontend
+    ports: ["127.0.0.1:5174:80"]
+    depends_on: [api]
+    security_opt: ["no-new-privileges:true"]
