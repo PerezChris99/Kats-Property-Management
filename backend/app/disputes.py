@@ -33,6 +33,21 @@ def visible(user,dispute_id,lock=False):
     if record is None:abort(404)
     return record
 
+@dispute_api.get("/disputes/eligible-leases")
+@jwt_required()
+def eligible_dispute_leases():
+    user=current_user()
+    query=db.session.query(Lease)
+    if user.role=="TENANT":
+        tenant_id=db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        query=query.filter(Lease.tenant_id==tenant_id) if tenant_id else query.filter(False)
+    elif user.role not in STAFF:
+        abort(403)
+    results=list_page(Lease,query.order_by(Lease.start_date.desc()))
+    return jsonify(items=[serialize(x,"id","room_id","tenant_id",
+        "start_date","end_date","status") for x in results.items],total=results.total)
+
+
 @dispute_api.get("/disputes")
 @jwt_required()
 def list_disputes():
