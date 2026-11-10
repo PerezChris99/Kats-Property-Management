@@ -140,8 +140,16 @@ def select_backend_mode():
         raise StartupError("KATS_DEV_BACKEND must be auto, docker, or preview.")
     if requested == "preview":
         return "preview"
-    if shutil.which("docker"):
-        return "docker"
+    docker = shutil.which("docker")
+    if docker:
+        try:
+            # CLI presence alone does not mean the Desktop engine is running.
+            ready = subprocess.run([docker, "info", "--format", "{{.ServerVersion}}"],
+                                   capture_output=True, check=False, timeout=5)
+            if ready.returncode == 0:
+                return "docker"
+        except (OSError, subprocess.TimeoutExpired):
+            pass
     if requested == "docker":
         raise StartupError("Docker is required by KATS_DEV_BACKEND=docker. "
                            "Install Docker Desktop, or set KATS_DEV_BACKEND=preview "
