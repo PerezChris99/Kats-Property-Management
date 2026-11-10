@@ -2,6 +2,16 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "KATS: Start Dev (Frontend + Backend)",
+      "detail": "Starts React and Flask + Celery side by side inside VS Code (development).",
+      "dependsOn": [
+        "KATS: Native frontend (BAT)",
+        "KATS: Native backend stack (BAT)"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
       "label": "KATS: Setup",
       "type": "shell",
       "command": "powershell",
