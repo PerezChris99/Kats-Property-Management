@@ -6,6 +6,14 @@
 
 Open the repository folder in VS Code. Press **Ctrl+Shift+P**, select **Tasks: Run Task**, then select **KATS: Start Dev (Frontend + Backend)**. Alternatively use **Terminal → Run Task** or the existing **KATS: Native start (split in VS Code)** entry.
 
+All KATS Windows VS Code tasks now use argument-safe **process tasks**, not a
+nested PowerShell → `cmd.exe /c` string. This fixes the previous
+`'D:\\NEW' is not recognized` error for checkouts under paths with spaces
+such as `D:\\NEW PROJECTS\\Kats-Property-Management`. The shared
+`ops/vscode_task.ps1` dispatcher invokes the correct batch script, stays
+inside VS Code and returns its exit code. The same fix applies to all 16
+`tests/` batch tasks and owner/start/stop tasks.
+
 The compound VS Code task runs the frontend and backend in parallel using the same terminal presentation group. VS Code displays **two terminal panes side by side in its own terminal panel**, with separate output, tasks and Ctrl+C handling. No external window is launched. This relies on VS Code's built-in task API, not an extension.
 
 ### Direct start.bat: two Windows Terminal panes

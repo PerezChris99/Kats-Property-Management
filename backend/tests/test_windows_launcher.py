@@ -159,8 +159,14 @@ def test_vscode_uses_parallel_background_tasks_in_one_split_terminal_group():
     assert master["dependsOn"]==["KATS: Native frontend (BAT)","KATS: Native backend stack (BAT)"]
     front=byname["KATS: Native frontend (BAT)"]
     back=byname["KATS: Native backend stack (BAT)"]
-    assert "start-frontend.bat" in front["args"][-1]
-    assert "backend-stack" in back["args"][-1]
+    assert front["args"][-1] == "frontend"
+    assert back["args"][-1] == "backend-stack"
+    for task in (front, back):
+        assert task["type"] == "process"
+        assert task["command"] == "powershell.exe"
+        assert task["args"][4].endswith("ops\\vscode_task.ps1")
+        assert task["problemMatcher"][0]["background"]["activeOnStart"]
+        assert task["problemMatcher"][0]["background"]["endsPattern"] == r"^\[READY\]"
     assert front["isBackground"] and back["isBackground"]
     assert front["presentation"]["group"]==back["presentation"]["group"]=="kats-native-split"
     assert front["presentation"]["panel"]==back["presentation"]["panel"]=="dedicated"
@@ -179,3 +185,31 @@ def test_vscode_command_palette_start_dev_entry_is_discoverable():
         {"label":"KATS: Native frontend (BAT)"},{"label":"KATS: Native backend stack (BAT)"}
     ))
     assert alias["detail"].lower().find("side by side")!=-1
+
+
+def test_windows_vscode_tasks_use_argument_safe_process_invocation():
+    import json
+    tasks=json.loads((ROOT / ".vscode" / "tasks.json").read_text(encoding="utf-8"))["tasks"]
+    relevant=[t for t in tasks if t.get("type") == "process"
+              and (t.get("label","").startswith("KATS: Native ")
+                   or t.get("label","").startswith("KATS Test:"))]
+    assert len(relevant)==21
+    targets=set()
+    for task in relevant:
+        assert task["type"]=="process"
+        assert task["command"]=="powershell.exe"
+        assert task["args"][:4]==["-NoProfile","-ExecutionPolicy","Bypass","-File"]
+        assert task["args"][4].endswith(r"\ops\vscode_task.ps1")
+        assert task["args"][5]=="-Target"
+        assert task["args"][6] not in targets
+        targets.add(task["args"][6])
+        assert not any("call " in arg for arg in task["args"])
+    assert "frontend" in targets and "backend-stack" in targets
+    assert "test-all" in targets and "test-security" in targets
+    script=(ROOT/"ops"/"vscode_task.ps1").read_text(encoding="utf-8")
+    assert "[ValidateSet(" in script
+    assert "Test-Path -LiteralPath $Batch" in script
+    assert "& $Batch @BatchArgs" in script
+    assert "exit $Code" in script
+    for target in targets:
+        assert "'"+target+"' = @{ Script = " in script
