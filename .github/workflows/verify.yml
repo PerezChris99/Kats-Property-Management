@@ -36,7 +36,7 @@ jobs:
           APP_ENV: testing
       - run: python -m compileall -q app
       - name: Compile optional browser and test database harness
-        run: cd .. && python -m py_compile ops/test_browser_e2e.py ops/run_windows.py backend/tests/prepare_postgres.py backend/tests/seed_e2e.py
+        run: cd .. && python -m py_compile ops/test_browser_e2e.py ops/run_windows.py ops/test_windows.py backend/tests/prepare_postgres.py backend/tests/seed_e2e.py
       - run: python -m flask --app wsgi db upgrade
         env:
           APP_ENV: testing
@@ -101,6 +101,10 @@ jobs:
         run: |
           cd ..
           POSTGRES_PASSWORD=ci_local_native_only docker compose -f compose.native-deps.yml config --quiet
+      - name: Validate disposable PostgreSQL test Compose
+        run: |
+          cd ..
+          docker compose -f compose.verification.yml config --quiet
       - name: Validate Caddy production edge
         run: |
           cd ..

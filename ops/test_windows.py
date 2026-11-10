@@ -223,7 +223,7 @@ def main():
     # Every locally runnable test: complete Python pytest includes API,
     # security, scheduler-performance tests; frontend build includes JSX/lint/JS.
     results={}
-    for name in ("config","frontend","backend","database","e2e"):
+    for name in ("config","frontend","coverage","database","e2e"):
         print(f"\n===== KATS TEST: {name.upper()} =====",flush=True)
         try:
             perform(name)
@@ -235,7 +235,7 @@ def main():
     for name,status in results.items():
         print(f"{name:12} {status}")
     print("Smoke and role checks are included in isolated E2E.")
-    print("API, security and performance tests are included in backend pytest.")
+    print("Coverage stage runs ALL backend pytest tests (including API, security and performance).")
     print("Staging-only k6 load and human/third-party acceptance: NOT RUN.")
     return int(any(status!="PASS" for status in results.values()))
 
