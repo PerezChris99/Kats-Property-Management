@@ -1,0 +1,33 @@
+# Independent, disposable PostgreSQL migration/RLS/concurrency test environment.
+# Does not load the real application .env or mount operational DB volumes.
+name: kats-verification
+services:
+  test-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kats_ci
+      POSTGRES_USER: kats_ci
+      POSTGRES_PASSWORD: local_test_only
+    tmpfs: ["/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kats_ci -d kats_ci"]
+      interval: 2s
+      timeout: 3s
+      retries: 25
+    security_opt: ["no-new-privileges:true"]
+  verifier:
+    build: ./backend
+    environment:
+      APP_ENV: testing
+      DATABASE_URL: postgresql+psycopg://kats_ci:local_test_only@test-db:5432/kats_ci
+      TEST_POSTGRES_URL: postgresql+psycopg://kats_ci:local_test_only@test-db:5432/kats_ci
+      TEST_DOCUMENT_RLS_URL: postgresql://kats_rls_test:rls_ci_password@test-db:5432/kats_ci
+      RATELIMIT_ENABLED: "false"
+      RATELIMIT_STORAGE_URI: memory://
+      PUBLIC_REGISTRATION_ENABLED: "false"
+      MTN_MOMO_ENABLED: "false"
+      AIRTEL_MONEY_ENABLED: "false"
+      EFRIS_ENABLED: "false"
+    depends_on:
+      test-db: {condition: service_healthy}
+    security_opt: ["no-new-privileges:true"]
