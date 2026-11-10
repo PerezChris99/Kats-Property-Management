@@ -4,7 +4,7 @@
 
 This guide runs the actual React/JSX UI, Flask API, Celery/Redis and PostgreSQL
 through **VS Code integrated terminals** on Windows. It uses the existing
-repository's \`perez → main\` flow and does not require external terminal windows.
+repository's `perez → main` flow and does not require external terminal windows.
 
 ## 1. First-time developer setup
 
@@ -19,7 +19,7 @@ Open the repository folder in VS Code, then choose
 .\ops\dev.ps1 -Action setup
 ~~~
 
-The setup creates a gitignored local \`.env\` from \`.env.example\` if missing,
+The setup creates a gitignored local `.env` from `.env.example` if missing,
 with freshly generated unrelated 256-bit application/JWT secrets. It **does not**
 overwrite existing environment files. The example database password is for
 isolated localhost development only, never a public service.
@@ -56,16 +56,16 @@ Or choose **Terminal → Run Task → KATS: Full local acceptance**. This execut
 | Gate | What runs | Data protection |
 | --- | --- | --- |
 | Startup | Docker builds, service startup, migrations, permission seeding | Operational local DB preserved |
-| Frontend | \`npm ci\` + JSX-only check + ESLint + Node API tests + Vite production build | Build-time only |
+| Frontend | `npm ci` + JSX-only check + ESLint + Node API tests + Vite production build | Build-time only |
 | Backend | Python pytest suite plus Flask compilation | SQLite fixtures and isolated test PostgreSQL |
 | PostgreSQL | Full Alembic upgrade, restricted document RLS, concurrent financial posting | **Disposable test-db/kats_ci only** |
 | HTTP | Landing availability, SQL readiness, unauthenticated access denial | Read-only |
 | Browser | Chromium public navigation, 360/768/1440 viewport, protected route redirects and API security | Read-only |
 | Optional roles | Authenticated owner portal navigation when E2E test credentials provided | Read-only; local credentials only |
 
-Only \`test-db\` is deleted/recreated for the PostgreSQL suite; it uses an
+Only `test-db` is deleted/recreated for the PostgreSQL suite; it uses an
 in-memory PostgreSQL volume with **no host port** and separate credentials.
-The regular \`db\` service and its persistent volumes are never reset by tests.
+The regular `db` service and its persistent volumes are never reset by tests.
 Do not copy production data into the test container.
 
 ## 3. Individual checks in VS Code
@@ -90,8 +90,8 @@ Do not copy production data into the test container.
 
 All scripts return nonzero on failures; **do not merge** when a gate fails.
 If Docker fails to start, verify Docker Desktop virtualization, free disk,
-Docker WSL integration, port ownership (5173 and 8000) and local \`.env\`.
-Use \`docker compose logs --tail=100 api web worker beat db redis\` to diagnose.
+Docker WSL integration, port ownership (5173 and 8000) and local `.env`.
+Use `docker compose logs --tail=100 api web worker beat db redis` to diagnose.
 
 For direct native frontend debugging, with Node 22 installed:
 
@@ -111,13 +111,17 @@ integrated Nginx app for cross-layer browser acceptance.
 
 ## 4. Authenticated, non-destructive browser testing
 
-By default the browser suite runs without staff credentials. To enable owner
+By default the browser suite runs without staff credentials. To enable role-scoped
 navigation coverage, set **local** process environment variables in the VS Code
-terminal (never commit them):
+terminal (never commit them). The example below uses the owner role:
 
 ~~~powershell
 $env:KATS_E2E_OWNER_EMAIL = 'your-local-test-owner@example.test'
-$env:KATS_E2E_OWNER_PASSWORD = Read-Host 'Local test owner password'
+# Paste only in this local terminal, with echo suppression if possible:
+$ownerPassword = Read-Host 'Local test owner password' -AsSecureString
+$ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($ownerPassword)
+try { $env:KATS_E2E_OWNER_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) }
+finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
 # Only if MFA is enabled, enter the current 6-digit code just before the test:
 # $env:KATS_E2E_OWNER_TOTP = Read-Host 'Current authenticator code'
 .\ops\dev.ps1 -Action browser
@@ -125,7 +129,14 @@ Remove-Item Env:KATS_E2E_OWNER_EMAIL,Env:KATS_E2E_OWNER_PASSWORD -ErrorAction Si
 Remove-Item Env:KATS_E2E_OWNER_TOTP -ErrorAction SilentlyContinue
 ~~~
 
-Use a **local disposable account**, not a live user's password. Tests currently
+For other roles, set the same variables using the suffixes MANAGER, ACCOUNTANT,
+CARETAKER, TENANT or SUPER_ADMIN, for example `KATS_E2E_TENANT_EMAIL` and
+`KATS_E2E_TENANT_PASSWORD`. If MFA is enabled, provide the current one-time
+`KATS_E2E_TENANT_TOTP` code (or equivalent role suffix) just before execution.
+The tests verify the authenticated role and prevent caretaker/tenant access
+to the administrator audit API.
+
+Use **local disposable accounts**, never live users' passwords. Tests currently
 verify basic portal navigation, not every create/update/delete transaction.
 Those mutations must be approved and tested separately on an isolated dataset.
 
@@ -165,8 +176,8 @@ credentials or server hosting.
 Separately, real MTN/Airtel merchant approval, URA EFRIS taxpayer-specific
 connectors, SMTP deliverability, S3/ClamAV, domain/TLS, monitoring, backup
 restore, legal approvals, external penetration/load testing and human field
-UAT require evidence outside source code. See \`UGANDA_AUTOPILOT_REGISTER.md\`
-and \`GO_LIVE_CHECKLIST.md\`. A green CI run is not a commercial go-live signoff.
+UAT require evidence outside source code. See `UGANDA_AUTOPILOT_REGISTER.md`
+and `GO_LIVE_CHECKLIST.md`. A green CI run is not a commercial go-live signoff.
 
 No automated browser suite can prove every operational combination has been
 exercised. Record failures and close them with reproducible regression tests.

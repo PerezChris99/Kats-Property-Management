@@ -85,20 +85,35 @@ def test_failed_login_does_not_open_workspace(page):
     expect(page).to_have_url(re.compile(r"/login$"))
 
 
-def test_owner_read_only_portal_navigation(page):
-    email = os.environ.get("KATS_E2E_OWNER_EMAIL")
-    password = os.environ.get("KATS_E2E_OWNER_PASSWORD")
+@pytest.mark.parametrize("role", [
+    "OWNER", "SUPER_ADMIN", "MANAGER", "ACCOUNTANT", "CARETAKER", "TENANT",
+])
+def test_read_only_authenticated_role_portals(page, role):
+    email = os.environ.get(f"KATS_E2E_{role}_EMAIL")
+    password = os.environ.get(f"KATS_E2E_{role}_PASSWORD")
     if not email or not password:
-        pytest.skip("Set KATS_E2E_OWNER_EMAIL and KATS_E2E_OWNER_PASSWORD for owner browser coverage")
+        pytest.skip(f"Provide disposable local {role} E2E credentials to test this role")
     page.goto(BASE + "/login")
     page.get_by_label("Email", exact=True).fill(email)
     page.get_by_label("Password", exact=True).fill(password)
-    code = os.environ.get("KATS_E2E_OWNER_TOTP")
+    code = os.environ.get(f"KATS_E2E_{role}_TOTP")
     if code:
         page.get_by_label("Authenticator code (if enabled)").fill(code)
     page.get_by_role("button", name="Continue").click()
     expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
-    for route in ("/dashboard", "/properties", "/invoices", "/maintenance",
-                  "/utilities", "/disputes", "/preventive-maintenance"):
+    expect(page.locator("main.portal-content")).to_be_visible()
+    auth = page.request.get(BASE + "/api/v1/auth/me")
+    assert auth.status == 200, auth.text()
+    assert auth.json()["user"]["role"] == role
+    if role in ("OWNER", "SUPER_ADMIN", "MANAGER", "ACCOUNTANT"):
+        routes = ("/properties", "/invoices", "/maintenance", "/utilities",
+                  "/disputes", "/preventive-maintenance")
+    else:
+        routes = ("/maintenance", "/utilities", "/security")
+        # Staff-only audit logs must be protected at the API boundary, not
+        # merely hidden by frontend navigation.
+        forbidden = page.request.get(BASE + "/api/v1/audit")
+        assert forbidden.status == 403, forbidden.text()
+    for route in routes:
         page.goto(BASE + route, wait_until="domcontentloaded")
         expect(page.locator("main.portal-content")).to_be_visible()
