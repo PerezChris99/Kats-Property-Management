@@ -8,6 +8,8 @@ celery_app = Celery(
     backend=os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/2"),
 )
 celery_app.conf.update(
+    # Synchronous, in-process preview tasks only; no Redis, Beat or worker.
+    task_always_eager=os.getenv("KATS_PREVIEW_MODE") == "1",
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     task_time_limit=120,

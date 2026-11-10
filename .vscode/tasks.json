@@ -3,7 +3,7 @@
   "tasks": [
     {
       "label": "KATS: Start Dev (Frontend + Backend)",
-      "detail": "Starts React and Flask + Celery side by side inside VS Code (development).",
+      "detail": "React + Flask in side-by-side VS Code terminals; full Celery/PostgreSQL with Docker, SQLite preview without Docker.",
       "dependsOn": [
         "KATS: Native frontend (BAT)",
         "KATS: Native backend stack (BAT)"

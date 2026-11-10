@@ -31,6 +31,38 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Check tracked files for committed secret signatures
         run: cd .. && python ops/check-secrets.py
+      - name: Verify Docker-free SQLite preview bootstraps and serves API
+        run: |
+          cd ..
+          mkdir -p .local
+          export APP_ENV=development
+          export KATS_PREVIEW_MODE=1
+          export DATABASE_URL="sqlite:///$PWD/.local/kats-preview.sqlite3"
+          export SECRET_KEY="preview_ci_only_secret_0123456789abcdef"
+          export JWT_SECRET_KEY="preview_ci_only_jwt_0123456789abcdef"
+          export REDIS_URL="memory://"
+          export RATELIMIT_STORAGE_URI="memory://"
+          export CELERY_BROKER_URL="memory://"
+          export CELERY_RESULT_BACKEND="cache+memory://"
+          export PUBLIC_REGISTRATION_ENABLED=false
+          export MTN_MOMO_ENABLED=false
+          export AIRTEL_MONEY_ENABLED=false
+          export EFRIS_ENABLED=false
+          python ops/init_preview.py
+          (cd backend && python -m flask --app wsgi seed-permissions)
+          (cd backend && python - <<'PY'
+          from app import create_app
+          from app.extensions import db
+          from app.tasks import celery_app
+          app=create_app()
+          client=app.test_client()
+          assert client.get('/healthz').status_code == 200
+          assert client.get('/readyz').status_code == 200
+          assert client.get('/api/v1/auth/me').status_code in (401, 422)
+          assert celery_app.conf.task_always_eager is True
+          print('SQLite preview API and eager local tasks: PASS')
+          PY
+          )
       - run: python -m pytest -q
         env:
           APP_ENV: testing

@@ -1,7 +1,8 @@
 """Native Windows development launcher invoked by root .bat scripts.
 
-Starts React, Flask, Celery solo worker, and Celery beat in ONE integrated
-CMD or PowerShell terminal. Docker runs only a dedicated Postgres/Redis pair.
+Starts React and Flask in split Windows/VS Code terminals. Uses Docker-backed
+PostgreSQL/Redis when available; if Docker is absent, safely falls back to
+an isolated SQLite-only local preview with no Celery worker or Beat.
 No operational .env or database is read or modified.
 """
 from __future__ import annotations
@@ -83,7 +84,7 @@ def config():
         raise StartupError("Unsafe .env.native; expected local-only generated credentials.")
     return result
 
-def environment(settings):
+def environment(settings, preview=False):
     values = os.environ.copy()
     values.update({
         "APP_ENV": "development",
@@ -111,7 +112,59 @@ def environment(settings):
                 "AWS_SECRET_ACCESS_KEY", "SMTP_HOST", "SMTP_PASSWORD",
                 "AIRTEL_MONEY_CLIENT_SECRET", "MTN_MOMO_API_KEY"):
         values.pop(key, None)
+    # Do not inherit a preview task mode into Docker-backed execution.
+    values.pop("KATS_PREVIEW_MODE", None)
+    values.pop("CELERY_TASK_ALWAYS_EAGER", None)
+    if preview:
+        # SQLite is only for local UI/API previews; never production/integration.
+        # Database file stays inside ignored .local, separate from operational data.
+        values.update({
+            "DATABASE_URL": "sqlite:///" + (STATE / "kats-preview.sqlite3").as_posix(),
+            "REDIS_URL": "memory://",
+            "RATELIMIT_STORAGE_URI": "memory://",
+            "CELERY_BROKER_URL": "memory://",
+            "CELERY_RESULT_BACKEND": "cache+memory://",
+            "CELERY_TASK_ALWAYS_EAGER": "true",
+            "KATS_PREVIEW_MODE": "1",
+        })
     return values
+
+def select_backend_mode():
+    """Select isolated local development dependencies without touching prod."""
+    requested = os.getenv("KATS_DEV_BACKEND", "auto").strip().lower()
+    if requested not in ("auto", "docker", "preview"):
+        raise StartupError("KATS_DEV_BACKEND must be auto, docker, or preview.")
+    if requested == "preview":
+        return "preview"
+    if shutil.which("docker"):
+        return "docker"
+    if requested == "docker":
+        raise StartupError("Docker is required by KATS_DEV_BACKEND=docker. "
+                           "Install Docker Desktop, or set KATS_DEV_BACKEND=preview "
+                           "for a reduced SQLite-only development mode.")
+    return "preview"
+
+def prepare_backend(settings, python, mode):
+    """Initialize either full Postgres or explicitly isolated SQLite preview."""
+    preview = mode == "preview"
+    STATE.mkdir(parents=True, exist_ok=True)
+    runtime = venv_environment(environment(settings, preview=preview))
+    if preview:
+        print("[PREVIEW] Docker is unavailable or preview was selected.", flush=True)
+        print("[PREVIEW] Using isolated .local/kats-preview.sqlite3 (SQLite); "
+              "NO PostgreSQL RLS, Redis, Celery worker/Beat or scheduled tasks.", flush=True)
+        print("[PREVIEW] Use Docker-backed mode for payments, concurrency, "
+              "security integration and release acceptance.", flush=True)
+        invoke([str(python), str(ROOT / "ops" / "init_preview.py")], cwd=BACK, env=runtime)
+    else:
+        print("[dependencies] Starting dedicated PostgreSQL + Redis in Docker...", flush=True)
+        dependencies(["up", "-d", "--wait"], settings)
+        invoke([str(python), "-m", "flask", "--app", "wsgi", "db", "upgrade"],
+               cwd=BACK, env=runtime)
+    print("[backend] Seeding new route permissions...", flush=True)
+    invoke([str(python), "-m", "flask", "--app", "wsgi", "seed-permissions"],
+           cwd=BACK, env=runtime)
+    return runtime
 
 def frontend():
     node, npm = require("node"), require("npm.cmd")
@@ -187,21 +240,15 @@ def launch(mode):
     base = environment(settings)
     run_front = mode in ("start", "frontend")
     run_back = mode in ("start", "backend", "backend-stack")
+    backend_mode = select_backend_mode() if run_back else None
+    preview = backend_mode == "preview"
     if run_front:
         check_port(5173)
     if run_back:
         check_port(8000)
     npm = frontend() if run_front else None
     python = backend() if run_back else None
-    runtime = venv_environment(base)
-    if run_back:
-        print("[dependencies] Starting dedicated PostgreSQL + Redis in Docker...", flush=True)
-        dependencies(["up", "-d", "--wait"], settings)
-        print("[backend] Running Alembic migrations and permission seeding...", flush=True)
-        invoke([str(python), "-m", "flask", "--app", "wsgi", "db", "upgrade"],
-               cwd=BACK, env=runtime)
-        invoke([str(python), "-m", "flask", "--app", "wsgi", "seed-permissions"],
-               cwd=BACK, env=runtime)
+    runtime = prepare_backend(settings, python, backend_mode) if run_back else base
     processes = []
     flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     try:
@@ -214,7 +261,7 @@ def launch(mode):
                 [str(python), "-m", "flask", "--app", "wsgi", "run",
                  "--host", "127.0.0.1", "--port", "8000", "--no-reload"],
                 cwd=str(BACK), env=runtime, creationflags=flags)))
-            if mode in ("start", "backend-stack"):
+            if mode in ("start", "backend-stack") and not preview:
                 STATE.mkdir(parents=True, exist_ok=True)
                 # Windows Celery workers must use the solo pool, not prefork.
                 processes.append(("Celery worker", subprocess.Popen(
@@ -237,7 +284,12 @@ def launch(mode):
             time.sleep(.5)
         else:
             raise StartupError("Service readiness timed out; inspect startup errors above.")
-        print("\n[READY] React http://localhost:5173 | Flask http://localhost:8000", flush=True)
+        ready = []
+        if run_front:
+            ready.append("React http://localhost:5173")
+        if run_back:
+            ready.append("Flask http://localhost:8000" + (" (SQLite PREVIEW)" if preview else ""))
+        print("\n[READY] " + " | ".join(ready), flush=True)
         print("[READY] Press Ctrl+C here to stop all application processes.", flush=True)
         while True:
             for name, proc in processes:
@@ -313,16 +365,20 @@ def main():
         if action == "split":
             start_split()
         elif action == "stop":
-            if CONFIG.exists():
+            if CONFIG.exists() and select_backend_mode() == "docker":
                 dependencies(["down"], config())
-            print("[stop] PostgreSQL/Redis stopped, volumes retained.")
+                print("[stop] PostgreSQL/Redis stopped; volumes retained.")
+            else:
+                print("[stop] SQLite preview has no Docker services to stop; "
+                      "preview database retained in .local.", flush=True)
         elif action == "owner":
             settings = config()
             python = backend()
-            dependencies(["up", "-d", "--wait"], settings)
+            mode = select_backend_mode()
+            runtime = prepare_backend(settings, python, mode)
             invoke([str(python), "-m", "flask", "--app", "wsgi",
                     "create-user", "--role", "OWNER"],
-                   cwd=BACK, env=venv_environment(environment(settings)))
+                   cwd=BACK, env=runtime)
         else:
             launch(action)
         return 0
