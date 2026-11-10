@@ -80,7 +80,7 @@ jobs:
       - name: Validate production Compose manifest using dummy example values
         run: |
           cd ..
-          KATS_ENV_FILE=.env.production.example docker compose --env-file .env.production.example -f compose.production.yml config --quiet
+          KATS_ENV_FILE=ops/production.env.sample docker compose --env-file ops/production.env.sample -f compose.production.yml config --quiet
       - name: Validate Caddy production edge
         run: |
           cd ..

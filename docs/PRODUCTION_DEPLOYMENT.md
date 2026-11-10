@@ -25,7 +25,7 @@ databases on the web node. Database migrations do NOT run on web startup.
 1. Provision staging and production DNS with distinct hosts, managed private
    PostgreSQL 16+ (with PITR/backups and a dedicated non-owner/non-BYPASSRLS
    app role), private ACL/TLS Redis and an approved SMTP provider.
-2. Copy .env.production.example to .env.production and replace placeholders
+2. Copy ops/production.env.sample to .env.production and replace placeholders
    using an actual secrets manager. Keep the file mode 0600 and never commit
    it. Record owner access, disaster recovery and rotation procedures.
 3. With separate DBA credentials, run `flask --app wsgi db upgrade` before
@@ -36,7 +36,7 @@ databases on the web node. Database migrations do NOT run on web startup.
    health, email, role access and no HTTP direct backend exposure.
 5. Start with:
    ```bash
-   cp .env.production.example .env.production
+   cp ops/production.env.sample .env.production
    # Replace all placeholder values first.
    export KATS_ENV_FILE=.env.production
    docker compose --env-file .env.production -f compose.production.yml config --quiet
