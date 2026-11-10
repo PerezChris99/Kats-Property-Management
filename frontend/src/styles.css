@@ -524,3 +524,11 @@ td .button, td .outline-button { min-height: 36px; padding: 7px 10px; font-size:
   .page-head .button{width:100%}
   .portal-location strong{font-size:15px}
 }
+
+/* API/DB visibility in the authenticated workspace; no decorative status card. */
+.portal-header-tools{display:flex;align-items:center;justify-content:flex-end;gap:15px;min-width:0}
+.portal-system-state{display:inline-flex;gap:7px;align-items:center;flex-shrink:0;font-size:11px;color:#657b90;font-weight:700;white-space:nowrap}
+.portal-status-dot{width:7px;height:7px;border-radius:50%;background:#b0b9c5}
+.portal-system-state.is-connected .portal-status-dot{background:#199e7e}
+.portal-system-state.is-disconnected .portal-status-dot{background:#d27743}
+@media(max-width:560px){.portal-header-tools{gap:8px}.portal-system-state{font-size:10px}.portal-identity .identity-avatar{width:30px;height:30px}}

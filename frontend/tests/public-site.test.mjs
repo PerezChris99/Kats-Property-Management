@@ -6,7 +6,7 @@ const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8'
 test('public pages have one shared header and footer layout without legacy placeholders', () => {
   const app = read('src/App.jsx');
   const publicSite = read('src/site/Marketing.jsx');
-  const routes = ['/', '/features', '/how-it-works', '/about', '/contact', '/pricing', '/login', '/forgot-password'];
+  const routes = ['/', '/features', '/how-it-works', '/about', '/request-access', '/login', '/forgot-password'];
   assert.ok(app.includes('<Route element={<PublicShell user={user} logout={logout}/>}>'));
   for (const path of routes) assert.ok(app.includes('path="' + path + '"'));
   assert.ok(publicSite.includes('<PublicHeader user={user} logout={logout}/>'));
@@ -62,11 +62,16 @@ test('cards and forms have bounded grids and mobile layouts without shrinking ch
   assert.ok(portal.includes('.page .fields{gap:13px 15px}'));
 });
 
-test('contact form uses actual backend API with validation, consent and no fictitious reachability', () => {
+test('request access remains a real, consent-gated and admin-reviewed workflow', () => {
   const ui = read('src/site/Marketing.jsx');
-  assert.ok(ui.includes("api('public/contact-requests'"));
+  assert.ok(ui.includes("api('public/access-requests'"));
   assert.ok(ui.includes('values.consent'));
   assert.ok(ui.includes('values.website'));
+
+  assert.ok(ui.includes("subject: 'ACCESS'"));
+  assert.ok(ui.includes('Submitting does not create an account.'));
+  assert.ok(ui.includes('RequestAccessPage'));
+  assert.ok(read('src/App.jsx').includes('path="/contact" element={<Navigate to="/request-access" replace/>}'));
   assert.ok(ui.includes('role="alert"'));
   assert.ok(ui.includes('role="status"'));
   assert.equal(ui.includes('hello@katspm.com'), false);

@@ -48,6 +48,28 @@ databases on the web node. Database migrations do NOT run on web startup.
    utility meters, rent notices, backups and rollback; only then move
    staging data and workflows toward approved production operation.
 
+## Read-only release preflight
+
+After schema migrations, run as the **restricted production API database
+role**, using the same production environment as the API:
+
+```sh
+docker compose --env-file .env.production -f compose.production.yml \
+  exec -T api python -m app.release_preflight
+```
+
+This checks production configuration, current Alembic schema revision,
+non-superuser/non-BYPASSRLS DB role, FORCE RLS on private documents, and
+Redis connectivity. Any failure blocks the release until fixed; the tool
+does not write, migrate or reveal connection secrets. **PASS is not
+business/go-live approval**. TLS, real backup restore, supplier approval,
+mobile-money settlement, EFRIS, permissions, legal and data-protection
+acceptance still require signed evidence.
+
+The live site serves `/readyz` through Caddy/Nginx → Flask → PostgreSQL
+and `/api/v1/*` through the same-origin edge. The local Vite dev server
+mirrors both routes, with a separate `doctor` command to prove the bridge.
+
 ## Mandatory acceptance before taking real payments
 
 - URA taxpayer-specific EFRIS and official receipts requirements; signed

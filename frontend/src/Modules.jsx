@@ -598,8 +598,8 @@ export function ContactInboxPage() {
             setError(err(e));
         }
     }
-    return <section className="page"><span className="eyebrow">DEMO & SUPPORT INQUIRIES</span><h1>Contact inbox</h1><Notice error={error}/>
-    {!rows.length ? <Empty>No inquiries recorded.</Empty> : <div className="module-list">
+    return <section className="page"><span className="eyebrow">ACCOUNT REQUESTS</span><h1>Access requests</h1><Notice error={error}/>
+    {!rows.length ? <Empty>No access requests yet.</Empty> : <div className="module-list">
       {rows.map(r => <article className="module-card" key={txt(r.id)}>
         <strong>{txt(r.full_name)} · {txt(r.subject)}</strong><p>{txt(r.email)} {txt(r.phone)}</p><p>{txt(r.message)}</p>
         <small>{txt(r.status)} · {txt(r.created_at)}</small>

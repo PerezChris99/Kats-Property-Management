@@ -15,6 +15,7 @@ PUBLIC_POST={
     "/api/v1/auth/recover",
     "/api/v1/auth/complete-token",
     "/api/v1/public/contact-requests",
+    "/api/v1/public/access-requests",
 }
 
 def test_protected_get_endpoints_require_authentication(app):

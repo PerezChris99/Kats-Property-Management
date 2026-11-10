@@ -45,7 +45,7 @@ def test_public_landing_and_login_link(page):
     {"width": 1440, "height": 900},
 ])
 @pytest.mark.parametrize("route", [
-    "/", "/features", "/about", "/contact", "/login", "/privacy",
+    "/", "/features", "/about", "/request-access", "/login", "/privacy",
 ])
 def test_public_pages_have_no_horizontal_overflow(browser, viewport, route):
     context = browser.new_context(viewport=viewport, reduced_motion="reduce")
@@ -180,3 +180,15 @@ def test_read_only_authenticated_role_portals(page, role):
         # Allow lazy chunks and their initial data requests to settle.
         page.wait_for_timeout(100)
         assert not runtime_errors, f"{role} /{route} browser exception: {runtime_errors}"
+
+
+def test_access_request_is_submitted_to_backend_without_auto_account(page):
+    page.goto(BASE + "/request-access")
+    page.get_by_label("Full name").fill("Test Property Manager")
+    page.get_by_label("Email address").fill("request-test@example.invalid")
+    page.get_by_role("combobox", name="Your role").select_option(label="Manager")
+    page.get_by_label("Why do you need access?").fill("I manage our rental portfolio in Kampala.")
+    page.get_by_label(re.compile(r"I agree to the handling")).check()
+    page.get_by_role("button", name="Submit request").click()
+    expect(page.get_by_role("status")).to_contain_text("Request submitted for administrator review")
+    expect(page).to_have_url(re.compile(r"/request-access$"))

@@ -1,0 +1,75 @@
+# Native KATS management development (Windows + VS Code)
+
+The public entry pages are **Home, Features, How It Works, About, and Request
+Access**. Real daily management happens **after sign-in** in role-restricted
+property, lease, rent, maintenance, reporting and administration workspaces.
+Access requests are reviewed by an OWNER/SUPER_ADMIN, not registrations.
+
+## First-time setup, without Docker
+
+1. Open the repository in VS Code. Ensure Python 3.12+ and Node 22+ are on PATH.
+2. **Tasks: Run Task → KATS: Native setup (database + build)**. It creates
+   an ignored local secrets file, installs Python/Node dependencies, builds
+   the React app, creates the isolated local SQLite schema and seeds role
+   permissions. It never overwrites an existing database or production .env.
+3. **Tasks: Run Task → KATS: Start Dev (Frontend + Backend)**. React/Vite and
+   Flask run in two separate VS Code integrated terminal panes.
+   The launcher streams `[React]` and `[Flask]` stdout/stderr live, in
+   addition to the setup/build output. On full Docker mode, `[Celery worker]`
+   and `[Celery beat]` logs also appear in the backend pane.
+4. **Tasks: Run Task → KATS: Verify frontend ↔ backend ↔ database**.
+   The check requires JSON `status=ready` and Flask's `X-Request-ID` from
+   `http://127.0.0.1:5173/readyz`, then confirms the direct Flask SQL
+   readiness at `:8000/readyz` and an HTTP 401/422 from proxied
+   unauthenticated `/api/v1/auth/me`. A Vite HTML 200 cannot pass.
+5. Open `http://localhost:5173`. Owner creation is a separate privileged
+   operation: **KATS: Native create owner (BAT)**.
+
+Local settings and the SQLite database stay in ignored `.env.native` and
+`.local/kats-preview.sqlite3`. The preview mode **is not equivalent to
+production**: SQLite does not enforce PostgreSQL RLS and background Celery
+scheduling/payment-provider integrations are inactive. Financial workflows
+must not be considered operationally accepted in preview mode.
+
+## Full local infrastructure
+
+Docker is optional for the preview but required by the built-in full
+PostgreSQL/Redis stack. With Docker Desktop installed/running, the default
+native launcher starts isolated local-only PostgreSQL and Redis containers,
+runs Alembic migrations, seeds permissions and starts API + Celery worker
+and Beat. Ports are loopback-only. It does not use your production DB.
+
+The VS Code **KATS: Test frontend + API + backend + PostgreSQL**, isolated
+browser E2E and recovery checks depend on Docker where documented; CI runs
+its own disposable PostgreSQL and browser runtime.
+
+## Graceful shutdown, logs and recovery
+
+- In each integrated run pane, **Ctrl+C** requests a Windows
+  `CTRL_BREAK_EVENT` for the launcher-managed Node/Python process groups.
+  A bounded wait allows normal exit; forced termination is a last resort.
+- **KATS: Native stop dependencies (BAT)** or `stop.bat` asks all native
+  launchers to exit via an ignored local stop marker before stopping native
+  Docker services. Volumes and the isolated SQLite database are retained.
+  Avoid using Task Manager unless normal shutdown fails.
+- Browser/API logs are printed live in the corresponding VS Code terminal.
+  There is **no automatic persistent log of sensitive request paths or
+  credentials**. Do not paste tenant tokens or secrets into bug reports.
+- A stale stop marker is ignored by new runs because each launcher compares
+  the marker timestamp with its own start time.
+- If Vite reports a proxy error, inspect the backend pane, confirm SQL
+  readiness, and rerun the connection-check task. If a service exits early,
+  the launch task reports its exit code instead of silently claiming ready.
+
+## Production boundaries
+
+The production deployment is not the SQLite preview. It requires managed
+private PostgreSQL/Redis, TLS, a restricted database runtime role, schema
+migrations and backups. Run `python -m app.release_preflight` inside the
+deployed **API container**, after the operator-approved migration step.
+Preflight is read-only and fails on invalid production settings, schema,
+database role/RLS or Redis. A passing preflight is **not** a release
+approval: external payment/fiscal providers, storage scanner, real backup
+restore, live legal pages and role-by-role acceptance still require
+independent evidence. See [Production deployment](PRODUCTION_DEPLOYMENT.md)
+and [Go-live checklist](GO_LIVE_CHECKLIST.md).

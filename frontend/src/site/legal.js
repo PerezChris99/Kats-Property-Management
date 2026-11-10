@@ -9,13 +9,13 @@ export const POLICY_PAGES = {
     title: 'Privacy policy', updated: 'Draft for review · November 2026',
     intro: 'How KATS Property Management is designed to handle information supplied by operators, staff and tenants.',
     sections: [
-      ['Who is responsible', 'KATS is a property-management software system. The property business operating your deployment determines which tenant, lease and payment records it collects and how it uses them. For questions about your records, contact that property business or use the contact form on this site. The operator must supply its registered legal identity and privacy contact before publishing a final policy.'],
+      ['Who is responsible', 'KATS is a property-management software system. The property business operating your deployment determines which tenant, lease and payment records it collects and how it uses them. For questions about your records, contact that property business or use the access request form on this site. The operator must supply its registered legal identity and privacy contact before publishing a final policy.'],
       ['Information handled', 'The system may process names, contact details, property and room references, leases, rental invoices, payment confirmations, maintenance requests, support inquiries, access logs and security events. Document uploads may contain personal information. Operators should collect only what is necessary for legitimate property operations.'],
       ['Purposes', 'Information supports property and tenancy administration, rent accounting, service requests, access control, account recovery, auditability, support and any legal obligations that apply to the operator. Payment or fiscal integrations are available only when configured and approved by the operator.'],
       ['Access and protection', 'Access is role-based and checked on the server. Sensitive workflows require authenticated accounts. Operators are responsible for safe passwords, correct role assignments, backups, secure hosting and retention decisions. No security system can guarantee zero risk.'],
       ['Sharing and processors', 'Information may be processed by hosting providers and optional payment, messaging or storage services selected by the operator. No integrations should be assumed active without configuration. Transfers and disclosures must be assessed under applicable data protection law.'],
       ['Retention and rights', 'The operator should define retention periods appropriate to its business, statutory obligations and disputes. Individuals may request access, correction, deletion or other rights where applicable through the responsible property business. Administrative privacy-request tools support tracking those requests.'],
-      ['Cookies and contact', 'Essential session and CSRF cookies help secure access. See the Cookie policy for more information. Use the site contact form to send an inquiry; do not include account passwords, government identifiers or financial card information in messages.']
+      ['Cookies and contact', 'Essential session and CSRF cookies help secure access. See the Cookie policy for more information. Use the site access request form to send an inquiry; do not include account passwords, government identifiers or financial card information in messages.']
     ]
   },
   terms: {
@@ -46,7 +46,7 @@ export const POLICY_PAGES = {
     sections: [
       ['Software subscriptions', 'KATS does not advertise a public self-service software subscription checkout on this site. Any licensing fees, cancellation terms, refund eligibility and notice periods must be stated in a signed service or commercial agreement with the operator.'],
       ['Rental payments', 'Rent and deposits are governed by the relevant tenancy contract and applicable law. They are not refundable merely because they are recorded in KATS. Reversing an accounting record does not automatically return money to a payer.'],
-      ['Disputes', 'Send billing concerns to the property business managing your account, or submit an inquiry through the contact form for routing. Include transaction references only; never send passwords or payment card details.']
+      ['Disputes', 'Send billing concerns to the property business managing your account, or submit an inquiry through the access request form for routing. Include transaction references only; never send passwords or payment card details.']
     ]
   },
   'data-protection': {
@@ -57,7 +57,7 @@ export const POLICY_PAGES = {
       ['Secrets and connections', 'Production environments require HTTPS, strong application secrets, secure session-cookie settings and properly restricted database credentials. External services must be configured and approved independently.'],
       ['Financial audit trails', 'Important accounting changes can be recorded with an audit trail and approval workflow. Software controls supplement but do not replace banking reconciliation, accounting review or local statutory obligations.'],
       ['Operator responsibilities', 'Operators must manage access, incident response, backups, data retention, integrations, identity verification and lawful processing. Formal compliance certification is not claimed by this page.'],
-      ['Report a concern', 'Use the Contact page to report a suspected data or account issue. Do not transmit credentials, full identity numbers or sensitive tenant documents through the public contact form.']
+      ['Report a concern', 'Use the Request Access page to report a suspected data or account issue. Do not transmit credentials, full identity numbers or sensitive tenant documents through the public access request form.']
     ]
   },
   'acceptable-use': {
@@ -67,7 +67,7 @@ export const POLICY_PAGES = {
       ['Respect access boundaries', 'Use only accounts and property records that you are permitted to access. Do not impersonate staff, tenants or other organizations.'],
       ['Protect operational integrity', 'Do not record false rent collections, alter evidence, evade approvals, introduce malware, attempt credential attacks or overwhelm application endpoints.'],
       ['Respect privacy', 'Upload only documents needed for legitimate rental business purposes and limit sharing to the relevant authorized users.'],
-      ['Report vulnerabilities', 'Report suspected security issues through the site contact form. Avoid testing against third-party deployments without written permission.']
+      ['Report vulnerabilities', 'Report suspected security issues through the site access request form. Avoid testing against third-party deployments without written permission.']
     ]
   },
   disclaimer: {
@@ -86,7 +86,7 @@ export const POLICY_PAGES = {
     sections: [
       ['Accessible navigation', 'The interface is designed to support keyboard-accessible menus, labeled form controls, visible focus outlines and semantic page headings.'],
       ['Motion and readability', 'The public site respects reduced-motion preferences. Text contrast, responsive layouts and legible sizing are design priorities.'],
-      ['Feedback', 'Accessibility may vary by browser and device. If you encounter a barrier, explain it through the site Contact page so it can be investigated. No formal conformance audit or certification is claimed here.']
+      ['Feedback', 'Accessibility may vary by browser and device. If you encounter a barrier, explain it through the site Request Access page so it can be investigated. No formal conformance audit or certification is claimed here.']
     ]
   }
 };

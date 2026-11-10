@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  ArrowDown, ArrowRight, ArrowUpRight, Bell, BookOpen, Building2, CalendarDays,
-  ChartNoAxesCombined, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleHelp,
-  CreditCard, FileCheck2, FolderLock, KeyRound, Mail, Menu, SearchCheck,
-  ShieldCheck, Users, Wallet, Wrench, X
+  ArrowRight, Bell, BookOpen, Building2, ChartNoAxesCombined, Check, CheckCircle2,
+  ChevronLeft, ChevronRight, CreditCard, FileCheck2, FolderLock, KeyRound,
+  Menu, ShieldCheck, Users, Wallet, Wrench, X
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { PHOTOS, PHOTO_LICENSE } from './media';
@@ -56,7 +55,7 @@ function PublicHeader({ user, logout }) {
   useEffect(() => { setOpen(false); }, [pathname]);
   const links = [
     ['/', 'Home'], ['/features', 'Features'], ['/how-it-works', 'How it works'],
-    ['/about', 'About'], ['/contact', 'Contact']
+    ['/about', 'About'], ['/request-access', 'Request access']
   ];
   return <header className="pm-header">
     <div className="pm-header-inner">
@@ -66,7 +65,7 @@ function PublicHeader({ user, logout }) {
         {links.map(([to, label]) => <NavLink end key={to} to={to} className={({isActive}) => isActive ? 'is-active' : ''}>{label}</NavLink>)}
         <span className="pm-nav-separator" aria-hidden="true"/>
         {user ? <><Link to="/dashboard">Workspace</Link><button type="button" className="pm-nav-signout" onClick={logout}>Sign out</button></> : <Link to="/login" className="pm-nav-login"><KeyRound size={16}/> Sign in</Link>}
-        <Link to={user ? '/dashboard' : '/contact'} className="pm-cta pm-cta-yellow pm-nav-cta">{user ? 'Open workspace' : 'Request access'} <ArrowRight size={17}/></Link>
+        
       </nav>
     </div>
   </header>;
@@ -76,8 +75,8 @@ function PublicFooter() {
   return <footer className="pm-footer">
     <div className="pm-footer-body">
       <div className="pm-footer-brand"><Brand compact/><p>A clear view of your properties, rent and maintenance.</p></div>
-      <div><h3>Explore</h3><Link to="/">Home</Link><Link to="/features">Features</Link><Link to="/how-it-works">How it works</Link><Link to="/about">About KATS</Link><Link to="/contact">Contact</Link></div>
-      <div><h3>Platform</h3><Link to="/login">Sign in</Link><Link to="/contact">Request a walkthrough</Link><Link to="/pricing">Pricing inquiries</Link><Link to="/accessibility">Accessibility</Link></div>
+      <div><h3>Explore</h3><Link to="/">Home</Link><Link to="/features">Features</Link><Link to="/how-it-works">How it works</Link><Link to="/about">About KATS</Link><Link to="/request-access">Request access</Link></div>
+      <div><h3>Platform</h3><Link to="/login">Sign in</Link><Link to="/request-access">Request access</Link><Link to="/accessibility">Accessibility</Link></div>
       <div className="pm-footer-legal"><h3>Legal & trust</h3>{POLICY_LINKS.map(([name, slug]) => <Link to={'/' + slug} key={slug}>{name}</Link>)}</div>
     </div>
     <div className="pm-footer-base"><span>© {new Date().getFullYear()} KATS Property Management.</span><span>Ugandan residential photos · <a href={PHOTO_LICENSE} target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> · No customer endorsement implied.</span></div><details className="pm-credits"><summary>Photo credits & license</summary><ul>{PHOTOS.map(photo => <li key={photo.credit}><a href={photo.credit} target="_blank" rel="noopener noreferrer">{photo.author} — {photo.location}</a> · <a href={PHOTO_LICENSE} target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> · CSS cropped for layout</li>)}</ul></details>
@@ -96,17 +95,9 @@ function SectionTitle({ eyebrow, title, text, center = false }) {
 function Photo({ photo, className = '' }) {
   return <figure className={'pm-photo ' + className}><img loading="lazy" src={photo.url} alt={photo.alt}/><figcaption><a href={photo.credit} target="_blank" rel="noopener noreferrer">{photo.location} · {photo.author}</a></figcaption></figure>;
 }
-function CTABanner({ title = 'A clearer view of your rentals.', description = 'See how KATS fits your portfolio.' }) {
-  return <section className="pm-final-cta"><div className="pm-final-graphic" aria-hidden="true"><Building2 size={150} strokeWidth={0.9}/></div><div><span className="pm-kicker">NEXT STEP</span><h2>{title}</h2><p>{description}</p></div><Link className="pm-cta pm-cta-yellow" to="/contact">Request a walkthrough <ArrowUpRight size={19}/></Link></section>;
+function AccessCallout({ title = 'Ready to manage your properties?', description = 'Access is approved by the property administrator.' }) {
+  return <section className="pm-access-line" aria-label="Request access"><div><span className="pm-kicker">KATS WORKSPACE</span><h2>{title}</h2><p>{description}</p></div><Link className="pm-text-link" to="/request-access">Request access <ArrowRight size={17}/></Link></section>;
 }
-function MiniDashboard() {
-  return <div className="pm-product-preview" aria-label="Illustrative KATS dashboard layout, not live account information">
-    <div className="pm-product-top"><span className="pm-preview-mark"><Building2 size={17}/> KATS / Overview</span><span>Illustrative interface</span></div>
-    <div className="pm-preview-kpis"><div><small>Properties</small><strong>Portfolio</strong></div><div><small>Rent</small><strong>Review</strong></div><div><small>Maintenance</small><strong>Track</strong></div></div>
-    <div className="pm-preview-panels"><div><span>Recorded monthly activity</span><svg viewBox="0 0 370 120" role="img" aria-label="Illustrative rising activity chart"><path d="M0 100 55 77 110 87 160 50 220 60 275 37 335 20 370 22" fill="none" stroke="#2a9bdb" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/><path d="M0 100 55 77 110 87 160 50 220 60 275 37 335 20 370 22V120H0Z" fill="rgba(56,189,248,.15)"/></svg><small>Example visualization — not actual portfolio data</small></div><div><span>Work queue</span>{['Rent review', 'Lease renewal', 'Repair request'].map((item, i) => <p key={item}><span className={'pm-preview-dot pm-preview-dot-' + i}/>{item}<CheckCircle2 size={16}/></p>)}</div></div>
-  </div>;
-}
-
 function HeroCarousel({ user }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -156,13 +147,13 @@ function HeroCarousel({ user }) {
   return <section ref={heroRef} className="pm-hero" aria-label="Property management introduction" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) setPaused(false); }}>
     <div className="pm-hero-images" aria-hidden="true">{PHOTOS.map((item, n) => <div className={'pm-slide' + (n === index ? ' is-current' : '')} key={item.url} style={{ backgroundImage: 'url("' + item.url + '")' }}/>)}</div>
     <div className="pm-hero-shade"/>
-    <div className="pm-hero-inner"><div className="pm-glass pm-hero-panel"><span className="pm-kicker pm-kicker-light"><span className="pm-spark" /> BUILT FOR UGANDAN RENTALS</span><h1>Manage property. <em>Know the full picture.</em></h1><p>Manage units, leases, rent and repairs in one place.</p><div className="pm-hero-actions"><Link className="pm-cta pm-cta-yellow" to={user ? '/dashboard' : '/contact'}>{user ? 'Open workspace' : 'Request a walkthrough'} <ArrowRight size={19}/></Link><Link className="pm-cta pm-cta-ghost" to="/how-it-works">See how it works <ArrowDown size={17}/></Link></div><div className="pm-hero-points"><span><Check size={15}/> UGX rent records</span><span><Check size={15}/> Secure role access</span></div></div></div>
+    <div className="pm-hero-inner"><div className="pm-glass pm-hero-panel"><span className="pm-kicker pm-kicker-light"><span className="pm-spark" /> BUILT FOR UGANDAN RENTALS</span><h1>Manage property. <em>Know the full picture.</em></h1><p>Manage units, leases, rent and repairs in one place.</p><div className="pm-hero-actions"><Link className="pm-cta pm-cta-yellow" to={user ? '/dashboard' : '/request-access'}>{user ? 'Open workspace' : 'Request access'} <ArrowRight size={18}/></Link><Link className="pm-cta pm-cta-ghost" to="/how-it-works">How it works</Link></div><div className="pm-hero-points"><span><Check size={15}/> UGX rent records</span><span><Check size={15}/> Secure role access</span></div></div></div>
     <div className="pm-carousel-bottom"><div className="pm-carousel-controls"><button onClick={() => move(-1)} aria-label="Previous residential photo"><ChevronLeft/></button><span className="pm-carousel-count">0{index + 1} / 0{PHOTOS.length}</span><button onClick={() => move(1)} aria-label="Next residential photo"><ChevronRight/></button></div><div className="pm-carousel-dots" aria-label="Choose a residential photo">{PHOTOS.map((p, n) => <button type="button" key={p.credit} aria-label={'Show photo ' + (n + 1)} aria-current={index === n ? 'true' : undefined} onClick={() => setIndex(n)} className={index === n ? 'is-current' : ''}/>)}</div><a className="pm-hero-credit" href={PHOTOS[index].credit} target="_blank" rel="noopener noreferrer">{PHOTOS[index].location} · {PHOTOS[index].author}</a></div>
   </section>;
 }
 
 function TrustBand() {
-  return <section className="pm-trust" aria-labelledby="pm-trust-heading"><div className="pm-container"><div className="pm-trust-heading"><span className="pm-kicker">THE PEOPLE BEHIND EVERY PROPERTY</span><h2 id="pm-trust-heading">One platform. Five roles.</h2><p>Each role sees the work that matters.</p></div><div className="pm-trust-grid">{PRINCIPLES.map(({icon: Icon, title, detail}) => <article key={title}><Icon size={26}/><h3>{title}</h3><p>{detail}</p></article>)}</div></div></section>;
+  return <section className="pm-role-strip"><div className="pm-container"><span>One management system. Role-specific access.</span><div>{PRINCIPLES.map(({ title }) => <span key={title}>{title}</span>)}</div></div></section>;
 }
 function Problems() {
   const items = [
@@ -171,37 +162,37 @@ function Problems() {
     'Unclear vacancies and arrears',
     'Access not matched to roles'
   ];
-  return <section className="pm-section pm-problem"><div className="pm-container pm-split"><div className="pm-problem-photo"><Photo photo={PHOTOS[3]}/><span className="pm-image-stamp"><SearchCheck size={19}/> Clarity where it counts</span></div><div><SectionTitle eyebrow="THE PROBLEM" title="Property work shouldn't be guesswork." text="Scattered records slow everyone down."/><ul className="pm-check-list pm-problem-list">{items.map(x => <li key={x}><CircleHelp size={21}/>{x}</li>)}</ul></div></div></section>;
+  return <section className="pm-section pm-problem"><div className="pm-container pm-split"><div className="pm-problem-photo"><Photo photo={PHOTOS[3]}/></div><div><SectionTitle eyebrow="THE PROBLEM" title="Property work shouldn't be guesswork." text="Scattered records slow everyone down."/><ul className="pm-check-list pm-problem-list">{items.map(x => <li key={x}><Check size={18}/>{x}</li>)}</ul></div></div></section>;
 }
 function Solution() {
   return <section className="pm-section pm-solution"><div className="pm-container pm-split"><div><SectionTitle eyebrow="THE KATS APPROACH" title="One connected workspace." text="Link properties, leases, rent and repairs."/><div className="pm-solution-list">{[
     ['01', 'Know your units', 'Track vacancy and occupancy.'],
     ['02', 'Review rent', 'Separate invoices from verified payments.'],
     ['03', 'Manage repairs', 'Assign and track work.']
-  ].map(([n,t,b])=><div key={n}><span>{n}</span><div><h3>{t}</h3><p>{b}</p></div></div>)}</div><Link to="/features" className="pm-text-link">Explore KATS capabilities <ArrowRight size={18}/></Link></div><MiniDashboard/></div></section>;
+  ].map(([n,t,b])=><div key={n}><span>{n}</span><div><h3>{t}</h3><p>{b}</p></div></div>)}</div><Link to="/features" className="pm-text-link">View capabilities <ArrowRight size={18}/></Link></div><Photo photo={PHOTOS[1]} className="pm-solution-photo"/></div></section>;
 }
 function HowSteps({ title = 'From setup to daily operations.', short = false }) {
-  return <section className={'pm-section pm-how ' + (short ? 'pm-how-short' : '')} id="how"><div className="pm-container"><SectionTitle center eyebrow="HOW IT WORKS" title={title} text="Four steps to organized property work."/><div className="pm-step-grid">{WORKFLOW.map(({label,icon:Icon,title:stepTitle,body})=><article key={label}><div className="pm-step-top"><span>{label}</span><Icon size={27}/></div><h3>{stepTitle}</h3><p>{body}</p></article>)}</div></div></section>;
+  return <section className={'pm-section pm-how ' + (short ? 'pm-how-short' : '')} id="how"><div className="pm-container"><SectionTitle center eyebrow="HOW IT WORKS" title={title} text="Four steps to organized property work."/><div className="pm-step-grid">{WORKFLOW.map(({label,icon:Icon,title:stepTitle,body})=><article key={label}><div className="pm-step-top"><span>{label}</span><Icon size={22}/></div><h3>{stepTitle}</h3><p>{body}</p></article>)}</div></div></section>;
 }
 function FAQ({ items = FAQS }) {
   return <section className="pm-section pm-faq"><div className="pm-container pm-faq-grid"><div><SectionTitle eyebrow="FAQ" title="Questions, answered." text="The essentials, without the jargon."/><Photo photo={PHOTOS[4]} className="pm-faq-photo"/></div><div className="pm-faq-items">{items.map(([q,answer])=><details key={q}><summary>{q}<span className="pm-faq-plus" aria-hidden="true">+</span></summary><p>{answer}</p></details>)}</div></div></section>;
 }
 export function LandingPage({ user }) {
-  return <main className="pm-main"><HeroCarousel user={user}/><TrustBand/><Problems/><Solution/><HowSteps short/><FAQ/><div className="pm-container pm-cta-wrap"><CTABanner/></div></main>;
+  return <main className="pm-main"><HeroCarousel user={user}/><TrustBand/><Problems/><Solution/><HowSteps short/><FAQ/><div className="pm-container"><AccessCallout/></div></main>;
 }
 
 function PageHero({ eyebrow, title, text, photo = PHOTOS[0], children }) {
   return <section className="pm-page-hero"><div className="pm-page-hero-image" style={{backgroundImage: 'linear-gradient(90deg,rgba(7,24,49,.88),rgba(7,28,55,.42)),url("' + photo.url + '")'}}/><div className="pm-container pm-page-hero-inner"><span className="pm-kicker pm-kicker-light">{eyebrow}</span><h1>{title}</h1><p>{text}</p>{children}</div></section>;
 }
 export function FeaturesPage() {
-  return <main className="pm-main"><PageHero eyebrow="THE PLATFORM" title="Everything you need to manage rentals." text="Keep units, tenants, rent and repairs organized." photo={PHOTOS[2]}><Link className="pm-cta pm-cta-yellow" to="/contact">Talk through your workflow <ArrowRight size={18}/></Link></PageHero>
-    <section className="pm-section"><div className="pm-container"><SectionTitle eyebrow="AT A GLANCE" title="What KATS helps you manage" text="Practical property workflows."/><div className="pm-feature-grid">{FEATURES.map(({icon:Icon,eyebrow,title,body,note})=><article className="pm-feature-card" key={title}><div className="pm-feature-icon"><Icon size={27}/></div><span className="pm-card-eyebrow">{eyebrow}</span><h3>{title}</h3><p>{body}</p><div className="pm-feature-note"><CheckCircle2 size={16}/>{note}</div></article>)}</div></div></section>
-    <section className="pm-section pm-feature-focus"><div className="pm-container pm-split"><div><SectionTitle eyebrow="FINANCIAL CONFIDENCE" title="Recorded isn't the same as received." text="Review collections before counting them as paid."/><ul className="pm-check-list"><li><CheckCircle2/> Rent invoices and UGX totals</li><li><CheckCircle2/> Cash custody and review workflows</li><li><CheckCircle2/> Arrears and reconciled financial summaries</li></ul><Link to="/contact" className="pm-text-link">See this workflow <ArrowRight size={18}/></Link></div><MiniDashboard/></div></section>
-    <div className="pm-container pm-cta-wrap"><CTABanner title="Keep your records together." description="Explore the workflows you need."/></div></main>;
+  return <main className="pm-main"><PageHero eyebrow="THE PLATFORM" title="Everything you need to manage rentals." text="Keep units, tenants, rent and repairs organized." photo={PHOTOS[2]}/>
+    <section className="pm-section"><div className="pm-container"><SectionTitle eyebrow="AT A GLANCE" title="What KATS helps you manage" text="Practical property workflows."/><div className="pm-feature-grid">{FEATURES.map(({icon:Icon,eyebrow,title,body,note})=><article className="pm-feature-card" key={title}><Icon size={23} aria-hidden="true"/><span className="pm-card-eyebrow">{eyebrow}</span><h3>{title}</h3><p>{body}</p><small className="pm-feature-note">{note}</small></article>)}</div></div></section>
+    <section className="pm-section pm-feature-focus"><div className="pm-container pm-split"><div><SectionTitle eyebrow="FINANCIAL CONFIDENCE" title="Recorded isn't the same as received." text="Review collections before counting them as paid."/><ul className="pm-check-list"><li><CheckCircle2/> Rent invoices and UGX totals</li><li><CheckCircle2/> Cash custody and review workflows</li><li><CheckCircle2/> Arrears and reconciled financial summaries</li></ul><Link to="/request-access" className="pm-text-link">Request access <ArrowRight size={18}/></Link></div><Photo photo={PHOTOS[0]}/></div></section>
+    </main>;
 }
 
 export function HowItWorksPage() {
-  return <main className="pm-main"><PageHero eyebrow="A SIMPLE START" title="A clear path from setup to operations." text="Four steps for a working rental portfolio." photo={PHOTOS[1]}/><HowSteps title="Four connected steps."/><section className="pm-section pm-feature-focus"><div className="pm-container pm-split"><Photo photo={PHOTOS[0]}/><div><SectionTitle eyebrow="AFTER SETUP" title="Stay in control as you grow." text="Keep rooms, records and tasks up to date."/><ul className="pm-check-list"><li><CheckCircle2/> Adjust rooms, occupancy and tenancy records</li><li><CheckCircle2/> See approvals, maintenance and review queues</li><li><CheckCircle2/> Export available financial and portfolio reports</li></ul></div></div></section><div className="pm-container pm-cta-wrap"><CTABanner/></div></main>;
+  return <main className="pm-main"><PageHero eyebrow="A SIMPLE START" title="A clear path from setup to operations." text="Four steps for a working rental portfolio." photo={PHOTOS[1]}/><HowSteps title="Four connected steps."/><section className="pm-section pm-feature-focus"><div className="pm-container pm-split"><Photo photo={PHOTOS[0]}/><div><SectionTitle eyebrow="AFTER SETUP" title="Stay in control as you grow." text="Keep rooms, records and tasks up to date."/><ul className="pm-check-list"><li><CheckCircle2/> Adjust rooms, occupancy and tenancy records</li><li><CheckCircle2/> See approvals, maintenance and review queues</li><li><CheckCircle2/> Export available financial and portfolio reports</li></ul></div></div></section></main>;
 }
 
 function ChartLine({ values, color = '#188ad0', label }) {
@@ -221,34 +212,66 @@ function OperationalCharts() {
   </div><p className="pm-data-note"><ShieldCheck size={18}/> Live reports are private to authorized users.</p></div></section>;
 }
 export function AboutPage() {
-  return <main className="pm-main"><PageHero eyebrow="ABOUT KATS" title="Built for property teams." text="Clear records. Better decisions." photo={PHOTOS[0]}/><section className="pm-section"><div className="pm-container pm-split"><div><SectionTitle eyebrow="OUR PURPOSE" title="Keep everyone informed." text="Give each role the information it needs."/><p className="pm-long-copy">Built around Ugandan rental workflows, UGX records and accountable teams.</p></div><Photo photo={PHOTOS[3]}/></div></section><TrustBand/><OperationalCharts/><section className="pm-section pm-about-values"><div className="pm-container"><SectionTitle eyebrow="OUR DESIGN PRINCIPLES" title="Clarity over clutter."/><div className="pm-values-grid">{[['Clarity','Show what is due, what is paid and what still needs review.'],['Accountability','Keep actions connected to roles, records and evidence.'],['Privacy','Keep access scoped to the work each person is authorized to do.'],['Practicality','Fit actual property workflows before adding complexity.']].map(([name,desc])=><article key={name}><CheckCircle2 size={26}/><h3>{name}</h3><p>{desc}</p></article>)}</div></div></section><div className="pm-container pm-cta-wrap"><CTABanner title="The right foundation for a better-run portfolio."/></div></main>;
+  return <main className="pm-main"><PageHero eyebrow="ABOUT KATS" title="Built for property teams." text="Clear records. Better decisions." photo={PHOTOS[0]}/><section className="pm-section"><div className="pm-container pm-split"><div><SectionTitle eyebrow="OUR PURPOSE" title="Keep everyone informed." text="Give each role the information it needs."/><p className="pm-long-copy">Built around Ugandan rental workflows, UGX records and accountable teams.</p></div><Photo photo={PHOTOS[3]}/></div></section><OperationalCharts/><div className="pm-container"><AccessCallout title="Use KATS for daily property work."/></div></main>;
 }
 
-export function ContactPage() {
-  const blank={ full_name:'', email:'', phone:'', company:'', role:'', subject:'DEMO', message:'', consent:false, website:'' };
-  const [values,setValues]=useState(blank);
-  const [busy,setBusy]=useState(false);
-  const [error,setError]=useState('');
-  const [success,setSuccess]=useState('');
-  const change=(key,val)=>setValues(v=>({...v,[key]:val}));
-  async function submit(e) {
-    e.preventDefault();setBusy(true);setError('');setSuccess('');
-    const note=[values.company.trim() && 'Organization: '+values.company.trim(), values.role && 'Role: '+values.role, values.message.trim()].filter(Boolean).join('\n');
+export function RequestAccessPage() {
+  const blank = { full_name: '', email: '', phone: '', role: '', portfolio: '', message: '', consent: false, website: '' };
+  const [values, setValues] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const change = (name, value) => setValues(current => ({ ...current, [name]: value }));
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true); setError(''); setSuccess('');
     try {
-      const result=await api('public/contact-requests',{method:'POST',body:JSON.stringify({
-        full_name:values.full_name.trim(),email:values.email.trim(),phone:values.phone.trim(),
-        subject:values.subject,message:note,consent:values.consent,website:values.website
-      })});
-      setSuccess(result.message || 'Your request has been recorded.');
+      const detail = [
+        'Role: ' + (values.role || 'Not specified'),
+        'Portfolio: ' + (values.portfolio.trim() || 'Not specified'),
+        values.message.trim()
+      ].join('\\n');
+      const result = await api('public/access-requests', {
+        method: 'POST',
+        body: JSON.stringify({
+          full_name: values.full_name.trim(), email: values.email.trim(),
+          phone: values.phone.trim(), subject: 'ACCESS', message: detail,
+          consent: values.consent, website: values.website
+        })
+      });
       setValues(blank);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to submit this request.'); }
-    finally {setBusy(false);}
+      setSuccess(result.message || 'Your request has been submitted for review.');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Request could not be submitted.');
+    } finally { setBusy(false); }
   }
-  return <main className="pm-main"><PageHero eyebrow="CONTACT" title="Let's talk properties." text="Ask about KATS or request a walkthrough." photo={PHOTOS[4]}/><section className="pm-section"><div className="pm-container pm-contact-grid"><div className="pm-contact-form"><SectionTitle eyebrow="SEND AN INQUIRY" title="Send an inquiry." text="We will review your request."/>
-      {success && <p role="status" className="pm-form-success"><CheckCircle2 size={20}/>{success}</p>}
-      {error && <p role="alert" className="error">{error}</p>}
-      <form onSubmit={submit}><div className="pm-fields"><label>Full name <span aria-hidden="true">*</span><input required maxLength="160" autoComplete="name" value={values.full_name} onChange={e=>change('full_name',e.target.value)} placeholder="Your full name"/></label><label>Email address <span aria-hidden="true">*</span><input required type="email" autoComplete="email" maxLength="254" value={values.email} onChange={e=>change('email',e.target.value)} placeholder="you@organization.com"/></label><label>Company or portfolio<input maxLength="120" value={values.company} onChange={e=>change('company',e.target.value)} placeholder="Optional"/></label><label>Your role<select value={values.role} onChange={e=>change('role',e.target.value)}><option value="">Select if applicable</option><option>Owner</option><option>Property manager</option><option>Accountant</option><option>Caretaker</option><option>Tenant</option><option>Other</option></select></label><label>Phone (optional)<input type="tel" maxLength="30" autoComplete="tel" value={values.phone} onChange={e=>change('phone',e.target.value)} placeholder="+256…"/></label><label>What can we help with?<select value={values.subject} onChange={e=>change('subject',e.target.value)}><option value="DEMO">Request a walkthrough</option><option value="PRICING">Pricing and deployment</option><option value="SUPPORT">Support inquiry</option><option value="OTHER">Other question</option></select></label></div><label>Tell us more <span aria-hidden="true">*</span><textarea required minLength="20" maxLength="2400" rows="6" placeholder="Describe your portfolio, question or concern…" value={values.message} onChange={e=>change('message',e.target.value)}/></label><label className="pm-consent"><input required type="checkbox" checked={values.consent} onChange={e=>change('consent',e.target.checked)}/><span>I agree to the processing of this inquiry as described in the <Link to="/privacy">Privacy policy</Link>.</span></label><input aria-hidden="true" tabIndex={-1} autoComplete="off" className="pm-honeypot" name="website" value={values.website} onChange={e=>change('website',e.target.value)}/><button className="pm-cta pm-cta-yellow" disabled={busy}>{busy?'Sending…':'Send inquiry'} <ArrowRight size={18}/></button></form></div>
-      <aside className="pm-contact-aside"><div className="pm-contact-aside-head"><span className="pm-kicker">A DIRECT LINE TO THE PRODUCT</span><h2>Get in touch.</h2><p>Use the form for product or support questions.</p></div><div className="pm-contact-cards"><article><Mail size={28}/><h3>General inquiries</h3><p>Questions about using or evaluating the platform.</p></article><article><CalendarDays size={28}/><h3>Request a walkthrough</h3><p>Explain your portfolio and the workflows you want covered.</p></article><article><ShieldCheck size={28}/><h3>Security questions</h3><p>Raise privacy or account-access concerns without sharing secrets.</p></article></div><Photo photo={PHOTOS[2]}/><p className="pm-contact-note">Please never include passwords, payment-card numbers or identity documents in this public form.</p></aside></div></section></main>;
+  return <main className="pm-main"><PageHero eyebrow="REQUEST ACCESS" title="Get access to KATS." text="Request an account for an existing property operation. An administrator reviews every request." photo={PHOTOS[2]}/>
+    <section className="pm-section pm-request-section"><div className="pm-container pm-request-layout">
+      <div className="pm-contact-form">
+        <SectionTitle eyebrow="ACCOUNT REQUEST" title="Tell us who you are." text="Submitting does not create an account."/>
+        {success && <p role="status" className="pm-form-success"><CheckCircle2 size={20}/>{success}</p>}
+        {error && <p role="alert" className="error">{error}</p>}
+        <form onSubmit={submit}>
+          <div className="pm-fields">
+            <label>Full name<input required maxLength="160" autoComplete="name" value={values.full_name} onChange={e => change('full_name', e.target.value)}/></label>
+            <label>Email address<input required type="email" maxLength="254" autoComplete="email" value={values.email} onChange={e => change('email', e.target.value)}/></label>
+            <label>Role<select aria-label="Your role" value={values.role} required onChange={e => change('role', e.target.value)}><option value="">Select your role</option><option>Owner</option><option>Manager</option><option>Accountant</option><option>Caretaker</option><option>Tenant</option></select></label>
+            <label>Phone (optional)<input type="tel" maxLength="30" autoComplete="tel" value={values.phone} onChange={e => change('phone', e.target.value)}/></label>
+          </div>
+          <label>Property or building (optional)<input maxLength="120" value={values.portfolio} onChange={e => change('portfolio', e.target.value)}/></label>
+          <label>Why do you need access?<textarea required minLength="10" maxLength="2000" rows="3" value={values.message} onChange={e => change('message', e.target.value)} placeholder="Your property or team and the work you manage"/></label>
+          <label className="pm-consent"><input type="checkbox" checked={values.consent} required onChange={e => change('consent', e.target.checked)}/><span>I agree to the handling of this request under the <Link to="/privacy">Privacy policy</Link>.</span></label>
+          <input className="pm-honeypot" aria-hidden="true" tabIndex={-1} autoComplete="off" name="website" value={values.website} onChange={e => change('website', e.target.value)}/>
+          <button className="pm-cta pm-cta-yellow" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Submit request'} <ArrowRight size={17}/></button>
+        </form>
+      </div>
+      <aside className="pm-request-guide"><span className="pm-kicker">WHAT HAPPENS NEXT</span>
+        <h2>Access is controlled.</h2>
+        <ol><li>Your request enters the owner’s review queue.</li><li>The administrator checks your identity and role.</li><li>Approved users receive a separate account invitation.</li></ol>
+        <p>Already have an account? <Link to="/login" className="pm-text-link">Sign in <ArrowRight size={16}/></Link></p>
+      </aside>
+    </div></section>
+  </main>;
 }
 
 export function LegalPage({ slug }) {
@@ -261,7 +284,4 @@ export function LegalPage({ slug }) {
   },[slug]);
   if(!policy) return <main className="pm-section"><div className="pm-container"><h1>Page not found</h1><Link to="/">Return home</Link></div></main>;
   return <main className="pm-main"><PageHero eyebrow="LEGAL & TRUST" title={published?.title || policy.title} text={published ? 'Operator-published policy · version '+published.version : policy.intro} photo={PHOTOS[3]}/><section className="pm-section pm-legal-section"><div className="pm-container pm-legal-layout"><aside><span className="pm-kicker">LEGAL LIBRARY</span><nav aria-label="Other legal pages">{POLICY_LINKS.map(([label,s])=><Link key={s} aria-current={slug===s?'page':undefined} to={'/'+s}>{label}</Link>)}</nav></aside><article className="pm-legal-body">{published ? <><span className="pm-policy-state"><CheckCircle2 size={19}/> Operator-published version {published.version}</span><div className="pm-legal-published">{published.content}</div></> : <><span className="pm-policy-draft"><BookOpen size={19}/> Informational draft — requires operator/legal review and publication</span><p className="pm-policy-intro">{policy.intro}</p>{policy.sections.map(([heading,body])=><section key={heading}><h2>{heading}</h2><p>{body}</p></section>)}<p className="pm-legal-note">This is an informational draft, not the approved terms for a specific deployment. The responsible operator must review and publish an accurate final version in the Legal admin workspace.</p></>}</article></div></section></main>;
-}
-export function PricingPage() {
-  return <main className="pm-main"><PageHero eyebrow="PRICING & DEPLOYMENT" title="Pricing for your portfolio." text="Contact us for deployment and pricing details." photo={PHOTOS[1]}><Link className="pm-cta pm-cta-yellow" to="/contact">Request a pricing discussion <ArrowRight size={18}/></Link></PageHero><div className="pm-container pm-cta-wrap"><CTABanner title="Start with your buildings, not a generic pricing tier."/></div></main>;
 }
