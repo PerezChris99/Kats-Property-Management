@@ -26,9 +26,10 @@ def test_all_batch_types_have_correct_dispatch_and_error_propagation():
     assert '"%ACTION%"' in dispatcher
     assert '"%ACTION%" %*' not in dispatcher
     for filename, action in EXPECTED.items():
-        content = (ROOT / filename).read_text(encoding="utf-8")
-        assert 'call "%~dp0ops\\tests.bat" '+action in content
+        content = (ROOT / "tests" / filename).read_text(encoding="utf-8")
+        assert 'call "%~dp0..\\ops\\tests.bat" '+action in content
         assert "exit /b %ERRORLEVEL%" in content
+        assert not (ROOT / filename).exists(), "Root-level test launcher must not be present"
 
 def test_master_runs_all_suites_and_excludes_unapproved_staging(monkeypatch, capsys):
     called=[]
@@ -91,3 +92,12 @@ def test_static_config_forces_sample_env_file_not_business_config():
     assert 'KATS_ENV_FILE="ops/production.env.sample"' in source
     assert '"nginx:stable-alpine","nginx","-t"' in source
     assert '"caddy:2-alpine","caddy","validate"' in source
+
+
+def test_vscode_test_tasks_resolve_to_tests_folder():
+    import json
+    tasks = json.loads((ROOT / ".vscode" / "tasks.json").read_text(encoding="utf-8"))["tasks"]
+    names = [task for task in tasks if task.get("label", "").startswith("KATS Test:")]
+    assert len(names) == len(EXPECTED)
+    for task in names:
+        assert any("\\tests\\test-" in arg for arg in task["args"])

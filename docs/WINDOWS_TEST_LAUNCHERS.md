@@ -1,6 +1,6 @@
 # KATS — Windows test commands (CMD and PowerShell)
 
-These scripts are designed for the **VS Code integrated terminal**. They run
+All Windows test launchers are grouped in the **`tests/`** folder; application start/stop scripts remain at repository root. These scripts are designed for the **VS Code integrated terminal**. They run
 in the current CMD or PowerShell terminal, do not open external console windows,
 and return a **nonzero exit code** when a test fails.
 
@@ -15,12 +15,12 @@ staging load test additionally needs k6.
 
 CMD:
 ~~~cmd
-test-all.bat
+tests\test-all.bat
 ~~~
 
 PowerShell:
 ~~~powershell
-.\test-all.bat
+.\tests\test-all.bat
 ~~~
 
 The full suite performs all these checks and gives an overall pass/fail
@@ -44,22 +44,22 @@ Every category can run independently:
 
 | Category | Batch file | Scope |
 | --- | --- | --- |
-| Full automated suite | test-all.bat | All local automated tests including backend coverage |
-| Frontend full | test-frontend.bat | JSX, lint, JavaScript tests and Vite production build |
-| Frontend unit | test-frontend-unit.bat | All Node test files |
-| JSX and lint | test-lint.bat | JSX-only enforcement and ESLint |
-| Frontend build | test-build.bat | React build (includes its checks and unit tests) |
-| Backend full | test-backend.bat | Entire Python pytest suite |
-| API tests | test-api.bat | Authorization, sessions, permissions and workflow contracts |
-| Security | test-security.bat | Secret scan, abuse controls, MFA, authorization, account recovery |
-| PostgreSQL | test-database.bat | Migration roundtrip, immutable ledger, concurrency, restricted-role RLS |
-| Migrations | test-migrations.bat | PostgreSQL upgrade/downgrade/upgrade alone |
-| Performance regression | test-performance.bat | Batched rent and maintenance query-count budgets |
-| Browser / E2E | test-e2e.bat | Six test roles, public/browser/API smoke and responsive checks |
-| Live local smoke | test-smoke.bat | HTTP GET checks against an already running localhost app |
-| Static configuration | test-config.bat | Secrets, Python compilation, VS Code JSON, all Compose manifests |
-| Backend coverage | test-coverage.bat | Full pytest suite, detailed coverage and XML report |
-| External load (opt-in) | test-load.bat | k6 p95/p99/error thresholds on approved HTTPS staging |
+| Full automated suite | tests\test-all.bat | All local automated tests including backend coverage |
+| Frontend full | tests\test-frontend.bat | JSX, lint, JavaScript tests and Vite production build |
+| Frontend unit | tests\test-frontend-unit.bat | All Node test files |
+| JSX and lint | tests\test-lint.bat | JSX-only enforcement and ESLint |
+| Frontend build | tests\test-build.bat | React build (includes its checks and unit tests) |
+| Backend full | tests\test-backend.bat | Entire Python pytest suite |
+| API tests | tests\test-api.bat | Authorization, sessions, permissions and workflow contracts |
+| Security | tests\test-security.bat | Secret scan, abuse controls, MFA, authorization, account recovery |
+| PostgreSQL | tests\test-database.bat | Migration roundtrip, immutable ledger, concurrency, restricted-role RLS |
+| Migrations | tests\test-migrations.bat | PostgreSQL upgrade/downgrade/upgrade alone |
+| Performance regression | tests\test-performance.bat | Batched rent and maintenance query-count budgets |
+| Browser / E2E | tests\test-e2e.bat | Six test roles, public/browser/API smoke and responsive checks |
+| Live local smoke | tests\test-smoke.bat | HTTP GET checks against an already running localhost app |
+| Static configuration | tests\test-config.bat | Secrets, Python compilation, VS Code JSON, all Compose manifests |
+| Backend coverage | tests\test-coverage.bat | Full pytest suite, detailed coverage and XML report |
+| External load (opt-in) | tests\test-load.bat | k6 p95/p99/error thresholds on approved HTTPS staging |
 
 Coverage XML is generated locally at .local/coverage.xml, excluded from Git.
 The all-tests script uses the coverage category to run the entire backend
@@ -69,7 +69,7 @@ batches again afterward is optional and duplicates some checks.
 ## Local smoke requires a running system
 
 First start the local app with start.bat or with the existing Docker stack.
-Then run test-smoke.bat. It tests local UI, health, database readiness,
+Then run tests\test-smoke.bat. It tests local UI, health, database readiness,
 public landing API and rejection of unauthenticated private API requests.
 Allowed hosts are only localhost and 127.0.0.1, ports 5173 or 5174.
 Unlike the full E2E test, the standalone smoke script does not start a server.
@@ -85,7 +85,7 @@ PowerShell:
 ~~~powershell
 $env:KATS_LOAD_TEST_APPROVED = 'yes'
 $env:BASE_URL = 'https://your-approved-staging-host.example'
-.\test-load.bat
+.\tests\test-load.bat
 Remove-Item Env:KATS_LOAD_TEST_APPROVED,Env:BASE_URL -ErrorAction SilentlyContinue
 ~~~
 
@@ -93,12 +93,12 @@ CMD:
 ~~~cmd
 set KATS_LOAD_TEST_APPROVED=yes
 set BASE_URL=https://your-approved-staging-host.example
-test-load.bat
+tests\test-load.bat
 set KATS_LOAD_TEST_APPROVED=
 set BASE_URL=
 ~~~
 
-Missing authorization causes test-load.bat to fail without making requests.
+Missing authorization causes tests\test-load.bat to fail without making requests.
 
 ## VS Code tasks
 
