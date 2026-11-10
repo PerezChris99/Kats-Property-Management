@@ -390,3 +390,8 @@
 .pm-reveal-password:hover{color:#0a85be;background:#e7f5fd}
 .pm-reveal-password:focus-visible{outline:3px solid #38bdf8;outline-offset:1px}
 .kats-public .pm-login-card .pm-brand strong{color:#0b1b3d}
+
+/* Compact grids on small laptops; avoid three narrow cards. */
+@media(min-width:761px) and (max-width:1090px){
+  .pm-feature-grid,.pm-chart-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}

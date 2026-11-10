@@ -32,7 +32,7 @@ def page(browser):
 def test_public_landing_and_login_link(page):
     page.goto(BASE + "/", wait_until="domcontentloaded")
     expect(page.get_by_role("heading", level=1)).to_contain_text("Manage your rentals")
-    page.get_by_role("link", name="Sign in").click()
+    page.get_by_role("navigation", name="Main navigation").get_by_role("link", name="Sign in").click()
     expect(page).to_have_url(re.compile(r"/login$"))
     expect(page.get_by_role("heading", name="Sign in")).to_be_visible()
 

@@ -478,3 +478,49 @@ td .button, td .outline-button { min-height: 36px; padding: 7px 10px; font-size:
 .portal-footnote a{color:#0c709c;font-weight:650}
 .portal-footnote a:hover{text-decoration:underline;text-underline-offset:3px}
 @media(max-width:800px){.portal-footnote{padding-bottom:max(90px,calc(84px + env(safe-area-inset-bottom)))}}
+
+
+/* Fluid, compact private workspace. Tables scroll inside their panel; grids,
+   controls and cards fit the available width with the sidebar present. */
+.portal,.portal-main,.portal-content,.page{min-width:0;max-width:100%}
+.portal-main{flex:1 1 0;width:0}
+.portal-content{flex:1 1 auto;width:100%;min-width:0}
+.page{width:100%;padding:clamp(20px,2.5vw,32px) clamp(14px,2.4vw,34px) 42px}
+.page>h1,.page h1,.page-head h1{font-size:clamp(25px,2.5vw,34px);line-height:1.2}
+.page h2{font-size:18px}
+.page h3{font-size:15px}
+.page p{line-height:1.58}
+.page-head{gap:12px;margin-bottom:15px}
+.page :is(.fields,.stat-grid,.module-list)>*{min-width:0;max-width:100%}
+.page :is(.stat,.quick,.module-card,.resource-form,.data-table-wrap,.record-toolbar,.pagination-controls){min-width:0;max-width:100%}
+.page :is(input,select,textarea){min-width:0;max-width:100%;width:100%}
+.page label{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.page :is(.button,.outline-button){max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.page .fields{gap:13px 15px}
+.page .stat-grid{gap:11px;margin:17px 0}
+.page .stat{min-height:0;padding:16px 17px;gap:6px}
+.page .stat small{font-size:12px}
+.page .stat strong{font-size:clamp(20px,2.1vw,27px)}
+.page .quick{padding:17px;margin:17px 0}
+.page .module-list{gap:11px}
+.page .module-card{padding:17px 18px}
+.page .module-card p{font-size:13px;line-height:1.55}
+.page .resource-form{padding:clamp(16px,2vw,23px)}
+.page .data-table-wrap{overflow-x:auto;overscroll-behavior-x:contain}
+.page table{width:100%;max-width:none}
+.page :is(th,td){padding:10px 12px;font-size:13px}
+.portal-bar{min-height:69px;padding:11px clamp(14px,2.4vw,34px);gap:12px}
+.portal-location strong{font-size:16px}
+.portal-footnote{gap:10px;padding:15px clamp(14px,2.4vw,34px)}
+@media(max-width:800px){
+  .portal-main{width:100%;max-width:100%}
+  .page{padding:21px 14px 95px}
+  .page .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:560px){
+  .page .stat-grid,.page .fields{grid-template-columns:minmax(0,1fr)}
+  .page .stat{padding:13px 15px}
+  .page .resource-form,.page .module-card,.page .quick{padding:14px}
+  .page-head .button{width:100%}
+  .portal-location strong{font-size:15px}
+}
