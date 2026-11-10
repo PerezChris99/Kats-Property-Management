@@ -109,6 +109,8 @@ def create_app(test_config=None):
     from . import account_models  # noqa: F401
     from .api import api
     app.register_blueprint(api, url_prefix="/api/v1")
+    from .mfa import mfa_api
+    app.register_blueprint(mfa_api, url_prefix="/api/v1")
     from .extra_api import extra_api
     app.register_blueprint(extra_api, url_prefix="/api/v1")
     from .documents import documents_api

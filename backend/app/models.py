@@ -18,6 +18,9 @@ class User(db.Model):
     role = db.Column(db.String(30), nullable=False, default="TENANT")
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     session_version = db.Column(db.Integer, nullable=False, default=0)
+    mfa_secret_encrypted = db.Column(db.String(512))
+    mfa_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    mfa_last_step = db.Column(db.BigInteger)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
 class Property(db.Model):

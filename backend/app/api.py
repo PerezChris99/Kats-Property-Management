@@ -171,6 +171,21 @@ def login():
         valid = False
     if not valid:
         return fail("Invalid email or password", 401)
+    if user.mfa_enabled:
+        from .mfa import decrypt_secret, verify_totp_code, MfaUnavailable
+        # Lock the user record so one 30-second TOTP step cannot be replayed
+        # across concurrent logins or multiple web workers.
+        user = db.session.query(User).filter_by(id=user.id).with_for_update().one()
+        code = obj.get("mfa_code")
+        if not isinstance(code, str) or not code.isdecimal() or len(code) != 6:
+            return fail("Valid authenticator code required", 401)
+        try:
+            matched = verify_totp_code(decrypt_secret(user.mfa_secret_encrypted), code)
+        except MfaUnavailable:
+            return fail("Two-factor verifier unavailable", 503)
+        if matched is None or (user.mfa_last_step is not None and matched <= user.mfa_last_step):
+            return fail("Invalid or previously used authenticator code", 401)
+        user.mfa_last_step = matched
     response = jsonify(user=serialize(user, "id", "full_name", "role"))
     claims = {"sv": user.session_version}
     refresh_token = create_refresh_token(identity=user.id, additional_claims=claims)
