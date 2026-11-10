@@ -2,7 +2,7 @@ name: kats-production
 services:
   api:
     build: ./backend
-    env_file: \${KATS_ENV_FILE:-.env.production}
+    env_file: ${KATS_ENV_FILE:-.env.production}
     restart: unless-stopped
     expose: ["8000"]
     healthcheck:
@@ -18,7 +18,7 @@ services:
   worker:
     build: ./backend
     command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=warning", "--concurrency=2"]
-    env_file: \${KATS_ENV_FILE:-.env.production}
+    env_file: ${KATS_ENV_FILE:-.env.production}
     restart: unless-stopped
     networks: [backend]
     security_opt: ["no-new-privileges:true"]
@@ -27,7 +27,7 @@ services:
   beat:
     build: ./backend
     command: ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=warning"]
-    env_file: \${KATS_ENV_FILE:-.env.production}
+    env_file: ${KATS_ENV_FILE:-.env.production}
     restart: unless-stopped
     networks: [backend]
     security_opt: ["no-new-privileges:true"]
@@ -44,8 +44,8 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
-      KATS_DOMAIN: \${KATS_DOMAIN:?Required public DNS hostname}
-      ACME_EMAIL: \${ACME_EMAIL:?Required certificate contact email}
+      KATS_DOMAIN: ${KATS_DOMAIN:?Required public DNS hostname}
+      ACME_EMAIL: ${ACME_EMAIL:?Required certificate contact email}
     ports: ["80:80", "443:443", "443:443/udp"]
     volumes:
       - ./ops/Caddyfile:/etc/caddy/Caddyfile:ro

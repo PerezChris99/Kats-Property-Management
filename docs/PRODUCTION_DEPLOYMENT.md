@@ -4,7 +4,7 @@
 
 ## Traffic flow
 
-\`\`\`mermaid
+```mermaid
 flowchart LR
   U["Staff and tenant browsers"] --> C["Caddy: public HTTPS TLS edge"]
   C -->|"/api/*"| A["Flask Gunicorn / private network"]
@@ -13,7 +13,7 @@ flowchart LR
   A --> R[("Managed Redis TLS")]
   R --> CEL["Celery workers / one scheduler"]
   CEL --> PG
-\`\`\`
+```
 
 Only the Caddy container publishes ports. Backend and frontend containers are
 private to the Compose network. This configuration intentionally requires
@@ -28,14 +28,14 @@ databases on the web node. Database migrations do NOT run on web startup.
 2. Copy .env.production.example to .env.production and replace placeholders
    using an actual secrets manager. Keep the file mode 0600 and never commit
    it. Record owner access, disaster recovery and rotation procedures.
-3. With separate DBA credentials, run \`flask --app wsgi db upgrade\` before
+3. With separate DBA credentials, run `flask --app wsgi db upgrade` before
    starting the app and seed role-permission grants. Use the restricted app
    role for HTTP and workers. Verify FORCE RLS under that role.
 4. In the prepared staging environment, run the security-preflight CLI,
    validate TLS, DNS, Cookie Secure, real client-IP propagation, DB/Redis
    health, email, role access and no HTTP direct backend exposure.
 5. Start with:
-   \`\`\`bash
+   ```bash
    cp .env.production.example .env.production
    # Replace all placeholder values first.
    export KATS_ENV_FILE=.env.production
@@ -43,7 +43,7 @@ databases on the web node. Database migrations do NOT run on web startup.
    docker compose --env-file .env.production -f compose.production.yml up --build -d
    docker compose --env-file .env.production -f compose.production.yml ps
    curl --fail --show-error https://your-approved-host/readyz
-   \`\`\`
+   ```
 6. Verify actual financial, privacy, document scan, in-person receipts,
    utility meters, rent notices, backups and rollback; only then move
    staging data and workflows toward approved production operation.
