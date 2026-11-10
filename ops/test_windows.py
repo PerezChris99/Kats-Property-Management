@@ -140,12 +140,24 @@ def config():
     env=os.environ.copy()
     env.update(POSTGRES_PASSWORD="dummy_native_only",
                KATS_E2E_SECRET_KEY=secrets.token_hex(32),
-               KATS_E2E_JWT_SECRET_KEY=secrets.token_hex(32))
+               KATS_E2E_JWT_SECRET_KEY=secrets.token_hex(32),
+               KATS_ENV_FILE="ops/production.env.sample",
+               KATS_DOMAIN="example.test",
+               ACME_EMAIL="test@example.test")
     docker=need("docker")
     for path in ("compose.verification.yml","compose.native-deps.yml","compose.e2e.yml"):
         exec_cmd([docker,"compose","-f",str(ROOT/path),"config","--quiet"],env=env)
     exec_cmd([docker,"compose","--env-file","ops/production.env.sample",
               "-f","compose.production.yml","config","--quiet"],env=env)
+    # Validate actual Nginx and Caddy syntax as in GitHub verification, using
+    # ephemeral containers with no live application network or traffic.
+    exec_cmd([docker,"run","--rm","--add-host","api:127.0.0.1",
+              "-v",str(ROOT/"frontend"/"nginx.conf")+":/etc/nginx/conf.d/default.conf:ro",
+              "nginx:stable-alpine","nginx","-t"],env=env)
+    exec_cmd([docker,"run","--rm",
+              "-v",str(ROOT/"ops"/"Caddyfile")+":/etc/caddy/Caddyfile:ro",
+              "-e","KATS_DOMAIN=example.test","-e","ACME_EMAIL=test@example.test",
+              "caddy:2-alpine","caddy","validate","--config","/etc/caddy/Caddyfile"],env=env)
 
 def smoke():
     base=os.environ.get("KATS_SMOKE_URL","http://127.0.0.1:5173").rstrip("/")

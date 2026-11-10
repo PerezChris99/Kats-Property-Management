@@ -84,3 +84,10 @@ def test_load_does_nothing_without_explicit_approval(monkeypatch):
     monkeypatch.delenv("BASE_URL",raising=False)
     with pytest.raises(runner.Failed):
         runner.load()
+
+
+def test_static_config_forces_sample_env_file_not_business_config():
+    source=(ROOT/"ops"/"test_windows.py").read_text(encoding="utf-8")
+    assert 'KATS_ENV_FILE="ops/production.env.sample"' in source
+    assert '"nginx:stable-alpine","nginx","-t"' in source
+    assert '"caddy:2-alpine","caddy","validate"' in source
