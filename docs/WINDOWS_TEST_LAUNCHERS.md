@@ -11,6 +11,19 @@ Windows 10/11, Python 3.12+, Node.js 22+, npm, Git and Docker Desktop
 internet access to install packages and Playwright Chromium. The external
 staging load test additionally needs k6.
 
+## Where the test files live
+
+All 16 `test-*.bat` launchers are in the repository's `tests/` folder.
+Do not run `test-all.bat` directly from the repository root; it no longer
+exists there. From the root, run `tests\test-all.bat` (CMD) or
+`.\tests\test-all.bat` (PowerShell). Run category scripts similarly, or
+use **Terminal → Run Task → KATS Test: ...** in VS Code. The tasks already
+target the `tests/` folder.
+
+Every launcher forwards to `ops/tests.bat`, which now resolves the exact
+Python script location from its own directory rather than the current
+working directory. Paths containing spaces are supported.
+
 ## Run every available LOCAL automated test
 
 CMD:

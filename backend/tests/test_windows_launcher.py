@@ -99,3 +99,15 @@ def test_launcher_preserves_virtualenv_and_worker_contract():
     assert '"db", "upgrade"' in source
     assert '"seed-permissions"' in source
     assert "127.0.0.1:8000" in (ROOT / "frontend" / "vite.config.js").read_text(encoding="utf-8")
+
+
+def test_windows_dispatcher_anchors_root_before_argument_handling():
+    command = (ROOT / "ops" / "launch.bat").read_text(encoding="utf-8")
+    # SHIFT with its default /0 behavior changes %0 to the first argument,
+    # so resolving %~dp0 afterward incorrectly picks the parent folder.
+    assert not any(line.strip().lower().startswith("shift") for line in command.splitlines())
+    assert 'for %%I in ("%~dp0..") do set "KATS_ROOT=%%~fI"' in command
+    assert 'set "KATS_SCRIPT=%KATS_ROOT%\\ops\\run_windows.py"' in command
+    assert '%PYTHON_CMD% "%KATS_SCRIPT%" "%ACTION%"' in command
+    assert 'if not exist "%KATS_SCRIPT%"' in command
+    assert '"%KATS_PATH_CHECK_ONLY%"=="1"' in command

@@ -109,6 +109,14 @@ frontend or backend process; stop those with Ctrl+C in their terminals.
 
 ## Troubleshooting
 
+- **`can't open file '...\\ops\\run_windows.py'` in the parent folder:**
+  This was caused by the old launcher calling `SHIFT` before using
+  `%~dp0`, making it resolve the parent of the cloned repository.
+  The dispatcher now computes its absolute path first and never shifts the
+  script name. From your existing checkout run `git pull origin main`,
+  then run `.\start.bat` again. The corrected command also works when the
+  checkout path includes spaces, such as `D:\\NEW PROJECTS\\...`.
+
 - Ports 5173 or 8000 already in use: stop the standard Docker app or the
   other Vite/Flask process before launching the native stack.
 - Ports 55432 or 56379 in use: another local program is occupying the
