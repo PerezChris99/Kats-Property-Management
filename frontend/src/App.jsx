@@ -407,6 +407,7 @@ function Portal({ user, logout }) {
                                                                 page === 'work-orders' && nav.includes(page) ? <WorkOrdersPage user={user}/> :
                                                                     page === 'settings' && nav.includes(page) ? <SettingsAdminPage /> : page === 'security' && nav.includes(page) ? <SecurityPage onSignedOut={logout}/> :
                                                                         page === 'reports' && canOperate ? <ReportsPage /> : page === 'dashboard' ? (canOperate ? <Dashboard user={user}/> : user.role === 'TENANT' ? <TenantHome /> : user.role === 'CARETAKER' ? <CaretakerHome /> : <div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>) : viewResource && nav.includes(page) ? <ResourcePage resource={viewResource} user={user}/> : <div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</Suspense></main>
+      <div className="portal-footnote"><span>© {new Date().getFullYear()} KATS Property Management</span><nav aria-label="Workspace legal and support"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/data-protection">Data protection</Link><Link to="/contact">Contact</Link></nav></div>
     </div>
   </div>;
 }
