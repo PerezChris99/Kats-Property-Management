@@ -6,7 +6,7 @@ const GROUPS = [
     { title: 'Portfolio', pages: ['properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor'] },
     { title: 'Tenancies', pages: ['tenants', 'leases', 'renewals', 'inspections', 'deposits', 'disputes', 'documents'] },
     { title: 'Finance', pages: ['invoices', 'proration', 'payments', 'mobile-money', 'receipts', 'statements', 'efris', 'expenses', 'expense-approvals'] },
-    { title: 'Operations', pages: ['maintenance', 'work-orders', 'utilities', 'assignments', 'inquiries'] },
+    { title: 'Operations', pages: ['maintenance', 'preventive-maintenance', 'work-orders', 'utilities', 'assignments', 'inquiries'] },
     { title: 'Administration', pages: ['users', 'invitations', 'permissions', 'legal', 'audit', 'settings', 'privacy-requests', 'security'] }
 ];
 const PAGE_META = {
@@ -37,6 +37,7 @@ const PAGE_META = {
     expenses: { label: 'Expenses', icon: Wallet },
     'expense-approvals': { label: 'Expense review', icon: ClipboardCheck },
     maintenance: { label: 'Maintenance', icon: Wrench },
+    'preventive-maintenance': { label: 'Maintenance plans', icon: CalendarRange },
     utilities: { label: 'Utilities', icon: Gauge },
     'work-orders': { label: 'Work orders', icon: ClipboardCheck },
     assignments: { label: 'Assignments', icon: Users },
