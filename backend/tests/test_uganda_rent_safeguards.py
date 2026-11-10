@@ -19,8 +19,10 @@ def test_one_month_deposit_cap_and_required_lease_terms(app):
     body={"room_id":room.id,"tenant_id":tenant.id,"start_date":"2026-01-01",
           "end_date":"2027-12-31","rent_ugx":150000,"deposit_ugx":150000}
     assert cli.post("/api/v1/leases",headers=csrf(cli),json={**body,"deposit_ugx":150001}).status_code==409
-    assert cli.post("/api/v1/leases",headers=csrf(cli),json={**body,"deposit_ugx":0}).status_code==400
-    assert cli.post("/api/v1/leases",headers=csrf(cli),json=body).status_code==201
+    assert cli.post("/api/v1/leases",headers=csrf(cli),json={**body,"deposit_ugx":-1}).status_code==400
+    # Uganda law caps a demanded deposit but does not require a landlord to
+    # collect one at all. Zero-deposit tenancies must remain possible.
+    assert cli.post("/api/v1/leases",headers=csrf(cli),json={**body,"deposit_ugx":0}).status_code==201
 
 def test_notice_linked_rent_increase_rejects_no_notice_and_over_cap(app):
     owner,tenant_user,room,tenant,_=fixture_records(app)

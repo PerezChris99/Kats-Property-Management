@@ -86,6 +86,8 @@ class Document(db.Model):
     filename = db.Column(db.String(255), nullable=False)
     mime_type = db.Column(db.String(100), nullable=False)
     status = db.Column(db.String(25), nullable=False, default="AWAITING_UPLOAD")
+    object_version_id = db.Column(db.String(300))
+    scan_completed_at = db.Column(db.DateTime(timezone=True))
     size_bytes = db.Column(db.BigInteger)
     checksum_sha256 = db.Column(db.String(64))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)

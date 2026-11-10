@@ -1,0 +1,64 @@
+name: kats-production
+services:
+  api:
+    build: ./backend
+    env_file: ${KATS_ENV_FILE:-.env.production}
+    restart: unless-stopped
+    expose: ["8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=4)"]
+      interval: 30s
+      timeout: 6s
+      retries: 4
+      start_period: 45s
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 1024m
+  worker:
+    build: ./backend
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=warning", "--concurrency=2"]
+    env_file: ${KATS_ENV_FILE:-.env.production}
+    restart: unless-stopped
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 1024m
+  beat:
+    build: ./backend
+    command: ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=warning"]
+    env_file: ${KATS_ENV_FILE:-.env.production}
+    restart: unless-stopped
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 512m
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    expose: ["80"]
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+  edge:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      KATS_DOMAIN: ${KATS_DOMAIN:?Required public DNS hostname}
+      ACME_EMAIL: ${ACME_EMAIL:?Required certificate contact email}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./ops/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_state:/data
+      - caddy_config:/config
+    depends_on: [api, web]
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 256m
+networks:
+  backend:
+    driver: bridge
+volumes:
+  caddy_state:
+  caddy_config:

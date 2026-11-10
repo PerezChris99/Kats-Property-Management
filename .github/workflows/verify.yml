@@ -77,3 +77,11 @@ jobs:
       - run: npm run build
       - name: Validate Nginx edge configuration
         run: docker run --rm --add-host api:127.0.0.1 -v "$PWD/nginx.conf:/etc/nginx/conf.d/default.conf:ro" nginx:stable-alpine nginx -t
+      - name: Validate production Compose manifest using dummy example values
+        run: |
+          cd ..
+          KATS_ENV_FILE=ops/production.env.sample docker compose --env-file ops/production.env.sample -f compose.production.yml config --quiet
+      - name: Validate Caddy production edge
+        run: |
+          cd ..
+          docker run --rm -v "$PWD/ops/Caddyfile:/etc/caddy/Caddyfile:ro" -e KATS_DOMAIN=example.com -e ACME_EMAIL=example@example.com caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile

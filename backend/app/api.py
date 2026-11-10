@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 import unicodedata
 from functools import wraps
 import os
@@ -9,7 +9,7 @@ from flask_jwt_extended import (
 )
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, VerificationError
-from sqlalchemy import func
+from sqlalchemy import func, case
 from sqlalchemy.exc import IntegrityError
 from .extensions import db, limiter
 from .models import (
@@ -171,6 +171,21 @@ def login():
         valid = False
     if not valid:
         return fail("Invalid email or password", 401)
+    if user.mfa_enabled:
+        from .mfa import decrypt_secret, verify_totp_code, MfaUnavailable
+        # Lock the user record so one 30-second TOTP step cannot be replayed
+        # across concurrent logins or multiple web workers.
+        user = db.session.query(User).filter_by(id=user.id).with_for_update().one()
+        code = obj.get("mfa_code")
+        if not isinstance(code, str) or not code.isdecimal() or len(code) != 6:
+            return fail("Valid authenticator code required", 401)
+        try:
+            matched = verify_totp_code(decrypt_secret(user.mfa_secret_encrypted), code)
+        except MfaUnavailable:
+            return fail("Two-factor verifier unavailable", 503)
+        if matched is None or (user.mfa_last_step is not None and matched <= user.mfa_last_step):
+            return fail("Invalid or previously used authenticator code", 401)
+        user.mfa_last_step = matched
     response = jsonify(user=serialize(user, "id", "full_name", "role"))
     claims = {"sv": user.session_version}
     refresh_token = create_refresh_token(identity=user.id, additional_claims=claims)
@@ -398,7 +413,7 @@ def add_lease(user):
     if end <= start:
         return fail("Lease end must follow start")
     rent_amount = ugx(obj.get("rent_ugx"), positive=True)
-    deposit_amount = ugx(obj.get("deposit_ugx"), positive=True)
+    deposit_amount = ugx(obj.get("deposit_ugx", 0))
     if deposit_amount > rent_amount:
         return fail("Security deposit cannot exceed one month's rent (Landlord and Tenant Act section 30)", 409)
     lease = Lease(room_id=room.id, tenant_id=tenant.id, start_date=start, end_date=end,
@@ -1121,17 +1136,26 @@ def report_arrears(user):
     from datetime import datetime
     from zoneinfo import ZoneInfo
     now = datetime.now(ZoneInfo("Africa/Kampala")).date()
-    invoices = db.session.query(Invoice).filter(
-        Invoice.due_date < now, Invoice.paid_ugx + Invoice.credit_ugx < Invoice.total_ugx,
+    # SQL GROUP BY avoids loading every arrears invoice into Python memory.
+    bucket = case(
+        (Invoice.due_date >= now - timedelta(days=30), "1_30_days"),
+        (Invoice.due_date >= now - timedelta(days=60), "31_60_days"),
+        (Invoice.due_date >= now - timedelta(days=90), "61_90_days"),
+        else_="over_90_days",
+    )
+    amounts = db.session.query(bucket.label("age_bucket"),
+        func.count(Invoice.id),
+        func.sum(Invoice.total_ugx - Invoice.credit_ugx - Invoice.paid_ugx)
+    ).filter(
+        Invoice.due_date < now,
+        Invoice.paid_ugx + Invoice.credit_ugx < Invoice.total_ugx,
         Invoice.status.in_(["ISSUED", "PARTIALLY_PAID", "OVERDUE"])
-    ).all()
+    ).group_by(bucket).all()
     buckets = {"1_30_days": 0, "31_60_days": 0, "61_90_days": 0, "over_90_days": 0}
     count = 0
-    for invoice in invoices:
-        age = (now - invoice.due_date).days
-        bucket = "1_30_days" if age <= 30 else "31_60_days" if age <= 60 else "61_90_days" if age <= 90 else "over_90_days"
-        buckets[bucket] += invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx
-        count += 1
+    for key, rows, outstanding in amounts:
+        buckets[key] = int(outstanding)
+        count += rows
     return jsonify(as_of=now.isoformat(), overdue_invoices=count,
                    total_ugx=sum(buckets.values()), ageing_ugx=buckets)
 

@@ -3,6 +3,7 @@ import { WorkspaceNavigation } from './WorkspaceNavigation';
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 const ProrationPage = lazy(() => import('./ProrationPage').then(m => ({ default: m.ProrationPage })));
 const UtilitiesPage = lazy(() => import('./UtilitiesPage').then(m => ({ default: m.UtilitiesPage })));
+const PrivacyRequestsPage = lazy(() => import('./PrivacyRequestsPage'));
 const AnnualTrendsPage = lazy(() => import('./AnnualTrendsPage').then(m => ({ default: m.AnnualTrendsPage })));
 const PortfolioEditPage = lazy(() => import('./PortfolioEditPage').then(m => ({ default: m.PortfolioEditPage })));
 const ExpenseApprovalsPage = lazy(() => import('./ExpenseApprovalsPage').then(m => ({ default: m.ExpenseApprovalsPage })));
@@ -106,6 +107,7 @@ function Login({ onSuccess }) {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [mfaCode, setMfaCode] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     async function submit(event) {
@@ -113,7 +115,7 @@ function Login({ onSuccess }) {
         setBusy(true);
         setError('');
         try {
-            const payload = await api('auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+            const payload = await api('auth/login', { method: 'POST', body: JSON.stringify({ email, password, mfa_code:mfaCode }) });
             onSuccess(payload.user);
             navigate('/dashboard');
         }
@@ -124,7 +126,7 @@ function Login({ onSuccess }) {
             setBusy(false);
         }
     }
-    return <div className="auth-layout"><div className="auth-card"><Link to="/" className="brand"><Building2 /> Kats</Link><h1>Sign in</h1><p>Secure access for authorized users.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required/></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required/></label>{error && <p role="alert" className="error">{error}</p>}<button className="button full" disabled={busy}>{busy ? 'Signing in…' : 'Continue'}</button></form><Link to="/forgot-password" className="back">Forgot your password?</Link> <Link to="/" className="back">Back to website</Link></div></div>;
+    return <div className="auth-layout"><div className="auth-card"><Link to="/" className="brand"><Building2 /> Kats</Link><h1>Sign in</h1><p>Secure access for authorized users.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required/></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required/></label><label>Authenticator code (if enabled)<input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))}/></label>{error && <p role="alert" className="error">{error}</p>}<button className="button full" disabled={busy}>{busy ? 'Signing in…' : 'Continue'}</button></form><Link to="/forgot-password" className="back">Forgot your password?</Link> <Link to="/" className="back">Back to website</Link></div></div>;
 }
 function ResourcePage({ resource, user }) {
     const [rows, setRows] = useState([]);
@@ -294,7 +296,8 @@ function ResourcePage({ resource, user }) {
         <input type="search" placeholder="Search this table" value={filter} onChange={event => setFilter(event.target.value)}/></label>
       <span aria-live="polite">{visibleRows.length} of {rows.length} loaded</span>
     </div>}
-    {loading ? <p role="status" className="data-loading">Loading records…</p> : rows.length === 0 ? <div className="empty"><h2>No records yet</h2><p>Authorized records will appear here after they are created.</p></div> : visibleRows.length === 0 ? <div className="empty"><h2>No matching records</h2><p>Clear the filter to see the loaded records.</p><button type="button" className="outline-button" onClick={() => setFilter('')}>Clear filter</button></div> : <div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col => <th key={col}>{col.replaceAll('_', ' ')}</th>)}{resource.path === 'payments' && canWrite && <th>Review</th>}{(resource.path === 'payments' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) || resource.path === 'invoices' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) || resource.path === 'caretaker/rooms' || resource.path === 'caretaker/assignments' || resource.path === 'admin/users') && <th>Actions</th>}</tr></thead><tbody>{visibleRows.map((item, i) => <tr key={String(item.id || i)}>{resource.columns.map(col => <td key={col}><DataCell column={col} value={item[col]}/></td>)}{resource.path === 'payments' && canWrite && <td>{item.status === 'PENDING_REVIEW' ? <button className="outline-button" disabled={busy} onClick={() => approve(String(item.id))}>Approve*</button> : <span>—</span>}</td>}
+    {loading ? <p role="status" className="data-loading">Loading records…</p> : rows.length === 0 ? <div className="empty"><h2>No records yet</h2><p>Authorized records will appear here after they are created.</p></div> : visibleRows.length === 0 ? <div className="empty"><h2>No matching records</h2><p>Clear the filter to see the loaded records.</p><button type="button" className="outline-button" onClick={() => setFilter('')}>Clear filter</button></div> : <div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col => <th key={col}>{col.replaceAll('_', ' ')}</th>)}{resource.path === 'payments' && <th>Cash receipt</th>}{resource.path === 'payments' && canWrite && <th>Review</th>}{(resource.path === 'payments' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) || resource.path === 'invoices' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) || resource.path === 'caretaker/rooms' || resource.path === 'caretaker/assignments' || resource.path === 'admin/users') && <th>Actions</th>}</tr></thead><tbody>{visibleRows.map((item, i) => <tr key={String(item.id || i)}>{resource.columns.map(col => <td key={col}><DataCell column={col} value={item[col]}/></td>)}{resource.path === 'payments' && <td>{item.method === 'CASH' && ['PENDING_REVIEW','RECONCILED','REVERSED'].includes(item.status) ?
+        <a className="outline-button" href={'/api/v1/payments/' + encodeURIComponent(String(item.id)) + '/cash-acknowledgement.pdf'}>Written cash receipt</a> : '—'}</td>}{resource.path === 'payments' && canWrite && <td>{item.status === 'PENDING_REVIEW' ? <button className="outline-button" disabled={busy} onClick={() => approve(String(item.id))}>Approve*</button> : <span>—</span>}</td>}
     {resource.path === 'payments' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) && <td>{item.status === 'RECONCILED' ? <button className="outline-button" disabled={busy} onClick={() => financeAction('payments/' + String(item.id) + '/reverse')}>Reverse</button> : '—'}</td>}
     {resource.path === 'invoices' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) && <td>{item.status === 'ISSUED' && Number(item.paid_ugx) === 0 ? <button className="outline-button" disabled={busy} onClick={() => financeAction('invoices/' + String(item.id) + '/void')}>Void</button> : '—'}</td>}
     {resource.path === 'caretaker/rooms' && <td><button className="outline-button" disabled={busy} onClick={() => caretakerRoomStatus(String(item.id), 'MAINTENANCE')}>Needs repair</button> <button className="outline-button" disabled={busy} onClick={() => caretakerRoomStatus(String(item.id), 'CLEANING')}>Cleaning</button></td>}
@@ -311,7 +314,7 @@ function ResourcePage({ resource, user }) {
         <button className="outline-button" type="button" disabled={loading || page >= 200 || (total !== null ? page * pageSize >= total : rows.length < pageSize)} onClick={() => setPage(p => p + 1)}>Next</button>
       </div>
     </div>}
-    {resource.path === 'payments' && <p className="note">*Approval requires another staff member to verify source evidence. Approval credits the invoice; authorized owners or accountants can post an auditable accounting reversal. Reversal never automatically refunds cash.</p>}
+    {resource.path === 'payments' && <p className="note">*Cash collections have a written custody receipt immediately, even before independent verification. The official URA EFRIS fiscal document is separate. Approval requires another staff member to verify source evidence. Approval credits the invoice; authorized owners or accountants can post an auditable accounting reversal. Reversal never automatically refunds cash.</p>}
     <p className="note">Access is enforced by the server. Search filters this page only; use Previous / Next to browse more records.</p></section>;
 }
 function Dashboard({ user }) {
@@ -376,7 +379,7 @@ function Portal({ user, logout }) {
     const location = useLocation();
     const page = location.pathname.slice(1);
     const canOperate = roles.includes(user.role);
-    const nav = canOperate ? ['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'expenses', 'expense-approvals', 'reports', 'trends', 'statements', 'receipts', 'mobile-money', 'efris', 'inspections', 'renewals', 'deposits', 'work-orders', 'documents', 'notifications', 'security', ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' ? ['settings'] : []), ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' ? ['users', 'invitations', 'permissions', 'legal', 'audit', 'inquiries'] : []), ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' || user.role === 'MANAGER' ? ['assignments'] : [])] : user.role === 'CARETAKER' ? ['dashboard', 'rooms', 'payments', 'utilities', 'maintenance', 'work-orders', 'inspections', 'documents', 'notifications', 'security', 'receipts'] : ['dashboard', 'invoices', 'payments', 'utilities', 'statements', 'receipts', 'deposits', 'maintenance', 'inspections', 'documents', 'mobile-money', 'notifications', 'security'];
+    const nav = canOperate ? ['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'expenses', 'expense-approvals', 'reports', 'trends', 'statements', 'receipts', 'mobile-money', 'efris', 'inspections', 'renewals', 'deposits', 'work-orders', 'documents', 'notifications', 'privacy-requests', 'security', ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' ? ['settings'] : []), ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' ? ['users', 'invitations', 'permissions', 'legal', 'audit', 'inquiries'] : []), ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' || user.role === 'MANAGER' ? ['assignments'] : [])] : user.role === 'CARETAKER' ? ['dashboard', 'rooms', 'payments', 'utilities', 'maintenance', 'work-orders', 'inspections', 'documents', 'notifications', 'privacy-requests', 'security', 'receipts'] : ['dashboard', 'invoices', 'payments', 'utilities', 'statements', 'receipts', 'deposits', 'maintenance', 'inspections', 'documents', 'mobile-money', 'notifications', 'privacy-requests', 'security'];
     const viewResource = user.role === 'CARETAKER' ? CARETAKER_RESOURCES[page] : RESOURCES[page];
     const pageTitle = page.replaceAll('-', ' ').replace(/^./, c => c.toUpperCase());
     return <div className="portal">
@@ -395,6 +398,7 @@ function Portal({ user, logout }) {
       <main className="portal-content" key={page}><Suspense fallback={<p className="data-loading" role="status">Opening workspace…</p>}>{page === 'more' ? <section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key => <Link key={key} to={'/' + key}>{key[0].toUpperCase() + key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section> : page === 'statements' && nav.includes(page) ? (user.role === 'TENANT' ? <TenantStatementSelfPage /> : <TenantStatementsPage />) :
             page === 'receipts' && nav.includes(page) ? <ReceiptsPage /> :
                 page === 'utilities' && nav.includes(page) ? <UtilitiesPage role={user.role}/> :
+                page === 'privacy-requests' && nav.includes(page) ? <PrivacyRequestsPage role={user.role}/> :
                 page === 'notifications' && nav.includes(page) ? <NotificationsPage /> : page === 'inspections' && nav.includes(page) ? <InspectionsPage user={user}/> :
                     page === 'mobile-money' && nav.includes(page) ? <MobileMoneyPage /> : page === 'efris' && nav.includes(page) ? <FiscalPage /> :
                         page === 'documents' && nav.includes(page) ? <DocumentsPage /> : page === 'legal' && nav.includes(page) ? <LegalAdminPage /> :
@@ -437,7 +441,7 @@ export default function App() {
     <Route path="/features" element={<TextPage title="Features" body="Manage units, leases, invoices, verified manual payments, maintenance and expenses. MTN/Airtel and EFRIS require provider verification." user={user} logout={logout}/>}/>
     <Route path="/contact" element={<ContactPage />}/>
     {['privacy', 'terms', 'cookies', 'refund'].map(slug => <Route key={slug} path={'/' + slug} element={<PublicLegalPage slug={slug}/>}/>)}
-    {['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'expenses', 'expense-approvals', 'reports', 'trends', 'statements', 'receipts', 'users', 'invitations', 'permissions', 'assignments', 'notifications', 'inspections', 'renewals', 'deposits', 'work-orders', 'settings', 'mobile-money', 'efris', 'documents', 'legal', 'audit', 'inquiries', 'security', 'more'].map(path => <Route key={path} path={'/' + path} element={user ? <Portal user={user} logout={logout}/> : <Navigate to="/login" replace/>}/>)}
+    {['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'expenses', 'expense-approvals', 'reports', 'trends', 'statements', 'receipts', 'users', 'invitations', 'permissions', 'assignments', 'notifications', 'inspections', 'renewals', 'deposits', 'work-orders', 'settings', 'mobile-money', 'efris', 'documents', 'legal', 'audit', 'inquiries', 'privacy-requests', 'security', 'more'].map(path => <Route key={path} path={'/' + path} element={user ? <Portal user={user} logout={logout}/> : <Navigate to="/login" replace/>}/>)}
     {['dashboard', 'payments', 'invoices', 'receipts', 'maintenance', 'lease', 'profile'].map(path => <Route key={'tenant-' + path} path={'/tenant/' + path} element={<Navigate to={path === 'lease' ? '/dashboard' : path === 'profile' ? '/security' : '/' + path} replace/>}/>)}
     {['dashboard', 'rooms', 'maintenance', 'inspections', 'payments', 'profile'].map(path => <Route key={'caretaker-' + path} path={'/caretaker/' + path} element={<Navigate to={path === 'profile' ? '/security' : '/' + path} replace/>}/>)}
     {['users', 'roles', 'permissions', 'integrations', 'efris', 'payments', 'audit-logs', 'legal-pages', 'system-settings'].map(path => <Route key={'admin-' + path} path={'/admin/' + path} element={<Navigate to={path === 'audit-logs' ? '/audit' : path === 'legal-pages' ? '/legal' : path === 'system-settings' ? '/security' :

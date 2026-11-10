@@ -29,21 +29,19 @@ def add_notification(user_id, kind, title, body, key, channel="IN_APP"):
 def rent_reminder_run(today=None):
     today = today or datetime.now(KAMPALA).date()
     checked, created = 0, 0
-    invoices = db.session.query(Invoice).filter(
+    # Join the account and stream in batches instead of two lookups per invoice.
+    invoices = db.session.query(Invoice, User).join(
+        Tenant, Invoice.tenant_id == Tenant.id).join(
+        User, Tenant.user_id == User.id).filter(
+        User.is_active.is_(True),
         Invoice.status.in_(["ISSUED", "PARTIALLY_PAID", "OVERDUE"]),
         Invoice.paid_ugx + Invoice.credit_ugx < Invoice.total_ugx,
         Invoice.due_date >= today - timedelta(days=30),
         Invoice.due_date <= today + timedelta(days=7)
-    ).all()
-    for invoice in invoices:
+    ).yield_per(200)
+    for invoice, user in invoices:
         days = (today - invoice.due_date).days
         if days not in REMINDER_AGE_DAYS:
-            continue
-        tenant = db.session.get(Tenant, invoice.tenant_id)
-        if not tenant or not tenant.user_id:
-            continue
-        user = db.session.get(User, tenant.user_id)
-        if not user or not user.is_active:
             continue
         checked += 1
         remaining = invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx
@@ -65,18 +63,17 @@ def rent_reminder_run(today=None):
 
 def expiring_lease_run(today=None):
     today = today or datetime.now(KAMPALA).date()
-    leases = db.session.query(Lease).filter(Lease.status == "ACTIVE",
-        Lease.end_date >= today, Lease.end_date <= today + timedelta(days=30)).all()
+    leases = db.session.query(Lease, User).join(
+        Tenant, Lease.tenant_id == Tenant.id).join(
+        User, Tenant.user_id == User.id).filter(
+        User.is_active.is_(True),
+        Lease.status == "ACTIVE",
+        Lease.end_date >= today, Lease.end_date <= today + timedelta(days=30)
+    ).yield_per(200)
     count = 0
-    for lease in leases:
+    for lease, user in leases:
         left = (lease.end_date - today).days
         if left not in (30,14,7,1,0):
-            continue
-        tenant = db.session.get(Tenant, lease.tenant_id)
-        if not tenant or not tenant.user_id:
-            continue
-        user = db.session.get(User, tenant.user_id)
-        if not user or not user.is_active:
             continue
         _, added = add_notification(user.id, "LEASE_EXPIRY", "Lease expiring",
             f"Your current lease expires in {left} day(s). Contact your manager to discuss renewal.",

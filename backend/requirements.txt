@@ -17,3 +17,4 @@ httpx>=0.27,<1
 
 reportlab>=4.2,<5
 XlsxWriter>=3.2,<4
+cryptography>=44,<49

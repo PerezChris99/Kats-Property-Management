@@ -16,6 +16,7 @@ from .extra_models import Document
 
 documents_api = Blueprint("documents", __name__)
 from .document_rls import begin_document_scope, clear_document_scope
+from .malware_scan import scan_bytes, file_magic_matches, ScanUnavailable
 documents_api.before_request(begin_document_scope)
 documents_api.teardown_request(clear_document_scope)
 ALLOWED_MIMES = {"application/pdf", "image/jpeg", "image/png", "image/webp"}
@@ -134,9 +135,31 @@ def complete_document(doc_id):
         return fail("Upload has not been confirmed by object storage", 409)
     if info.get("ContentLength") != doc.size_bytes or info.get("ContentType", "").lower() != doc.mime_type:
         return fail("Stored file size or type differs from signed policy", 409)
-    doc.status = "UPLOADED"
-    audit(user, "document.complete", "document", doc.id)
+    version_id = info.get("VersionId")
+    if not version_id or not isinstance(version_id, str):
+        return fail("Private document storage must use immutable S3 object versioning", 503)
+    try:
+        stored = client.get_object(Bucket=bucket, Key=doc.object_key, VersionId=version_id)
+        if stored.get("ContentLength") != doc.size_bytes or stored.get("ContentType","").lower() != doc.mime_type:
+            return fail("Uploaded object version differs from signed upload", 409)
+        # Bound memory and guarantee scan verdict refers to the immutable
+        # version subsequently used for presigned downloads.
+        blob = stored["Body"].read(MAX_BYTES+1)
+        if len(blob) != doc.size_bytes:
+            return fail("Document size changed during verification", 409)
+        magic_valid = file_magic_matches(doc.mime_type, blob)
+        verdict = scan_bytes(blob) if magic_valid else "INFECTED"
+    except ScanUnavailable:
+        return fail("Document scanner unavailable. Upload is not approved; retry verification", 503)
+    except Exception:
+        return fail("Unable to verify private document contents", 503)
+    doc.object_version_id = version_id
+    doc.scan_completed_at = datetime.now(timezone.utc)
+    doc.status = "UPLOADED" if verdict == "CLEAN" else "QUARANTINED"
+    audit(user, "document.scan_verified", "document", doc.id, result=verdict)
     db.session.commit()
+    if verdict != "CLEAN":
+        return fail("Document rejected by security inspection", 409)
     return jsonify(document=serialize(doc, "id", "status"))
 
 @documents_api.get("/documents")
@@ -164,14 +187,17 @@ def list_documents():
 def document_download(doc_id):
     user = current_user()
     doc = db.session.get(Document, doc_id)
-    if not doc or not can_access(user, doc) or doc.status != "UPLOADED":
+    if (not doc or not can_access(user, doc) or doc.status != "UPLOADED"
+            or not doc.scan_completed_at or not doc.object_version_id):
         abort(404)
     client, bucket = storage()
     if client is None:
         return fail("Storage unavailable", 503)
     try:
         url = client.generate_presigned_url("get_object", Params={
-            "Bucket":bucket, "Key":doc.object_key, "ResponseContentDisposition":"attachment"
+            "Bucket":bucket, "Key":doc.object_key,
+            "VersionId":doc.object_version_id,
+            "ResponseContentDisposition":"attachment"
         }, ExpiresIn=60)
     except Exception:
         return fail("Unable to authorize download", 503)

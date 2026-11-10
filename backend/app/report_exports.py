@@ -108,6 +108,45 @@ def statement_pdf(tenant_id):
       footer="Internal statement. Not a URA tax invoice or official fiscal receipt.")
     return file_response(pdf,"application/pdf","kats-tenant-statement.pdf")
 
+@report_api.get("/payments/<payment_id>/cash-acknowledgement.pdf")
+@jwt_required()
+def cash_custody_acknowledgement(payment_id):
+    """Written in-person cash custody receipt, NOT a URA fiscal receipt.
+
+    Required at intake while the independent finance reviewer still has to
+    verify the underlying money and reconcile the invoice.
+    """
+    user=current_user()
+    payment=db.session.get(Payment,payment_id)
+    if not payment or payment.method!="CASH" or payment.status not in (
+            "PENDING_REVIEW","RECONCILED","REVERSED"):
+        abort(404)
+    invoice=db.session.get(Invoice,payment.invoice_id)
+    if not invoice: abort(404)
+    if user.role=="TENANT":
+        linked=db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
+        if not linked or linked!=invoice.tenant_id:abort(404)
+    elif user.role=="CARETAKER":
+        if payment.created_by!=user.id:abort(404)
+    elif user.role not in STAFF:abort(403)
+    tenant=db.session.get(Tenant,invoice.tenant_id)
+    cashier=db.session.get(User,payment.created_by)
+    state=("Cash received, awaiting independent accounting review" if payment.status=="PENDING_REVIEW"
+           else "Cash receipt subsequently reversed: INVALID" if payment.status=="REVERSED"
+           else "Cash received and reconciled")
+    pdf=pdf_document("Kats · Written cash receipt",[
+        "Cash receipt number: KATS-CASH-"+payment.id[:12].upper(),
+        "Tenant: "+(tenant.full_name if tenant else "Unknown"),
+        "Cash receiving staff: "+(cashier.full_name if cashier else payment.created_by),
+        "Amount physically received: "+money(payment.amount_ugx),
+        "Invoice: "+invoice.invoice_number,
+        "Rent/charge period: "+invoice.period_start.isoformat()+" to "+invoice.period_end.isoformat(),
+        "Cash recorded at: "+payment.created_at.isoformat(),
+        "Review status: "+state],
+        footer="Acknowledgement of cash custody only. Not a URA EFRIS e-receipt or fiscal invoice. The landlord must issue any required official tax document separately.")
+    return file_response(pdf,"application/pdf","kats-cash-acknowledgement.pdf")
+
+
 @report_api.get("/receipts/<payment_id>.pdf")
 @jwt_required()
 def receipt_pdf(payment_id):

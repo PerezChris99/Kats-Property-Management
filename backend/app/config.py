@@ -54,6 +54,8 @@ def validate_production_config():
         raise RuntimeError("Production rate limiting requires Redis; memory storage is not safe across workers")
     if os.getenv("RATELIMIT_ENABLED", "true").lower() == "false":
         raise RuntimeError("Production cannot disable API rate limiting")
+    if os.getenv("S3_BUCKET") and (not os.getenv("CLAMAV_HOST") or not os.getenv("S3_ENDPOINT_URL")):
+        raise RuntimeError("Production document storage requires a private ClamAV scanner and S3 endpoint")
     if os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true" and os.getenv("APP_BEHIND_TRUSTED_PROXY", "false").lower() != "true":
         raise RuntimeError("Only trust X-Forwarded headers behind a verified and sanitizing reverse proxy")
     try:

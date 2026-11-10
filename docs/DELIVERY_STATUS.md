@@ -1,6 +1,6 @@
 # Kats Property Management — truthful implementation and acceptance register
 
-**Updated:** November 9, 2026. Code is built around Flask/React/PostgreSQL and a single Ugandan property business. Implementation is reviewed against supplied blueprints, but **neither production deployment nor 100% correctness has been certified**.
+**Updated:** November 10, 2026. Code is built around Flask/React/PostgreSQL and a single Ugandan property business. Implementation is reviewed against supplied blueprints, but **neither production deployment nor 100% correctness has been certified**.
 
 | Scope | Implementation in source | Validation and remaining dependency |
 |---|---|---|
@@ -9,8 +9,8 @@
 | Roles | Server role ceilings, stored grant matrix, seed-permissions CLI, owner/superadmin permission editor | Whole-endpoint object-level penetration matrix and policy/tenant ownership verification |
 | Property portfolio | Properties, buildings, floors, room placement, bounded search, auditable editing of listing/property metadata; backward-compatible legacy rooms | Owner-reviewed actual portfolio records, comprehensive archival/merge policies and multi-device UAT |
 | Tenant onboarding | Owner invitations instead of emailed passwords, tenant user linking, scoped tenant account, private documents | Active mail provider, verified account ownership, actual legacy data import |
-| Leases and inspection | Lease creation, renewals, effective-dated rent, scoped inspections, termination safeguards | Signed-lease terms, inspection photo/evidence storage, owner acceptance |
-| Rent billing | Monthly idempotent full-month invoicing, line items, credit notes, manual proration preview and confirmed issuance | Lease-specific calendar-day policy approval, edge-case UAT and payment-provider acceptance |
+| Leases and inspection | Lease creation, renewals, default 60-day rent increase notice records, ≤10% annual increase policy, optional deposit up to one month, scoped inspections | Contract exception review, legal service proof, signed tenancy agreements, real owner/tenant acceptance |
+| Rent billing | Monthly idempotent full-month invoicing in 100-lease batches, nonoverlapping rent lines, credit notes, proration and corrected tenant balances | Advanced advance-rent allocations, approved terms, fiscal settlement and real accountant UAT |
 | Collection ledger | Two-person manual approval, verified-provider posting, reversal events and PostgreSQL append-only guard | Real bank evidence and reconciliations, production-provider webhook/settlement cases |
 | Deposit records | Idempotent hold/refund/withhold with secondary review and move-out inspection checks | Bank payout/disbursement rails, settlement evidence and governing deposit policy |
 | MTN/Airtel | Disabled-by-default initiation/status adapters, independent amount/currency/reference checks, retry polling | Merchant onboarding, validated official Airtel profile schema, sandbox/live settlement tests |
@@ -18,11 +18,15 @@
 | Expenses | Pending, independent approval/rejection/reversal, append-only expense event history; legacy expenses flagged REVIEW_REQUIRED | Supplier evidence, real bank disbursement checks and account-owner UAT |
 | Reporting | Invoice cohort, arrears, PDFs/XLSX/CSV, annual verified-settlement, invoicing and approved-cost charts | Real financial-statement reconciliation, historical migration, detailed accountant signoff |
 | Maintenance | Caretaker scoping, job statuses, work orders, costs and repair record | Contractor/payee acceptance and evidence |
-| Documents | Tenant-scoped presigned S3-compatible private files and downloads | S3-compatible storage, CORS, anti-malware validation, data retention/legal approval |
+| Documents | Tenant-scoped presigned S3-compatible private files, signed immutable object versions, MIME magic and ClamAV fail-closed scan before download | Real private S3 versioning and ClamAV, independent scanner tests, retention/legal approval |
 | Messages | In-app alerts and scheduled reminders, resilient record model | SMS/email provider handoff and verified delivery, template/privacy consent |
-| Admin/marketing | Role permissions, security settings, versioned/publishable legal notices, demo inquiry inbox | Approved legal wording, email and production oversight |
+| Admin/marketing | Role permissions, TOTP opt-in MFA, encrypted authenticator secrets, personal-data access/correction/erasure triage, versioned legal pages, demo inquiry inbox | MFA enrollment/recovery and privacy-registration procedures, approved wording, provider oversight |
 | Testing | Current Python tests, frontend JavaScript lint and API regression tests, React JSX production build, PostgreSQL 16 migration round-trip, PostgreSQL concurrency and audit-trigger tests | Comprehensive external E2E, security/load tests, mobile/iOS/Android devices and genuine UAT |
-| Release | Development work committed to perez and PR-reviewed into main after green checks | Never release/deploy without full signoffs |
+| Release | JSX-only frontend; Caddy HTTPS/isolated production Compose + separate managed PostgreSQL/Redis packaging, CI syntax validation | Not deployed; DNS, mail, storage, backups, fiscal/payment integrations and production acceptance remain |
+
+| Utility management | Water/electricity meters, integer consumption snapshots, caretaker readings, independent invoice approval and tenant-scoped visibility | Meter photo evidence, tariffs/contract review, shared-utility policies, field UAT |
+| Receipts | Written cash custody receipt available before independent settlement; internal non-fiscal acknowledgements | Printer/on-site delivery acceptance and official URA fiscal receipt integration |
+| Privacy | Owner-managed user requests for access, correction, erasure, restriction and objection | Approved PDPO processes, lawful identity validation, responses and any lawful deletion |
 
 ## Security baseline and known limitations
 
@@ -56,3 +60,14 @@ the actual public ingress, provision independent Redis limiter storage,
 benchmark p95/p99 latency and PostgreSQL connections with realistic data,
 review all endpoint authorization cases, verify restore/monitoring/alerts,
 and commission a penetration test. See docs/PRODUCTION_SECURITY.md.
+
+
+## Additional verified source implementation — November 10
+
+See [UGANDA_AUTOPILOT_REGISTER.md](UGANDA_AUTOPILOT_REGISTER.md) for exact
+code-only completions and the remaining operator/provider dependencies.
+The repository is **not certified** under OWASP ASVS or ISO 27001. MFA
+enrollment is opt-in until every required operator actually activates it.
+The production container definition is a *deployable configuration*, not
+proof of actual DNS, TLS, managed services or go-live. Legacy unscanned
+document objects remain inaccessible until verified.

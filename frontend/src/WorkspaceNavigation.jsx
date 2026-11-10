@@ -7,7 +7,7 @@ const GROUPS = [
     { title: 'Tenancies', pages: ['tenants', 'leases', 'renewals', 'inspections', 'deposits', 'documents'] },
     { title: 'Finance', pages: ['invoices', 'proration', 'payments', 'mobile-money', 'receipts', 'statements', 'efris', 'expenses', 'expense-approvals'] },
     { title: 'Operations', pages: ['maintenance', 'work-orders', 'utilities', 'assignments', 'inquiries'] },
-    { title: 'Administration', pages: ['users', 'invitations', 'permissions', 'legal', 'audit', 'settings', 'security'] }
+    { title: 'Administration', pages: ['users', 'invitations', 'permissions', 'legal', 'audit', 'settings', 'privacy-requests', 'security'] }
 ];
 const PAGE_META = {
     dashboard: { label: 'Dashboard', icon: LayoutDashboard },
@@ -46,6 +46,7 @@ const PAGE_META = {
     legal: { label: 'Legal pages', icon: BookOpen },
     audit: { label: 'Audit log', icon: FileClock },
     settings: { label: 'Settings', icon: Settings2 },
+    'privacy-requests': { label: 'Privacy requests', icon: FileClock },
     security: { label: 'Security', icon: ShieldCheck }
 };
 function labelFor(key) {
