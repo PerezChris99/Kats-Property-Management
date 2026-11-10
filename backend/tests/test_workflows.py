@@ -34,7 +34,7 @@ def test_manual_payment_requires_separate_approval_and_is_idempotent(app):
     assert tenant_response.status_code == 201
     lease_response = writer.post("/api/v1/leases", headers=headers, json={
         "room_id": room_id, "tenant_id": tenant_response.json["tenant"]["id"],
-        "start_date": "2026-11-01", "end_date": "2027-01-01", "rent_ugx": 250000
+        "start_date": "2026-11-01", "end_date": "2027-01-01", "rent_ugx": 250000, "deposit_ugx": 250000
     })
     assert lease_response.status_code == 201, lease_response.json
     invoice_response = writer.post("/api/v1/invoices", headers=headers, json={
