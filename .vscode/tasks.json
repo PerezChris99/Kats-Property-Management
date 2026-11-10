@@ -78,6 +78,25 @@
       }
     },
     {
+      "label": "KATS: Isolated six-role browser E2E",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/ops/dev.ps1",
+        "-Action",
+        "browser-full"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
       "label": "KATS: Full local acceptance",
       "type": "shell",
       "command": "powershell",

@@ -60,7 +60,7 @@ Or choose **Terminal → Run Task → KATS: Full local acceptance**. This execut
 | Backend | Python pytest suite plus Flask compilation | SQLite fixtures and isolated test PostgreSQL |
 | PostgreSQL | Full Alembic upgrade, restricted document RLS, concurrent financial posting | **Disposable test-db/kats_ci only** |
 | HTTP | Landing availability, SQL readiness, unauthenticated access denial | Read-only |
-| Browser | Chromium public navigation, 360/768/1440 viewport, protected route redirects and API security | Read-only |
+| Browser | Chromium public navigation, 360/768/1440 viewport, private route redirects, six real test-role sessions | Separate disposable Compose stack |
 | Optional roles | Authenticated owner portal navigation when E2E test credentials provided | Read-only; local credentials only |
 
 Only `test-db` is deleted/recreated for the PostgreSQL suite; it uses an
@@ -109,7 +109,30 @@ the Docker web service before starting the native Vite dev server on 5173.
 Vite's default dev proxy is not configured in this repository; prefer Docker's
 integrated Nginx app for cross-layer browser acceptance.
 
-## 4. Authenticated, non-destructive browser testing
+## 4. Fully isolated six-role browser acceptance
+
+The **recommended real-browser test** starts a separate Docker Compose project
+with temporary PostgreSQL/Redis and its own localhost-only browser port. It
+generates fresh random secrets and creates six synthetic local accounts:
+OWNER, SUPER_ADMIN, MANAGER, ACCOUNTANT, CARETAKER and TENANT. These accounts
+are linked to a sample fictional rental, invoice and maintenance ticket.
+
+~~~powershell
+.\ops\dev.ps1 -Action browser-full
+~~~
+
+This exercises responsive public pages, API protections, session login and
+role-specific portals at **http://localhost:5174** without requiring any real
+business credentials. The whole E2E environment is removed after the test,
+with no test data left in the normal application's database. The E2E database
+uses PostgreSQL tmpfs and has no published port.
+
+Use VS Code **Terminal → Run Task → KATS: Isolated six-role browser E2E**.
+The full command `.\ops\dev.ps1 -Action all` includes this isolated test.
+
+## 5. Optional tests against your existing local accounts
+
+
 
 By default the browser suite runs without staff credentials. To enable role-scoped
 navigation coverage, set **local** process environment variables in the VS Code
@@ -140,7 +163,7 @@ Use **local disposable accounts**, never live users' passwords. Tests currently
 verify basic portal navigation, not every create/update/delete transaction.
 Those mutations must be approved and tested separately on an isolated dataset.
 
-## 5. Manual role-based acceptance matrix
+## 6. Manual role-based acceptance matrix
 
 Record actual evidence for each role in a local issue/test record. Do not
 write private data or passwords into Git.
@@ -164,7 +187,7 @@ For each workflow exercise good input, invalid input, empty state, duplicates,
 concurrency, reconnection, role denial, pagination, keyboard/mobile layout,
 timezones, and eventual reversal where legally permitted.
 
-## 6. Gates that local tests CANNOT close
+## 7. Gates that local tests CANNOT close
 
 The current application still lacks or has unverified code for contract
 signature/delivery proof, advance-rent and multi-invoice allocation, full

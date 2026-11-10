@@ -1,7 +1,7 @@
 # KATS local development and verification, designed for VS Code integrated terminals.
 # Never executes destructive commands against the operational 'db' service.
 param(
-    [ValidateSet('help','setup','start','owner','test','smoke','browser','all','status','logs','stop')]
+    [ValidateSet('help','setup','start','owner','test','smoke','browser','browser-full','all','status','logs','stop')]
     [string]$Action = 'help'
 )
 Set-StrictMode -Version Latest
@@ -105,6 +105,42 @@ function Test-LocalBrowser {
     & $command @prefix -m pytest -v ops/test_browser_e2e.py
     if ($LASTEXITCODE -ne 0) { throw 'Real-browser end-to-end smoke tests failed.' }
 }
+function Test-IsolatedSixRoleBrowser {
+    Test-Docker
+    $saved = @{}
+    function Set-Temporary([string]$name, [string]$value) {
+        $saved[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+        [Environment]::SetEnvironmentVariable($name, $value, 'Process')
+    }
+    $compose = @('compose', '-p', 'kats-e2e', '-f', 'compose.e2e.yml')
+    Set-Temporary 'KATS_E2E_SECRET_KEY' (New-RandomSecret)
+    Set-Temporary 'KATS_E2E_JWT_SECRET_KEY' (New-RandomSecret)
+    $password = New-RandomSecret
+    Set-Temporary 'KATS_BASE_URL' 'http://localhost:5174'
+    foreach ($role in @('OWNER','SUPER_ADMIN','MANAGER','ACCOUNTANT','CARETAKER','TENANT')) {
+        Set-Temporary ('KATS_E2E_' + $role + '_EMAIL') ($role.ToLower() + '@e2e.kats.test')
+        Set-Temporary ('KATS_E2E_' + $role + '_PASSWORD') $password
+        Set-Temporary ('KATS_E2E_' + $role + '_TOTP') ''
+    }
+    try {
+        Write-Host 'Starting isolated browser E2E stack on localhost:5174.'
+        Invoke-Docker ($compose + @('down','--remove-orphans'))
+        Invoke-Docker ($compose + @('up','--build','-d','--wait'))
+        Invoke-Docker ($compose + @('exec','-T','api','python','-m','flask','--app','wsgi','db','upgrade'))
+        Invoke-Docker ($compose + @('exec','-T','api','python','-m','flask','--app','wsgi','seed-permissions'))
+        Invoke-Docker ($compose + @('exec','-T','-e',"KATS_E2E_PASSWORD=$password",
+            'api','python','tests/seed_e2e.py'))
+        Test-LocalBrowser
+    } finally {
+        try { Invoke-Docker ($compose + @('down','--remove-orphans')) }
+        finally {
+            foreach ($name in $saved.Keys) {
+                [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process')
+            }
+        }
+    }
+}
+
 Push-Location $Root
 try {
     switch ($Action) {
@@ -114,7 +150,8 @@ try {
         'test' { Test-LocalStack }
         'smoke' { Test-LocalSmoke }
         'browser' { Test-LocalBrowser }
-        'all' { Start-LocalStack; Test-LocalStack; Test-LocalSmoke; Test-LocalBrowser }
+        'browser-full' { Test-IsolatedSixRoleBrowser }
+        'all' { Start-LocalStack; Test-LocalStack; Test-LocalSmoke; Test-IsolatedSixRoleBrowser }
         'status' { Test-Docker; Invoke-Docker @('compose','ps') }
         'logs' { Test-Docker; Invoke-Docker @('compose','logs','--follow','--tail','100','api','web','worker','beat') }
         'stop' { Test-Docker; Invoke-Docker @('compose','down'); Write-Host 'Application stopped. Database volumes were preserved.' }
@@ -124,7 +161,8 @@ try {
             Write-Host '  .\ops\dev.ps1 -Action start     # build/start/migrate/seed + live smoke'
             Write-Host '  .\ops\dev.ps1 -Action owner     # create initial owner interactively'
             Write-Host '  .\ops\dev.ps1 -Action test      # frontend, backend, disposable PostgreSQL'
-            Write-Host '  .\ops\dev.ps1 -Action browser   # Playwright Chromium real-browser checks'
+            Write-Host '  .\ops\dev.ps1 -Action browser   # Playwright against local app'
+            Write-Host '  .\ops\dev.ps1 -Action browser-full   # Disposable six-role E2E stack'
             Write-Host '  .\ops\dev.ps1 -Action all       # start + every automatic local check'
             Write-Host '  .\ops\dev.ps1 -Action logs|status|stop'
         }
