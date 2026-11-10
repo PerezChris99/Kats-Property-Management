@@ -66,6 +66,7 @@ def test_vacancy_metrics_and_tenant_credit_balance(app):
     ]);db.session.commit()
     dash=auth_client(app,owner).get("/api/v1/dashboard")
     assert dash.status_code==200
+    assert dash.json["rooms"]==4  # Archived inventory is not an active rentable unit.
     assert dash.json["vacant_rooms"]==1
     assert dash.json["reserved_rooms"]==1
     assert dash.json["unavailable_rooms"]==1

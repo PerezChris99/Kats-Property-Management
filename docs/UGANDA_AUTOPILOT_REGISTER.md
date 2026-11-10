@@ -20,6 +20,8 @@ contract, actual hosting, or real business signoff has been completed.
 | Private files | Content signature check, private ClamAV scan, S3 version pinning, quarantine/unavailable fail-closed state; scanner/storage infrastructure unverified |
 | Performance | Source query indexes, bounded pagination, billing transaction batches, SQL arrears aggregation, optimized reminder joins, JSX lazy routes and Nginx edge caching |
 | Deployment packaging | Isolated internal containers, public Caddy TLS edge, managed PostgreSQL/Redis dependency declaration, placeholder environment template; CI validates configuration |
+| Rental disputes | Tenant/landlord dispute case register, written chronological events, controlled staff status decisions, history available for former tenants, role-scoped case access |
+| Preventive maintenance | Recurring room plans, pause/restart/retire workflow, idempotent daily Celery creation of a normal maintenance ticket, caretaker-scoped plan history |
 
 ## Remaining code work for full commercial feature completeness
 
@@ -28,10 +30,13 @@ contract, actual hosting, or real business signoff has been completed.
 2. Periodic/weekly tenancy terms, lawful rent in advance, prepaid balances,
    overpayments, tenant transfers, service-charge agreement records and
    multi-invoice payment allocation.
-3. Full move-out and dispute flow including ordinary-wear-and-tear policy,
-   evidence review, objection windows and independent resolution.
-4. Contractor bids, purchase orders, approved vendor/payee registry, recurrent
-   preventive maintenance and building safety schedules.
+3. Full move-out settlement and independent dispute resolution including
+   ordinary-wear-and-tear policy, signed photographic evidence, objection
+   deadlines, external escalation and legally effective remedies. An initial
+   tenant-visible dispute record and internal status history now exist.
+4. Contractor bids, purchase orders, approved vendor/payee registry, full
+   asset inventory and legally required building-safety certification.
+   Basic recurring preventive maintenance schedules now exist.
 5. Meter tariff history, shared-utility allocation, prepaid vendor token
    reconciliation, meter photo evidence and disputed reading corrections.
 6. Full agency owner registry, management contracts, owner-scoped portals,

@@ -362,7 +362,7 @@ The current security baseline and its limits are documented in the [production s
 
 ### 2026-11-10 rental operations and security upgrade
 
-The app now provides configurable room water/electricity meter records with
+The app now provides tenant-visible rental disputes and repeatable preventive maintenance plans, alongside configurable room water/electricity meter records with
 independently approved invoice charges, Uganda default rent-increase notice
 records, protection against overlapping rent invoices, zero-to-one-month
 security deposit safeguards, improved tenant balances, printable in-person

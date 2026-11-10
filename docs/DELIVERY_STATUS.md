@@ -17,7 +17,7 @@
 | URA EFRIS | Durable fiscal outbox with retry, adapter contract and verified fiscal-response requirements | **Taxpayer-specific URA certified connector/signing**, fiscal credit-note requirements and test taxpayer |
 | Expenses | Pending, independent approval/rejection/reversal, append-only expense event history; legacy expenses flagged REVIEW_REQUIRED | Supplier evidence, real bank disbursement checks and account-owner UAT |
 | Reporting | Invoice cohort, arrears, PDFs/XLSX/CSV, annual verified-settlement, invoicing and approved-cost charts | Real financial-statement reconciliation, historical migration, detailed accountant signoff |
-| Maintenance | Caretaker scoping, job statuses, work orders, costs and repair record | Contractor/payee acceptance and evidence |
+| Maintenance | Caretaker scoping, job statuses, work orders, basic recurring plans, idempotent daily scheduled tickets and costs | Contractor/payee verification, safety inspection regulations and field acceptance |
 | Documents | Tenant-scoped presigned S3-compatible private files, signed immutable object versions, MIME magic and ClamAV fail-closed scan before download | Real private S3 versioning and ClamAV, independent scanner tests, retention/legal approval |
 | Messages | In-app alerts and scheduled reminders, resilient record model | SMS/email provider handoff and verified delivery, template/privacy consent |
 | Admin/marketing | Role permissions, TOTP opt-in MFA, encrypted authenticator secrets, personal-data access/correction/erasure triage, versioned legal pages, demo inquiry inbox | MFA enrollment/recovery and privacy-registration procedures, approved wording, provider oversight |
@@ -27,6 +27,7 @@
 | Utility management | Water/electricity meters, integer consumption snapshots, caretaker readings, independent invoice approval and tenant-scoped visibility | Meter photo evidence, tariffs/contract review, shared-utility policies, field UAT |
 | Receipts | Written cash custody receipt available before independent settlement; internal non-fiscal acknowledgements | Printer/on-site delivery acceptance and official URA fiscal receipt integration |
 | Privacy | Owner-managed user requests for access, correction, erasure, restriction and objection | Approved PDPO processes, lawful identity validation, responses and any lawful deletion |
+| Tenant disputes | Role-scoped rental complaints, chronological comments, owner/manager internal resolutions, written reopening history | Independent dispute adjudication, legal remedies, notice service, evidence files and owner acceptance |
 
 ## Security baseline and known limitations
 
