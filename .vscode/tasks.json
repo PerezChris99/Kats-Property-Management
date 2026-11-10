@@ -172,6 +172,96 @@
         "reveal": "always",
         "panel": "dedicated"
       }
+    },
+    {
+      "label": "KATS: Native start (BAT)",
+      "type": "shell",
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "call \"${workspaceFolder}\\start.bat\""
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "KATS: Native frontend (BAT)",
+      "type": "shell",
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "call \"${workspaceFolder}\\start-frontend.bat\""
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "KATS: Native backend (BAT)",
+      "type": "shell",
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "call \"${workspaceFolder}\\start-backend.bat\""
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "KATS: Native create owner (BAT)",
+      "type": "shell",
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "call \"${workspaceFolder}\\create-owner.bat\""
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "KATS: Native stop dependencies (BAT)",
+      "type": "shell",
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "call \"${workspaceFolder}\\stop.bat\""
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
     }
   ]
 }

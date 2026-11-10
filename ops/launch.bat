@@ -26,7 +26,7 @@ if not defined PYTHON_CMD (
   popd
   exit /b 1
 )
-%PYTHON_CMD% "ops\run_windows.py" "%ACTION%" %*
+%PYTHON_CMD% "ops\run_windows.py" "%ACTION%"
 set "CODE=%ERRORLEVEL%"
 popd
 endlocal & exit /b %CODE%

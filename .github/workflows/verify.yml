@@ -36,7 +36,7 @@ jobs:
           APP_ENV: testing
       - run: python -m compileall -q app
       - name: Compile optional browser and test database harness
-        run: cd .. && python -m py_compile ops/test_browser_e2e.py backend/tests/prepare_postgres.py backend/tests/seed_e2e.py
+        run: cd .. && python -m py_compile ops/test_browser_e2e.py ops/run_windows.py backend/tests/prepare_postgres.py backend/tests/seed_e2e.py
       - run: python -m flask --app wsgi db upgrade
         env:
           APP_ENV: testing
