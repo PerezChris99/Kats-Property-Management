@@ -193,7 +193,7 @@ def test_windows_vscode_tasks_use_argument_safe_process_invocation():
     relevant=[t for t in tasks if t.get("type") == "process"
               and (t.get("label","").startswith("KATS: Native ")
                    or t.get("label","").startswith("KATS Test:"))]
-    assert len(relevant)==21
+    assert len(relevant)==22
     targets=set()
     for task in relevant:
         assert task["type"]=="process"
@@ -205,6 +205,7 @@ def test_windows_vscode_tasks_use_argument_safe_process_invocation():
         targets.add(task["args"][6])
         assert not any("call " in arg for arg in task["args"])
     assert "frontend" in targets and "backend-stack" in targets
+    assert "setup" in targets
     assert "test-all" in targets and "test-security" in targets
     script=(ROOT/"ops"/"vscode_task.ps1").read_text(encoding="utf-8")
     assert "[ValidateSet(" in script

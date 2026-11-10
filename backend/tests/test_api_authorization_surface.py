@@ -9,6 +9,7 @@ PUBLIC={
  ("POST","/api/v1/auth/recover"),
  ("POST","/api/v1/auth/complete-token"),
  ("POST","/api/v1/public/contact-requests"),
+ ("POST","/api/v1/public/access-requests"),
 }
 
 def test_protected_api_methods_fail_closed_for_anonymous(app):
