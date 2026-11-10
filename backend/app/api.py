@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 import unicodedata
 from functools import wraps
 import os
@@ -9,7 +9,7 @@ from flask_jwt_extended import (
 )
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, VerificationError
-from sqlalchemy import func
+from sqlalchemy import func, case
 from sqlalchemy.exc import IntegrityError
 from .extensions import db, limiter
 from .models import (
@@ -1121,17 +1121,26 @@ def report_arrears(user):
     from datetime import datetime
     from zoneinfo import ZoneInfo
     now = datetime.now(ZoneInfo("Africa/Kampala")).date()
-    invoices = db.session.query(Invoice).filter(
-        Invoice.due_date < now, Invoice.paid_ugx + Invoice.credit_ugx < Invoice.total_ugx,
+    # SQL GROUP BY avoids loading every arrears invoice into Python memory.
+    bucket = case(
+        (Invoice.due_date >= now - timedelta(days=30), "1_30_days"),
+        (Invoice.due_date >= now - timedelta(days=60), "31_60_days"),
+        (Invoice.due_date >= now - timedelta(days=90), "61_90_days"),
+        else_="over_90_days",
+    )
+    amounts = db.session.query(bucket.label("age_bucket"),
+        func.count(Invoice.id),
+        func.sum(Invoice.total_ugx - Invoice.credit_ugx - Invoice.paid_ugx)
+    ).filter(
+        Invoice.due_date < now,
+        Invoice.paid_ugx + Invoice.credit_ugx < Invoice.total_ugx,
         Invoice.status.in_(["ISSUED", "PARTIALLY_PAID", "OVERDUE"])
-    ).all()
+    ).group_by(bucket).all()
     buckets = {"1_30_days": 0, "31_60_days": 0, "61_90_days": 0, "over_90_days": 0}
     count = 0
-    for invoice in invoices:
-        age = (now - invoice.due_date).days
-        bucket = "1_30_days" if age <= 30 else "31_60_days" if age <= 60 else "61_90_days" if age <= 90 else "over_90_days"
-        buckets[bucket] += invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx
-        count += 1
+    for key, rows, outstanding in amounts:
+        buckets[key] = int(outstanding)
+        count += rows
     return jsonify(as_of=now.isoformat(), overdue_invoices=count,
                    total_ugx=sum(buckets.values()), ageing_ugx=buckets)
 
