@@ -18,6 +18,9 @@ def app():
         yield application
         db.session.remove()
         db.drop_all()
+        # Python 3.14 warns when SQLite connections are garbage collected
+        # without close(). Dispose the test-only engine after each test.
+        db.engine.dispose()
 
 @pytest.fixture()
 def client(app):
