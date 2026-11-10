@@ -219,7 +219,7 @@ jobs:
             # with path-only mode preventing services or test suite execution.
             $tasks = (Get-Content (Join-Path $repo '.vscode/tasks.json') -Raw | ConvertFrom-Json).tasks
             $targets = @($tasks | Where-Object { $_.type -eq 'process' -and ($_.label -like 'KATS: Native *' -or $_.label -like 'KATS Test:*') })
-            if ($targets.Count -ne 21) { throw "Expected 21 process tasks, got $($targets.Count)" }
+            if ($targets.Count -ne 22) { throw "Expected 22 process tasks, got $($targets.Count)" }
             foreach ($task in $targets) {
               $taskArgs = @($task.args | ForEach-Object { $_.Replace('${workspaceFolder}', $repo) })
               Write-Host "Checking VS Code task: $($task.label)"
