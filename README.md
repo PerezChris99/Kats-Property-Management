@@ -207,6 +207,22 @@ The frontend menu does **not** grant authorization. The backend enforces role ce
 
 **Design language:** midnight navy, sky blue, whitesmoke, carefully restrained warm yellow; legible type, clean data hierarchy, mobile navigation, keyboard search, short transitions, and reduced-motion support.
 
+## Native Windows launcher — CMD and PowerShell
+
+From the repository root, use **start.bat** in CMD or **.\start.bat** in PowerShell.
+This builds React first, prepares the root Python .venv, installs backend dependencies,
+runs Flask migrations, then starts Vite, Flask, Celery worker and scheduler in the
+**same VS Code integrated terminal**. Docker Desktop supplies only a separate
+localhost PostgreSQL/Redis dependency pair; no external terminal windows.
+
+Individual files: **start-frontend.bat**, **start-backend.bat**,
+**create-owner.bat**, **stop.bat**. See the
+[Windows batch launcher guide](docs/WINDOWS_BATCH_LAUNCHERS.md).
+
+**Do not run the standard Docker application and native launcher together:**
+both would claim ports 5173 and 8000. Native mode never uses the operational
+database; it generates ignored .env.native credentials and stores development
+records in a dedicated kats_native PostgreSQL volume. Live providers are disabled.
 ## 6. Quick start
 
 ### Prerequisites
