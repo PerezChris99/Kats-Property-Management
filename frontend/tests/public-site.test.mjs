@@ -56,7 +56,7 @@ test('legal pages have publication precedence and avoid claims of certification'
   }
   assert.ok(ui.includes('published ?'));
   assert.ok(ui.includes('operator/legal review'));
-  assert.ok(legal.includes('not KATS customer results'));
+  assert.ok(legal.includes('not measured KATS customer outcomes'));
 });
 test('sign in still uses backend login and MFA without nonfunctional social sign-in buttons', () => {
   const app = read('src/App.jsx');
