@@ -11,7 +11,7 @@ KATS is a mobile-first management application for **one property-management busi
 > [!IMPORTANT]
 > **Release status: implementation is not production acceptance.** Automated backend, frontend, and PostgreSQL checks exist. MTN/Airtel money settlement, URA EFRIS fiscal documents, production storage, email/SMS providers, HostWares deployment, legal approval, and customer/device testing still need independent validation. Successful CI does not authorize processing live money.
 
-[Architecture](docs/ARCHITECTURE.md) · [React JSX guide](docs/FRONTEND_JSX.md) · [Production security](docs/PRODUCTION_SECURITY.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [HostWares deployment](docs/HOSTWARES_DEPLOYMENT.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
+[Architecture](docs/ARCHITECTURE.md) · [React JSX guide](docs/FRONTEND_JSX.md) · [Production security](docs/PRODUCTION_SECURITY.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [Production deployment](docs/PRODUCTION_DEPLOYMENT.md) · [Uganda implementation register](docs/UGANDA_AUTOPILOT_REGISTER.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
 
 ---
 
@@ -358,3 +358,18 @@ The current security baseline and its limits are documented in the [production s
 ---
 
 **KATS Property Management** · Owned exclusively by **Kats Properties**. © 2026 Kats Properties. All rights reserved.
+
+
+### 2026-11-10 rental operations and security upgrade
+
+The app now provides configurable room water/electricity meter records with
+independently approved invoice charges, Uganda default rent-increase notice
+records, protection against overlapping rent invoices, zero-to-one-month
+security deposit safeguards, improved tenant balances, printable in-person
+cash custody acknowledgements, opt-in encrypted TOTP MFA, personal-data
+request review, and security-scanned, version-pinned private document
+downloads (only with approved S3/ClamAV infrastructure). Production Compose
+and a Caddy TLS edge are packaged but **not deployed**.
+
+See [Uganda implementation/remaining-work register](docs/UGANDA_AUTOPILOT_REGISTER.md).
+No live payment provider or URA EFRIS connection is represented as verified.
