@@ -112,8 +112,8 @@ jobs:
 
   windows-launcher-paths:
     # On Windows, SHIFT can alter %0 and break nested batch-file root paths.
-    # Run only on PRs to avoid running extra Windows minutes on every push.
-    if: github.event_name == 'pull_request'
+    # Run on PRs or an explicitly marked push; conserve Windows CI minutes.
+    if: github.event_name == 'pull_request' || contains(github.event.head_commit.message, '[windows-task-check]')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
