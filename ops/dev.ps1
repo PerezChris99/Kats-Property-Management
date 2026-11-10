@@ -90,21 +90,26 @@ function Test-LocalSmoke {
     Write-Host 'Live HTTP smoke checks PASSED: frontend, database readiness, anonymous-access denial.'
 }
 function Test-LocalBrowser {
-    $py = Get-Command py -ErrorAction SilentlyContinue
-    if ($py) {
-        $command = 'py'
-        $prefix = @('-3.12')
-    } elseif (Get-Command python -ErrorAction SilentlyContinue) {
-        $command = 'python'
-        $prefix = @()
-    } else { throw 'Python 3.12+ is required for local Playwright browser testing.' }
-    & $command @prefix -m pip install -r ops/browser-requirements.txt
-    if ($LASTEXITCODE -ne 0) { throw 'Browser test dependency install failed.' }
-    & $command @prefix -m playwright install chromium
+    # Install browser dependencies in the project's .venv, never global Python.
+    $venvPython = Join-Path $Root '.venv\Scripts\python.exe'
+    if (-not (Test-Path $venvPython)) {
+        if (Get-Command py -ErrorAction SilentlyContinue) {
+            & py -3.12 -m venv (Join-Path $Root '.venv')
+        } elseif (Get-Command python -ErrorAction SilentlyContinue) {
+            & python -m venv (Join-Path $Root '.venv')
+        } else { throw 'Python 3.12+ is required for browser tests.' }
+        if ($LASTEXITCODE -ne 0) { throw 'Could not create project .venv.' }
+    }
+    & $venvPython -c 'import sys; assert sys.version_info >= (3,12)'
+    if ($LASTEXITCODE -ne 0) { throw 'Project .venv requires Python 3.12+.' }
+    & $venvPython -m pip install -r ops/browser-requirements.txt
+    if ($LASTEXITCODE -ne 0) { throw 'Browser test dependency installation failed.' }
+    & $venvPython -m playwright install chromium
     if ($LASTEXITCODE -ne 0) { throw 'Chromium installation failed.' }
-    & $command @prefix -m pytest -v ops/test_browser_e2e.py
-    if ($LASTEXITCODE -ne 0) { throw 'Real-browser end-to-end smoke tests failed.' }
+    & $venvPython -m pytest -v ops/test_browser_e2e.py
+    if ($LASTEXITCODE -ne 0) { throw 'Browser E2E tests failed.' }
 }
+
 function Test-IsolatedSixRoleBrowser {
     Test-Docker
     $saved = @{}

@@ -4,12 +4,14 @@
 
 > Unauthorized copying, distribution, hosting, resale, or reuse is prohibited without written permission from Kats Properties. Available legal remedies, including claims for damages, depend on applicable law; this notice does not create automatic charges. See [LICENSE](LICENSE) and [NOTICE](NOTICE.md).
 
-**A unified platform for rental properties, tenants, verified collections, maintenance, and financial oversight in Uganda.**
+**KATS Property Management belongs exclusively to Kats Properties.** This proprietary application supports Kats Properties' rental operations in Uganda, including tenants, verified collections, maintenance, and financial oversight.
 
-KATS is a mobile-first management application for **one property-management business** (not a multi-tenant SaaS platform). It brings everyday rental operations into one accountable workspace. Monetary amounts are represented as whole **Ugandan shillings (UGX)**.
+KATS is a mobile-first property management application **owned by Kats Properties** and designed for its own business (not a multi-tenant SaaS platform). It brings everyday rental operations into one accountable workspace. Monetary amounts are represented as whole **Ugandan shillings (UGX)**.
 
 > [!IMPORTANT]
 > **Release status: implementation is not production acceptance.** Automated backend, frontend, and PostgreSQL checks exist. MTN/Airtel money settlement, URA EFRIS fiscal documents, production storage, email/SMS providers, HostWares deployment, legal approval, and customer/device testing still need independent validation. Successful CI does not authorize processing live money.
+
+**Automated testing on Windows:** Run `test-all.bat` in CMD or `.\test-all.bat` in PowerShell to execute the full local suite. Every test category also has its own `test-*.bat` launcher. See [Windows testing instructions](docs/WINDOWS_TEST_LAUNCHERS.md). External staging load is approval-gated.
 
 [Architecture](docs/ARCHITECTURE.md) · [React JSX guide](docs/FRONTEND_JSX.md) · [Production security](docs/PRODUCTION_SECURITY.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [Production deployment](docs/PRODUCTION_DEPLOYMENT.md) · [Uganda implementation register](docs/UGANDA_AUTOPILOT_REGISTER.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
 
