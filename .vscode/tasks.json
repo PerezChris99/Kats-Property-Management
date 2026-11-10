@@ -270,7 +270,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-all.bat\""
+        "call \"${workspaceFolder}\\tests\\test-all.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -288,7 +288,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-frontend.bat\""
+        "call \"${workspaceFolder}\\tests\\test-frontend.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -306,7 +306,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-frontend-unit.bat\""
+        "call \"${workspaceFolder}\\tests\\test-frontend-unit.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -324,7 +324,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-lint.bat\""
+        "call \"${workspaceFolder}\\tests\\test-lint.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -342,7 +342,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-build.bat\""
+        "call \"${workspaceFolder}\\tests\\test-build.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -360,7 +360,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-backend.bat\""
+        "call \"${workspaceFolder}\\tests\\test-backend.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -378,7 +378,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-api.bat\""
+        "call \"${workspaceFolder}\\tests\\test-api.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -396,7 +396,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-security.bat\""
+        "call \"${workspaceFolder}\\tests\\test-security.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -414,7 +414,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-database.bat\""
+        "call \"${workspaceFolder}\\tests\\test-database.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -432,7 +432,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-migrations.bat\""
+        "call \"${workspaceFolder}\\tests\\test-migrations.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -450,7 +450,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-performance.bat\""
+        "call \"${workspaceFolder}\\tests\\test-performance.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -468,7 +468,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-e2e.bat\""
+        "call \"${workspaceFolder}\\tests\\test-e2e.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -486,7 +486,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-smoke.bat\""
+        "call \"${workspaceFolder}\\tests\\test-smoke.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -504,7 +504,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-config.bat\""
+        "call \"${workspaceFolder}\\tests\\test-config.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -522,7 +522,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-coverage.bat\""
+        "call \"${workspaceFolder}\\tests\\test-coverage.bat\""
       ],
       "problemMatcher": [],
       "options": {
@@ -540,7 +540,7 @@
       "args": [
         "/d",
         "/c",
-        "call \"${workspaceFolder}\\test-load.bat\""
+        "call \"${workspaceFolder}\\tests\\test-load.bat\""
       ],
       "problemMatcher": [],
       "options": {

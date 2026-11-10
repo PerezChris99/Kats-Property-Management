@@ -11,7 +11,7 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 > [!IMPORTANT]
 > **Release status: implementation is not production acceptance.** Automated backend, frontend, and PostgreSQL checks exist. MTN/Airtel money settlement, URA EFRIS fiscal documents, production storage, email/SMS providers, HostWares deployment, legal approval, and customer/device testing still need independent validation. Successful CI does not authorize processing live money.
 
-**Automated testing on Windows:** Run `test-all.bat` in CMD or `.\test-all.bat` in PowerShell to execute the full local suite. Every test category also has its own `test-*.bat` launcher. See [Windows testing instructions](docs/WINDOWS_TEST_LAUNCHERS.md). External staging load is approval-gated.
+**Automated testing on Windows:** Run `tests\test-all.bat` in CMD or `.\tests\test-all.bat` in PowerShell to execute the full local suite. Every test category also has its own `tests\test-*.bat` launcher. See [Windows testing instructions](docs/WINDOWS_TEST_LAUNCHERS.md). External staging load is approval-gated.
 
 [Architecture](docs/ARCHITECTURE.md) · [React JSX guide](docs/FRONTEND_JSX.md) · [Production security](docs/PRODUCTION_SECURITY.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [Production deployment](docs/PRODUCTION_DEPLOYMENT.md) · [Uganda implementation register](docs/UGANDA_AUTOPILOT_REGISTER.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
 
