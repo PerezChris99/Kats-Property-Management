@@ -109,3 +109,35 @@ jobs:
         run: |
           cd ..
           docker run --rm -v "$PWD/ops/Caddyfile:/etc/caddy/Caddyfile:ro" -e KATS_DOMAIN=example.com -e ACME_EMAIL=example@example.com caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+
+  windows-launcher-paths:
+    # On Windows, SHIFT can alter %0 and break nested batch-file root paths.
+    # Run only on PRs to avoid running extra Windows minutes on every push.
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: 'Kats Property Management'
+      - name: Smoke-check startup and tests batch dispatch with spaces in checkout path
+        shell: pwsh
+        env:
+          KATS_PATH_CHECK_ONLY: '1'
+        run: |
+          $repo = Join-Path $env:GITHUB_WORKSPACE 'Kats Property Management'
+          Push-Location $repo
+          try {
+            & cmd.exe /d /c 'call start.bat'
+            if ($LASTEXITCODE -ne 0) { throw 'start.bat root dispatch failed' }
+            & cmd.exe /d /c 'call tests\test-all.bat'
+            if ($LASTEXITCODE -ne 0) { throw 'tests\test-all.bat root dispatch failed' }
+            & cmd.exe /d /c 'call tests\test-security.bat'
+            if ($LASTEXITCODE -ne 0) { throw 'tests\test-security.bat root dispatch failed' }
+            Push-Location (Join-Path $repo 'frontend')
+            try {
+              & cmd.exe /d /c '..\start.bat'
+              if ($LASTEXITCODE -ne 0) { throw 'start.bat nested dispatch failed' }
+              & cmd.exe /d /c '..\tests\test-all.bat'
+              if ($LASTEXITCODE -ne 0) { throw 'tests\test-all.bat nested dispatch failed' }
+            } finally { Pop-Location }
+          } finally { Pop-Location }

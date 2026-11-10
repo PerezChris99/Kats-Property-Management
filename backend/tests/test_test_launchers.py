@@ -101,3 +101,21 @@ def test_vscode_test_tasks_resolve_to_tests_folder():
     assert len(names) == len(EXPECTED)
     for task in names:
         assert any("\\tests\\test-" in arg for arg in task["args"])
+
+
+def test_test_dispatcher_resolves_absolute_path_from_ops_directory():
+    command=(ROOT / "ops" / "tests.bat").read_text(encoding="utf-8")
+    assert not any(line.strip().lower().startswith("shift") for line in command.splitlines())
+    assert 'for %%I in ("%~dp0..") do set "KATS_ROOT=%%~fI"' in command
+    assert 'set "KATS_SCRIPT=%KATS_ROOT%\\ops\\test_windows.py"' in command
+    assert '%PYTHON_CMD% "%KATS_SCRIPT%" "%ACTION%"' in command
+    assert 'if not exist "%KATS_SCRIPT%"' in command
+
+
+def test_all_command_examples_use_the_tests_folder():
+    readme=(ROOT / "README.md").read_text(encoding="utf-8")
+    guide=(ROOT / "docs" / "WINDOWS_TEST_LAUNCHERS.md").read_text(encoding="utf-8")
+    assert r".\tests\test-all.bat" in readme
+    assert r".\tests\test-all.bat" in guide
+    assert not (ROOT / "test-all.bat").exists()
+    assert (ROOT / "tests" / "README.md").exists()
