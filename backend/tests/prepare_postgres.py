@@ -19,4 +19,10 @@ with psycopg.connect(normalized) as connection:
     connection.execute("GRANT USAGE ON SCHEMA public TO kats_rls_test")
     connection.execute("GRANT SELECT ON documents TO kats_rls_test")
     connection.execute("GRANT SELECT ON caretaker_assignments TO kats_rls_test")
+    # The non-owner role exercises real FORCE RLS, not table-owner bypass.
+    connection.execute(
+        "GRANT SELECT ON tenants, leases, invoices, payments, "
+        "maintenance_requests, notifications TO kats_rls_test"
+    )
+    connection.execute("GRANT UPDATE (full_name) ON tenants TO kats_rls_test")
 print("Isolated kats_ci PostgreSQL RLS test role ready.")
