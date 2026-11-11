@@ -1,6 +1,7 @@
 import logging
 import os
 import secrets
+import time
 from urllib.parse import urlparse
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask import Flask, jsonify, request, abort
@@ -107,10 +108,17 @@ def create_app(test_config=None):
     def health():
         return jsonify(status="ok")
 
+    # Health probes and the frontend are high-fanout. Avoid one SELECT 1
+    # per browser per poll; the readiness cache is worker-local and bounded.
+    readiness = {"last_ok_until": 0.0}
+
     @app.get("/readyz")
     @limiter.exempt
     def ready():
-        db.session.execute(text("SELECT 1"))
+        now = time.monotonic()
+        if now >= readiness["last_ok_until"]:
+            db.session.execute(text("SELECT 1"))
+            readiness["last_ok_until"] = now + 3.0
         return jsonify(status="ready")
 
     from . import models  # noqa: F401
