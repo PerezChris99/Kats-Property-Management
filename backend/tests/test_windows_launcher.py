@@ -124,9 +124,11 @@ def test_split_windows_terminal_command_produces_two_side_by_side_panes():
     assert cmd.count("--title")==2 and cmd.count("--startingDirectory")==2
     parts=[cmd[i+1] for i,x in enumerate(cmd[:-1]) if x=="/k"]
     assert len(parts)==2
-    assert 'start-frontend.bat' in parts[0]
-    assert '"'+str(ROOT/"Kats Property Management"/"start-frontend.bat")+'"' in parts[0]
-    assert 'launch.bat' in parts[1] and 'backend-stack' in parts[1]
+    assert 'launch.bat' in parts[0] and 'backend-stack' in parts[0]
+    assert '"'+str(ROOT/"Kats Property Management"/"ops"/"launch.bat")+'"' in parts[0]
+    assert 'start-frontend.bat' in parts[1]
+    assert 'set "KATS_FAST_START=1"' in (ROOT/"start.bat").read_text(encoding="utf-8")
+    assert 'set "KATS_FAST_START=1"' in (ROOT/"start-frontend.bat").read_text(encoding="utf-8")
 
 
 def test_backend_stack_starts_its_own_celery_worker_beat_and_schedule_directory():
@@ -156,7 +158,7 @@ def test_vscode_uses_parallel_background_tasks_in_one_split_terminal_group():
     byname={task["label"]:task for task in tasks}
     master=byname["KATS: Native start (split in VS Code)"]
     assert master["dependsOrder"]=="parallel"
-    assert master["dependsOn"]==["KATS: Native frontend (BAT)","KATS: Native backend stack (BAT)"]
+    assert master["dependsOn"]==["KATS: Native backend stack (BAT)","KATS: Native frontend (BAT)"]
     front=byname["KATS: Native frontend (BAT)"]
     back=byname["KATS: Native backend stack (BAT)"]
     assert front["args"][-1] == "frontend"
@@ -168,6 +170,13 @@ def test_vscode_uses_parallel_background_tasks_in_one_split_terminal_group():
         assert task["problemMatcher"][0]["background"]["activeOnStart"]
         assert task["problemMatcher"][0]["background"]["endsPattern"] == r"^\[READY\]"
     assert front["isBackground"] and back["isBackground"]
+    # Each task is a separate native process; neither has a build/setup dependency.
+    assert front["options"]["env"]["KATS_FAST_START"]=="1"
+    assert back["options"]["env"]["KATS_FAST_START"]=="1"
+    assert front["presentation"]["focus"] is True
+    assert back["presentation"]["focus"] is False
+    assert all(t["presentation"]["panel"]=="dedicated" for t in (front, back))
+
     # VS Code rejects the former pattern {"regexp":"a^"}: it had no file,
     # line or message groups and could prevent every dependent task starting.
     import re
@@ -180,7 +189,7 @@ def test_vscode_uses_parallel_background_tasks_in_one_split_terminal_group():
                    for key in ("file", "line", "message"))
         assert matcher["background"]["activeOnStart"]
         assert re.compile(matcher["background"]["endsPattern"]).search("[READY] React")
-    assert front["presentation"]["group"]==back["presentation"]["group"]=="kats-native-split"
+    assert front["presentation"]["group"]==back["presentation"]["group"]=="kats-dev-parallel"
     assert front["presentation"]["panel"]==back["presentation"]["panel"]=="dedicated"
 
 
@@ -190,13 +199,11 @@ def test_vscode_command_palette_start_dev_entry_is_discoverable():
     aliases=[task for task in tasks if task.get("label")=="KATS: Start Dev (Frontend + Backend)"]
     assert len(aliases)==1
     alias=aliases[0]
-    assert alias["type"]=="process"
-    assert alias["args"][-1]=="start"
-    assert alias["command"]=="powershell.exe"
+    assert "type" not in alias
+    assert alias["dependsOrder"]=="parallel"
+    assert alias["dependsOn"]==["KATS: Native backend stack (BAT)","KATS: Native frontend (BAT)"]
     assert alias["problemMatcher"]==[]
-    assert not alias.get("isBackground")
-    assert "dependsOn" not in alias
-    assert "Docker-free" in alias["detail"]
+    assert "LEFT" in alias["detail"] and "RIGHT" in alias["detail"]
 
 
 def test_windows_vscode_tasks_use_argument_safe_process_invocation():
@@ -316,7 +323,7 @@ def test_native_tasks_hide_docker_only_commands_and_keep_valid_start_stop():
     for retired in ("KATS: Setup","KATS: Start app","KATS: Logs",
                     "KATS: Full local acceptance"):
         assert retired not in by_label, "Docker-only task is not a native startup"
-    assert by_label["KATS: Start Dev (Frontend + Backend)"]["args"][-1]=="start"
+    assert by_label["KATS: Start Dev (Frontend + Backend)"]["dependsOrder"]=="parallel"
     assert by_label["KATS: Stop (preserve database)"]["args"][-1]=="stop"
     assert by_label["KATS: Native setup (database + build)"]["args"][-1]=="setup"
     assert by_label["KATS: Verify frontend ↔ backend ↔ database"]["args"][-1]=="doctor"

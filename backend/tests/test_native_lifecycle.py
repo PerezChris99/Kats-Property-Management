@@ -263,3 +263,95 @@ def test_combined_launch_starts_missing_backend_when_react_already_running(monke
                         lambda name, command, **kwargs: (started.append(name) or (name, FakeProc())))
     native.launch("start")
     assert started == ["prepare Flask", "Flask"]
+
+
+
+def test_fast_frontend_fails_immediately_without_vite_and_never_calls_install(monkeypatch, tmp_path):
+    monkeypatch.setattr(native, "FRONT", tmp_path / "frontend")
+    monkeypatch.setattr(native, "require", lambda command: "node.exe")
+    monkeypatch.setattr(native.subprocess, "run",
+                        lambda *_a, **_kw: SimpleNamespace(returncode=0, stdout="20"))
+    monkeypatch.setattr(native, "invoke",
+                        lambda *_a, **_kw: (_ for _ in ()).throw(AssertionError("No npm ci during dev startup")))
+    with pytest.raises(native.StartupError, match="Vite is not installed"):
+        native.ready_frontend()
+    vite = tmp_path / "frontend" / "node_modules" / "vite" / "bin" / "vite.js"
+    vite.parent.mkdir(parents=True)
+    vite.write_text("/* vite executable */", encoding="utf-8")
+    assert native.ready_frontend() == "node.exe"
+
+
+def test_fast_backend_does_not_run_migrations_or_pip(monkeypatch, tmp_path):
+    monkeypatch.setattr(native, "VENV", tmp_path / ".venv")
+    monkeypatch.setattr(native, "STATE", tmp_path / ".local")
+    python = tmp_path / ".venv" / "Scripts" / "python.exe"
+    python.parent.mkdir(parents=True)
+    python.write_bytes(b"stub python")
+    monkeypatch.setattr(native.subprocess, "run",
+                        lambda *_a, **_kw: SimpleNamespace(returncode=0))
+    monkeypatch.setattr(native, "invoke",
+                        lambda *_a, **_kw: (_ for _ in ()).throw(AssertionError("No setup during dev startup")))
+    with pytest.raises(native.StartupError, match="not initialized"):
+        native.ready_backend("preview")
+    database = tmp_path / ".local" / "kats-preview.sqlite3"
+    database.parent.mkdir(parents=True)
+    database.write_bytes(b"existing local database")
+    assert native.ready_backend("preview") == python
+
+
+def test_fast_start_launches_frontend_without_waiting_for_flask(monkeypatch):
+    started = []
+    monkeypatch.setenv("KATS_FAST_START", "1")
+    monkeypatch.setattr(native, "config", lambda: {"KATS_LOCAL_ONLY": "1"})
+    monkeypatch.setattr(native, "environment", lambda *_a, **_kw: {})
+    monkeypatch.setattr(native, "existing_kats_service", lambda kind: False)
+    monkeypatch.setattr(native, "ready_frontend", lambda: started.append("Vite checked"))
+    monkeypatch.setattr(native, "frontend",
+                        lambda **_kw: (_ for _ in ()).throw(AssertionError("npm install forbidden")))
+    monkeypatch.setattr(native, "backend",
+                        lambda: (_ for _ in ()).throw(AssertionError("backend shouldn't run in UI task")))
+    monkeypatch.setattr(native, "reachable",
+                        lambda url: url == "http://127.0.0.1:5173/")
+    monkeypatch.setattr(native, "verify_http_bridge",
+                        lambda: (_ for _ in ()).throw(AssertionError("No Flask yet")))
+    stops = iter([False, True])
+    monkeypatch.setattr(native, "stop_requested", lambda *_a: next(stops))
+    monkeypatch.setattr(native, "require", lambda *_a: "node.exe")
+    monkeypatch.setattr(native, "kill_tree", lambda proc: None)
+
+    class Proc:
+        returncode = None
+        def poll(self): return None
+    monkeypatch.setattr(native, "start_service",
+                        lambda name, *_a, **_kw: started.append(name) or (name, Proc()))
+    native.launch("frontend")
+    assert started == ["Vite checked", "React"]
+
+
+def test_fast_backend_launches_without_initialization(monkeypatch):
+    started = []
+    monkeypatch.setenv("KATS_FAST_START", "1")
+    monkeypatch.setenv("KATS_DEV_BACKEND", "preview")
+    monkeypatch.setattr(native, "config", lambda: {"KATS_LOCAL_ONLY": "1"})
+    monkeypatch.setattr(native, "environment", lambda *_a, **_kw: {})
+    monkeypatch.setattr(native, "existing_kats_service", lambda kind: False)
+    monkeypatch.setattr(native, "select_backend_mode", lambda: "preview")
+    monkeypatch.setattr(native, "ready_backend", lambda mode: started.append("Flask checked") or "python.exe")
+    monkeypatch.setattr(native, "backend",
+                        lambda: (_ for _ in ()).throw(AssertionError("No pip on quick start")))
+    monkeypatch.setattr(native, "prepare_backend",
+                        lambda *_a: (_ for _ in ()).throw(AssertionError("No SQL initialization on quick start")))
+    monkeypatch.setattr(native, "reachable",
+                        lambda url: url == "http://127.0.0.1:8000/readyz")
+    monkeypatch.setattr(native, "verify_http_bridge",
+                        lambda: (_ for _ in ()).throw(AssertionError("Vite not ready")))
+    stops = iter([False, True])
+    monkeypatch.setattr(native, "stop_requested", lambda *_a: next(stops))
+    monkeypatch.setattr(native, "kill_tree", lambda proc: None)
+    class Proc:
+        returncode = None
+        def poll(self): return None
+    monkeypatch.setattr(native, "start_service",
+                        lambda name, *_a, **_kw: started.append(name) or (name, Proc()))
+    native.launch("backend-stack")
+    assert started == ["Flask checked", "Flask"]

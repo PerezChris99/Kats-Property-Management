@@ -7,18 +7,20 @@ Access requests are reviewed by an OWNER/SUPER_ADMIN, not registrations.
 
 ## First-time setup, without Docker
 
-1. Open the repository in VS Code. Ensure Python 3.12+ and Node 22+ are on PATH.
+1. Open the repository in VS Code. Ensure Python 3.12+ and Node 20+ are on PATH.
 2. **Once per checkout or after requirements change:** **Tasks: Run Task → KATS: Native setup (database + build)**. It creates
    an ignored local secrets file, installs Python/Node dependencies, builds
    the React app, creates the isolated local SQLite schema and seeds role
    permissions. It never overwrites an existing database or production .env.
 3. **Tasks: Run Task → KATS: Start Dev (Frontend + Backend)**.
-   This starts both applications **in one reliable VS Code integrated
-   terminal**. Live output is labeled `[React]` and `[Flask]` for clarity.
-   It **does not run a full Vite release build or repeat pip/npm installation**
-   when requirements have not changed. For two separate terminal panes, use
-   `KATS: Native start (split in VS Code)` (the task matchers are valid).
-   In full PostgreSQL mode, worker/Beat output is also labeled and visible.
+   VS Code now launches **two independent tasks in parallel** within a split
+   integrated terminal group: Flask/backend **left**, React/Vite **right**.
+   Each pane has live logs and its own exit status. Neither waits on a build,
+   dependency installation, migration or permission seeding during startup.
+   Missing prerequisites produce an immediate, specific setup instruction.
+   The optional Native start (split in VS Code) task is an alias.
+   For deterministic pane placement outside VS Code, run .\start.bat:
+   Windows Terminal opens Flask first on the left and React on the right.
 4. **Tasks: Run Task → KATS: Verify frontend ↔ backend ↔ database**.
    The check requires JSON `status=ready` and Flask's `X-Request-ID` from
    `http://127.0.0.1:5173/readyz`, then confirms the direct Flask SQL
@@ -62,16 +64,13 @@ Use **KATS: Stop (preserve database)** to stop both native launchers.
 Previous KATS task definitions used an invalid VS Code problem matcher
 (`regexp: "a^"` with no file/line/message captures), and older startup
 tasks silently required Docker even when using the preview. Both defects
-are corrected. The **default Start Dev task is a foreground process**, not
-a background task depending on invalid watchers. It keeps running to
-display live logs.
+are corrected. The default Start Dev task runs two independent background tasks in parallel, each with a valid VS Code problem matcher and live logs.
 
 1. After pulling the updated source, run **Developer: Reload Window**
    in VS Code to discard old task definitions.
 2. Open the **repository root folder**, not just `frontend` or `backend`.
 3. Start the app using the task **KATS: Start Dev (Frontend + Backend)**.
-   If dependencies were already installed, it starts Vite and Flask directly.
-   If they are missing, only those dependencies are installed.
+   If dependencies are installed, the servers start directly. Otherwise the relevant terminal reports exactly which setup task to run.
 4. Look for `[READY]` and `[CONNECTED]`. If they do not appear, copy the
    **first** `[ERROR]` line and its preceding diagnostic from the terminal.
 5. Run `KATS: Verify frontend ↔ backend ↔ database` only after both servers
@@ -104,7 +103,7 @@ its own disposable PostgreSQL and browser runtime.
   launchers to exit via an ignored local stop marker before stopping native
   Docker services. Volumes and the isolated SQLite database are retained.
   Avoid using Task Manager unless normal shutdown fails.
-- Browser/API logs are printed live in the main VS Code terminal, prefixed with service names.
+- Browser and API logs stream into separate VS Code terminals, prefixed with service names.
   There is **no automatic persistent log of sensitive request paths or
   credentials**. Do not paste tenant tokens or secrets into bug reports.
 - A stale stop marker is ignored by new runs because each launcher compares
