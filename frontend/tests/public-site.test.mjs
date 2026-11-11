@@ -3,19 +3,24 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 
-test('public pages have one shared header and footer layout without legacy placeholders', () => {
+test('public routes use one focused homepage and preserve essential screens', () => {
   const app = read('src/App.jsx');
   const publicSite = read('src/site/Marketing.jsx');
-  const routes = ['/', '/features', '/how-it-works', '/about', '/request-access', '/login', '/forgot-password'];
+  const paths = ['/', '/features', '/how-it-works', '/about', '/request-access', '/login', '/forgot-password'];
   assert.ok(app.includes('<Route element={<PublicShell user={user} logout={logout}/>}>'));
-  for (const path of routes) assert.ok(app.includes('path="' + path + '"'));
+  for (const path of paths) assert.ok(app.includes('path="' + path + '"'));
   assert.ok(publicSite.includes('<PublicHeader user={user} logout={logout}/>'));
   assert.ok(publicSite.includes('<PublicFooter/>'));
   assert.ok(publicSite.includes('<Outlet/>'));
+  assert.ok(app.includes('path="/features" element={<Navigate to="/#capabilities" replace/>}'));
+  assert.ok(app.includes('path="/how-it-works" element={<Navigate to="/#workflow" replace/>}'));
+  assert.ok(app.includes('path="/about" element={<Navigate to="/#about" replace/>}'));
+  assert.equal(app.includes('<FeaturesPage/>'), false);
+  assert.equal(app.includes('<HowItWorksPage/>'), false);
+  assert.equal(app.includes('<AboutPage/>'), false);
   assert.equal(app.includes('<TextPage'), false);
   assert.equal(app.includes('<PublicLegalPage'), false);
 });
-
 test('Ugandan property photos have verified file sources, license and visible attribution', () => {
   const media = read('src/site/media.js');
   const ui = read('src/site/Marketing.jsx');
@@ -155,9 +160,40 @@ test('landing closing action is a page section, not a gradient card', () => {
   assert.ok(ui.includes('className="pm-endcap"'));
   assert.ok(ui.includes('className="pm-container pm-endcap-inner"'));
   assert.ok(ui.includes('className="pm-endcap-primary"'));
-  assert.ok(ui.includes('<FAQ/><AccessCallout/></main>'));
+  assert.ok(ui.includes('<CoreCapabilities/><HowSteps/><AccessCallout user={user}/></main>'));
   assert.equal(ui.includes('className="pm-access-line"'), false);
   assert.ok(css.includes('.kats-public .pm-endcap-primary'));
   assert.ok(css.includes('background:#edf5fa'));
   assert.ok(css.includes('color:#fff!important'));
+});
+
+
+test('public navigation is limited to Home, Request Access and Sign in', () => {
+  const ui = read('src/site/Marketing.jsx');
+  const nav = ui.slice(ui.indexOf('function PublicHeader('), ui.indexOf('function PublicFooter('));
+  assert.ok(nav.includes("['/', 'Home']"));
+  assert.ok(nav.includes("['/request-access', 'Request access']"));
+  assert.ok(nav.includes('to="/login"'));
+  for (const stale of ["['/features', 'Features']", "['/how-it-works', 'How it works']", "['/about', 'About']"]) {
+    assert.equal(nav.includes(stale), false);
+  }
+  assert.ok(ui.includes('id="capabilities"'));
+  assert.ok(ui.includes('id="workflow"'));
+  assert.ok(ui.includes('id="about"'));
+  assert.ok(ui.includes('<HeroCarousel user={user}/><TrustBand/><CoreCapabilities/><HowSteps/><AccessCallout user={user}/>'));
+});
+
+test('redundant marketing views are removed without affecting operational modules', () => {
+  const ui = read('src/site/Marketing.jsx');
+  const app = read('src/App.jsx');
+  assert.equal(ui.includes('export function FeaturesPage()'), false);
+  assert.equal(ui.includes('export function HowItWorksPage()'), false);
+  assert.equal(ui.includes('export function AboutPage()'), false);
+  assert.equal(ui.includes('function Problems()'), false);
+  assert.equal(ui.includes('function Solution()'), false);
+  assert.equal(ui.includes('function FAQ('), false);
+  assert.ok(app.includes("['dashboard', 'properties'"));
+  assert.ok(app.includes('path="/request-access" element={<RequestAccessPage/>}'));
+  assert.ok(app.includes('path="/forgot-password" element={<ForgotPasswordPage/>}'));
+  assert.ok(app.includes("element={<LegalPage slug={slug}/> }") || app.includes('element={<LegalPage slug={slug}/>}'));
 });
