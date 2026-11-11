@@ -135,6 +135,9 @@ class LedgerEntry(db.Model):
 class MaintenanceRequest(db.Model):
     __tablename__ = "maintenance_requests"
     id = db.Column(db.String(36), primary_key=True, default=new_id)
+    # Optional per-actor request fingerprint protects against duplicate repair
+    # tickets when a client retries after losing a mobile-network response.
+    idempotency_key = db.Column(db.String(64), nullable=True, unique=True)
     room_id = db.Column(db.String(36), db.ForeignKey("rooms.id", ondelete="RESTRICT"), nullable=False, index=True)
     tenant_id = db.Column(db.String(36), db.ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=True)
     title = db.Column(db.String(160), nullable=False)

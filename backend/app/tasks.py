@@ -7,6 +7,18 @@ celery_app = Celery(
     broker=os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/1"),
     backend=os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/2"),
 )
+from app.document_rls import trusted_worker_scope
+from celery import Task
+
+
+class KATSServicedTask(Task):
+    """Never allow a scheduled task to inherit an HTTP actor's DB row scope."""
+    def __call__(self, *args, **kwargs):
+        with trusted_worker_scope():
+            return self.run(*args, **kwargs)
+
+
+celery_app.Task = KATSServicedTask
 celery_app.conf.update(
     # Synchronous, in-process preview tasks only; no Redis, Beat or worker.
     task_always_eager=os.getenv("KATS_PREVIEW_MODE") == "1",

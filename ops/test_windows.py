@@ -124,7 +124,7 @@ def postgres(migrations_only=False):
                   "python -m flask --app wsgi db upgrade"]
         if not migrations_only:
             checks.extend(("python tests/prepare_postgres.py",
-                "python -m pytest -q tests/test_postgres_invariants.py tests/test_postgres_document_rls.py"))
+                "python -m pytest -q tests/test_postgres_invariants.py tests/test_postgres_document_rls.py tests/test_postgres_tenancy_rls.py"))
         compose(["run","--rm","-T","verifier","sh","-ec"," && ".join(checks)])
     finally:
         # This Compose file has a disposable tmpfs DB and no production services.

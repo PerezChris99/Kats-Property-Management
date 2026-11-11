@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {api} from '../src/lib/api.js'
 
 function setup(fetcher, cookie = 'csrf_access_token=csrf-a; csrf_refresh_token=csrf-r') {
@@ -75,4 +76,34 @@ test('GETs with distinct request headers are not incorrectly coalesced', async (
 test('huge untrusted server errors are replaced with bounded generic messages', async () => {
   setup(async () => json({error:{message:'x'.repeat(301)}}, 500))
   await assert.rejects(api('properties'), /Request failed \(500\)/)
+})
+
+
+test('safe GET retries transient 503 twice but never replays a write', async () => {
+  let reads = 0
+  setup(async () => {
+    reads++
+    return reads < 3 ? json({error:{message:'Temporarily unavailable'}}, 503) :
+      json({items:[42]})
+  })
+  assert.deepEqual(await api('properties'), {items:[42]})
+  assert.equal(reads, 3)
+  let writes = 0
+  setup(async () => {
+    writes++
+    throw new Error('connection dropped after server may have committed')
+  })
+  await assert.rejects(api('maintenance', {
+    method:'POST', body:JSON.stringify({title:'Unsafe retry'})
+  }), /Unable to connect/)
+  assert.equal(writes, 1, 'Mutations must never be automatically replayed')
+})
+
+test('static offline worker caches no private API, documents or authenticated HTML', () => {
+  const worker = readFileSync(new URL('../public/sw.js', import.meta.url),'utf8')
+  assert.match(worker,/url\.pathname\.startsWith\('\/api\/'\)/)
+  assert.match(worker,/request\.mode === 'navigate'/)
+  assert.match(worker,/url\.pathname\.startsWith\('\/assets\/'\)/)
+  assert.match(worker,/MAX_ASSETS = 70/)
+  assert.doesNotMatch(worker,/store\.put\(request, response\.clone\(\)\)[\s\S]*?request\.mode === 'navigate'/)
 })

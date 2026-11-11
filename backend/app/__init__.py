@@ -1,6 +1,7 @@
 import logging
 import os
 import secrets
+import time
 from urllib.parse import urlparse
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask import Flask, jsonify, request, abort
@@ -25,7 +26,7 @@ def create_app(test_config=None):
             "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT", "10")),
             "pool_recycle": int(os.getenv("DB_POOL_RECYCLE", "1800")),
             "pool_use_lifo": True,
-            "connect_args": {"options": "-c statement_timeout=15000 -c idle_in_transaction_session_timeout=30000"}
+            "connect_args": {"options": "-c statement_timeout=15000 -c lock_timeout=3500 -c idle_in_transaction_session_timeout=30000 -c application_name=kats-api"}
         }
     if os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true":
         # Trust exactly one hop; the frontend proxy MUST overwrite, not append,
@@ -71,8 +72,18 @@ def create_app(test_config=None):
         response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
         response.headers["X-Request-ID"] = secrets.token_hex(12)
         if request.path.startswith("/api/"):
-            response.headers["Cache-Control"] = "no-store"
-            response.headers["Pragma"] = "no-cache"
+            # Private records are never browser/proxy cached. Only genuinely
+            # public, identity-independent GET endpoints get short HTTP caching.
+            public_read = (request.method == "GET" and response.status_code == 200
+                           and (request.path == "/api/v1/public/landing-content"
+                                or request.path.startswith("/api/v1/public/legal/")))
+            if public_read:
+                response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
+                response.add_etag()
+                response.make_conditional(request)
+            else:
+                response.headers["Cache-Control"] = "no-store"
+                response.headers["Pragma"] = "no-cache"
             response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
         if request.is_secure and os.getenv("APP_ENV") == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
@@ -97,10 +108,17 @@ def create_app(test_config=None):
     def health():
         return jsonify(status="ok")
 
+    # Health probes and the frontend are high-fanout. Avoid one SELECT 1
+    # per browser per poll; the readiness cache is worker-local and bounded.
+    readiness = {"last_ok_until": 0.0}
+
     @app.get("/readyz")
     @limiter.exempt
     def ready():
-        db.session.execute(text("SELECT 1"))
+        now = time.monotonic()
+        if now >= readiness["last_ok_until"]:
+            db.session.execute(text("SELECT 1"))
+            readiness["last_ok_until"] = now + 3.0
         return jsonify(status="ready")
 
     from . import models  # noqa: F401
@@ -142,6 +160,25 @@ def create_app(test_config=None):
     app.register_blueprint(dispute_api, url_prefix="/api/v1")
     from .maintenance_plans import maintenance_plan_api
     app.register_blueprint(maintenance_plan_api, url_prefix="/api/v1")
+    from .document_rls import begin_document_scope, clear_document_scope
+
+    @app.before_request
+    def establish_database_actor_scope():
+        # JWT claims are verified against server-side session_version, and
+        # PostgreSQL SET LOCAL is transaction-bound. Public routes are excluded
+        # so stale browser cookies never block a fresh sign-in.
+        if not request.path.startswith("/api/"):
+            return
+        if request.path.startswith("/api/v1/public/") or request.path in (
+            "/api/v1/auth/login", "/api/v1/auth/register",
+            "/api/v1/auth/refresh",  # refresh-only JWT cookie, not access JWT
+            "/api/v1/auth/recover", "/api/v1/auth/complete-token",
+            "/api/v1/auth/demo-accounts", "/api/v1/auth/demo-sign-in",
+        ):
+            return
+        begin_document_scope()
+
+    app.teardown_request(clear_document_scope)
     from .cli import register_commands
     register_commands(app)
     return app

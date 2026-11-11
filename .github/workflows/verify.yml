@@ -4,6 +4,11 @@ on:
     branches: [main]
   push:
     branches: [perez, main]
+# Cancel superseded commits instead of consuming browser/Windows runners for
+# obsolete SHA checks. Keep main and PR-head concurrency independent.
+concurrency:
+  group: kats-verify-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -91,9 +96,11 @@ jobs:
               conn.execute("GRANT USAGE ON SCHEMA public TO kats_rls_test")
               conn.execute("GRANT SELECT ON documents TO kats_rls_test")
               conn.execute("GRANT SELECT ON caretaker_assignments TO kats_rls_test")
+              conn.execute("GRANT SELECT ON tenants, leases, invoices, payments, maintenance_requests, notifications TO kats_rls_test")
+              conn.execute("GRANT UPDATE (full_name) ON tenants TO kats_rls_test")
           PY
-      - name: PostgreSQL document RLS isolation
-        run: python -m pytest -q tests/test_postgres_document_rls.py
+      - name: PostgreSQL document and tenancy RLS isolation
+        run: python -m pytest -q tests/test_postgres_document_rls.py tests/test_postgres_tenancy_rls.py
         env:
           APP_ENV: testing
           TEST_POSTGRES_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
@@ -116,7 +123,10 @@ jobs:
       - name: Install Chromium for responsive layout verification
         run: |
           python -m pip install -r ../backend/requirements.txt 'playwright>=1.56,<2'
-          python -m playwright install --with-deps chromium
+          # Hosted Ubuntu already has Chromium runtime libraries. The
+          # --with-deps option needlessly downloads optional font packages
+          # from Ubuntu mirrors; DNS outages there blocked the browser suite.
+          python -m playwright install chromium
       - name: Live browser ↔ Flask ↔ SQLite, access form, auth and responsive checks
         env:
           KATS_BASE_URL: http://127.0.0.1:5173

@@ -13,7 +13,7 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 
 **Automated testing on Windows:** Test scripts live in [`tests/`](tests/README.md), not the repository root. Run `tests\test-all.bat` in CMD or `.\tests\test-all.bat` in PowerShell from the repository root. All 16 category launchers also live in `tests/`. See [Windows testing instructions](docs/WINDOWS_TEST_LAUNCHERS.md) · [Native startup, API bridge, live logs and shutdown](docs/NATIVE_DEVELOPMENT.md). External staging load is approval-gated.
 
-[Architecture](docs/ARCHITECTURE.md) · [React JSX guide](docs/FRONTEND_JSX.md) · [Production security](docs/PRODUCTION_SECURITY.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [Production deployment](docs/PRODUCTION_DEPLOYMENT.md) · [Uganda implementation register](docs/UGANDA_AUTOPILOT_REGISTER.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
+[Production PostgreSQL, RLS and performance](docs/PRODUCTION_PERFORMANCE.md) · [Architecture](docs/ARCHITECTURE.md) · [React JSX guide](docs/FRONTEND_JSX.md) · [Production security](docs/PRODUCTION_SECURITY.md) · [Delivery status](docs/DELIVERY_STATUS.md) · [Operations](docs/OPERATIONS.md) · [Production deployment](docs/PRODUCTION_DEPLOYMENT.md) · [Uganda implementation register](docs/UGANDA_AUTOPILOT_REGISTER.md) · [Go-live checklist](docs/GO_LIVE_CHECKLIST.md)
 
 ---
 

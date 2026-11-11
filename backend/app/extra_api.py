@@ -79,7 +79,8 @@ def user_notifications():
     results = list_page(Notification, db.session.query(Notification).filter_by(user_id=user.id).order_by(
         Notification.created_at.desc()))
     return jsonify(items=[serialize(n, "id", "kind", "title", "body", "channel", "status", "read_at",
-                                    "created_at") for n in results.items], total=results.total)
+                                    "created_at") for n in results.items], total=results.total,
+                   next_cursor=getattr(results, "next_cursor", None))
 
 @extra_api.post("/notifications/<notification_id>/read")
 @jwt_required()

@@ -22,12 +22,22 @@ def check_schema_and_role(connection, heads):
     )).one()
     if role.rolsuper or role.rolbypassrls:
         raise RuntimeError("The runtime database role must not be superuser or BYPASSRLS")
+    required = ("documents", "tenants", "leases", "invoices",
+                "payments", "maintenance_requests", "notifications")
     policies = connection.execute(text(
-        "SELECT relname, relrowsecurity, relforcerowsecurity "
-        "FROM pg_class WHERE relname = 'documents'"
-    )).all()
-    if len(policies) != 1 or not policies[0].relrowsecurity or not policies[0].relforcerowsecurity:
-        raise RuntimeError("Private document table must have FORCE ROW LEVEL SECURITY")
+        "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, "
+        "EXISTS(SELECT 1 FROM pg_policies p WHERE p.schemaname=current_schema() "
+        "AND p.tablename=c.relname AND p.policyname= "
+        "CASE WHEN c.relname='documents' THEN 'kats_document_scope' "
+        "ELSE 'kats_runtime_scope' END) "
+        "FROM pg_class c WHERE c.relnamespace = current_schema()::regnamespace "
+        "AND c.relname = ANY(:tables)"
+    ), {"tables":list(required)}).all()
+    if (len(policies)!=len(required) or
+        {row.relname for row in policies}!=set(required) or
+        any(not (row.relrowsecurity and row.relforcerowsecurity and row[3])
+            for row in policies)):
+        raise RuntimeError("Document and tenancy/finance tables must have FORCE RLS policies")
 
 
 def main():
@@ -68,7 +78,7 @@ def main():
               "). Check private service logs.", file=sys.stderr)
         return 3
     print("[PASS] Production settings, schema revision, restricted DB role, "
-          "document RLS and Redis connectivity.")
+          "document/tenancy/finance RLS and Redis connectivity.")
     print("[NOT APPROVED] Operator must still sign off on TLS, MFA, backup/restore, "
           "tenancy workflow, providers, security and legal acceptance.")
     return 0

@@ -15,10 +15,8 @@ from .models import Tenant, Lease, Room, CaretakerAssignment
 from .extra_models import Document
 
 documents_api = Blueprint("documents", __name__)
-from .document_rls import begin_document_scope, clear_document_scope
 from .malware_scan import scan_bytes, file_magic_matches, ScanUnavailable
-documents_api.before_request(begin_document_scope)
-documents_api.teardown_request(clear_document_scope)
+# All API blueprints now receive one common authenticated PostgreSQL RLS scope.
 ALLOWED_MIMES = {"application/pdf", "image/jpeg", "image/png", "image/webp"}
 ALLOWED_CATEGORIES = {"LEASE", "ID", "RECEIPT", "INSPECTION", "PAYMENT_PROOF", "ROOM_PHOTO"}
 MAX_BYTES = 8 * 1024 * 1024
