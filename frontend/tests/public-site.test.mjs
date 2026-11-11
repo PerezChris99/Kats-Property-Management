@@ -99,3 +99,37 @@ test('sign in still uses backend login and MFA without nonfunctional social sign
   assert.ok(app.includes("navigate('/dashboard')"));
   assert.equal(app.includes('Sign in with Google'), false);
 });
+
+
+test('redesigned home hero is text-only and has centered editorial styling', () => {
+  const ui = read('src/site/Marketing.jsx');
+  const design = read('src/site/redesign.css');
+  assert.ok(ui.includes('className="pm-hero-copy"'));
+  assert.equal(ui.includes('className="pm-glass pm-hero-panel"'), false);
+  assert.ok(design.includes('.pm-hero-copy'));
+  assert.ok(design.includes('text-align:center'));
+  assert.ok(design.includes('prefers-reduced-motion:reduce'));
+});
+
+test('access request retains real submission and accessible glass review timeline', () => {
+  const ui = read('src/site/Marketing.jsx');
+  const design = read('src/site/redesign.css');
+  assert.ok(ui.includes('aria-labelledby="pm-request-heading"'));
+  assert.ok(ui.includes('className="pm-request-guide" aria-label="Access review process"'));
+  assert.ok(ui.includes('method: \'POST\''));
+  assert.ok(ui.includes('required onChange={e => change(\'consent\''));
+  assert.ok(design.includes('backdrop-filter:blur'));
+  assert.ok(design.includes('.pm-request-guide ol'));
+  assert.ok(design.includes('pm-request-layout .pm-fields'));
+});
+
+test('workspace dashboard uses live response, not placeholder statistics', () => {
+  const app = read('src/App.jsx');
+  const css = read('src/worldclass.css');
+  assert.ok(app.includes("api('dashboard').then(setSummary)"));
+  assert.ok(app.includes('summary.collected_ugx'));
+  assert.ok(app.includes('summary.open_maintenance'));
+  assert.ok(app.includes('kats-overview-spotlight'));
+  assert.ok(css.includes('.kats-overview-spotlight'));
+  assert.ok(css.includes('prefers-reduced-transparency:reduce'));
+});
