@@ -136,6 +136,10 @@ jobs:
           JWT_SECRET_KEY: ci_preview_only_jwt_secret_0123456789abcdef
           REDIS_URL: memory://
           RATELIMIT_STORAGE_URI: memory://
+          # This disposable CI browser harness reloads many accounts/routes
+          # in rapid succession; authorization and limiter security have
+          # separate backend tests. Production refuses RATELIMIT_ENABLED=false.
+          RATELIMIT_ENABLED: 'false'
           CELERY_BROKER_URL: memory://
           CELERY_RESULT_BACKEND: cache+memory://
           CELERY_TASK_ALWAYS_EAGER: 'true'

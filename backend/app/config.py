@@ -19,6 +19,9 @@ class Config:
     JWT_COOKIE_SAMESITE = "Lax"
     JWT_REFRESH_COOKIE_PATH = "/api/v1/auth"
     RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI") or os.getenv("REDIS_URL", "memory://")
+    # Permit disabling limits for disposable, high-volume browser tests only.
+    # validate_production_config() rejects this in any production process.
+    RATELIMIT_ENABLED = os.getenv("RATELIMIT_ENABLED", "true").lower() != "false"
     MAX_CONTENT_LENGTH = 8 * 1024 * 1024
     SQLALCHEMY_ECHO = False
     PROPAGATE_EXCEPTIONS = False

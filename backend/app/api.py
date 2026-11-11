@@ -250,7 +250,7 @@ def _issue_login_session(user, *, event="auth.login"):
 
 
 @api.get("/auth/demo-accounts")
-@limiter.limit("30 per minute")
+@limiter.limit("120 per minute")
 def demo_accounts():
     from .demo_preview import demo_http_allowed
     if not demo_http_allowed():

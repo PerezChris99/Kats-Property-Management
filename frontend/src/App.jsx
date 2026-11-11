@@ -109,6 +109,14 @@ function Login({ onSuccess }) {
     const [error, setError] = useState('');
     const [demoAccounts, setDemoAccounts] = useState([]);
     const [demoSearch, setDemoSearch] = useState('');
+    const [demoExpanded, setDemoExpanded] = useState(() =>
+        typeof window === 'undefined' || window.matchMedia('(min-width: 761px)').matches);
+    useEffect(() => {
+        const media = window.matchMedia('(min-width: 761px)');
+        const onResize = event => setDemoExpanded(event.matches);
+        media.addEventListener('change', onResize);
+        return () => media.removeEventListener('change', onResize);
+    }, []);
     useEffect(() => {
         // Never request or render demo shortcuts in the production frontend bundle.
         if (!import.meta.env.DEV) return undefined;
@@ -154,7 +162,17 @@ function Login({ onSuccess }) {
     return <main className="auth-layout"><div className="pm-login-layout">
       <div className="pm-login-aside" style={{ '--pm-auth-photo': 'url("' + PHOTOS[2].url + '")' }}><div><span className="pm-kicker pm-kicker-light">WELCOME BACK</span><h2>Property work,<br/><span>simplified.</span></h2><p>Your properties, tenants, rent records and maintenance in one carefully organized workspace.</p><div className="pm-login-benefits"><div><Building2 size={23}/> See your property portfolio</div><div><CheckCircle2 size={23}/> Keep rental activity accountable</div><div><ShieldCheck size={23}/> Work with role-scoped access</div></div></div></div>
       <section className="auth-card pm-login-card" aria-labelledby="pm-signin-title"><Link to="/" className="pm-brand" aria-label="KATS Property Management home"><img src="/brand-mark.svg" width="56" height="56" alt=""/><span><strong>KATS</strong><small>Property Management</small></span></Link><h1 id="pm-signin-title">Sign in to your account</h1><p className="pm-login-caption">Use the credentials issued by your property administrator. An authenticator code is required only if MFA is enabled for your account.</p>
-      {demoAccounts.length === 31 && <section className="pm-demo-signins" aria-label="Demo accounts for local preview">
+      <form onSubmit={submit}><label>Email address<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} maxLength={254} required placeholder="you@company.com"/></label>
+      <label>Password<div className="pm-password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Enter your password"/><button type="button" className="pm-reveal-password" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>{showPassword ? <EyeOff size={19}/> : <Eye size={19}/>}</button></div></label>
+      <label>Authenticator code (if enabled)<input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Six-digit code"/></label>
+      {error && <p role="alert" className="error">{error}</p>}
+      <button className="pm-cta pm-cta-yellow" disabled={busy}>{busy ? 'Signing in…' : 'Sign in securely'} <ArrowRight size={18}/></button></form>
+      <div className="pm-login-links"><Link to="/forgot-password">Forgot your password?</Link><Link to="/request-access">Request access</Link></div><div className="pm-login-security"><ShieldCheck size={23}/><span>Session protection and role-based authorization help keep private property records in the right hands. No third-party social login is claimed.</span></div></section>
+      {!PUBLIC_DEMO_ENABLED && demoAccounts.length === 31 && <aside className="pm-local-demo-pane" aria-label="Local demo accounts">
+        <details className="pm-demo-disclosure" open={demoExpanded}
+          onToggle={event => setDemoExpanded(event.currentTarget.open)}>
+          <summary>Explore 31 demo accounts</summary>
+        <section className="pm-demo-signins" aria-label="Demo accounts for local preview">
         <div className="pm-demo-header"><div><span className="pm-demo-kicker">LOCAL DEMO</span><h2>Explore the live workspace</h2><p>Fictional rental records. Click an account to sign in instantly.</p></div><span className="pm-demo-count">31 accounts</span></div>
         <button type="button" className="pm-demo-owner" disabled={busy}
           onClick={() => signInDemo('landlord')}>
@@ -173,14 +191,13 @@ function Login({ onSuccess }) {
               <span>{account.name}</span><ArrowRight size={15} aria-hidden="true"/>
             </button>)}
         </div>
-      </section>}
-      <form onSubmit={submit}><label>Email address<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} maxLength={254} required placeholder="you@company.com"/></label>
-      <label>Password<div className="pm-password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Enter your password"/><button type="button" className="pm-reveal-password" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>{showPassword ? <EyeOff size={19}/> : <Eye size={19}/>}</button></div></label>
-      <label>Authenticator code (if enabled)<input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Six-digit code"/></label>
-      {error && <p role="alert" className="error">{error}</p>}
-      <button className="pm-cta pm-cta-yellow" disabled={busy}>{busy ? 'Signing in…' : 'Sign in securely'} <ArrowRight size={18}/></button></form>
-      <div className="pm-login-links"><Link to="/forgot-password">Forgot your password?</Link><Link to="/request-access">Request access</Link></div><div className="pm-login-security"><ShieldCheck size={23}/><span>Session protection and role-based authorization help keep private property records in the right hands. No third-party social login is claimed.</span></div></section>
+      </section>
+        </details>
+      </aside>}
       {PUBLIC_DEMO_ENABLED && <aside className="pm-public-demo-pane" aria-label="Demo Accounts — for testing only">
+        <details className="pm-public-demo-disclosure" open={demoExpanded}
+          onToggle={event => setDemoExpanded(event.currentTarget.open)}>
+          <summary>Demo accounts for testing · 31 users</summary>
         <span className="pm-public-demo-label">PUBLIC DEMONSTRATION · SYNTHETIC RECORDS</span>
         <h2>Demo Accounts</h2>
         <p className="pm-demo-context">For testing only. Select an account to fill the form, then sign in. All records are fictional.</p>
@@ -192,6 +209,7 @@ function Login({ onSuccess }) {
           </button>)}
         </div>
         <p className="pm-demo-disclaimer">Credentials are intentionally public. Never use these accounts for real tenancies, customers or payments.</p>
+        </details>
       </aside>}</div></main>;
 }
 function ResourcePage({ resource, user }) {
