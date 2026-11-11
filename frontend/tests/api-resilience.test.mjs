@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {api} from '../src/lib/api.js'
 
 function setup(fetcher, cookie = 'csrf_access_token=csrf-a; csrf_refresh_token=csrf-r') {
@@ -99,7 +100,6 @@ test('safe GET retries transient 503 twice but never replays a write', async () 
 })
 
 test('static offline worker caches no private API, documents or authenticated HTML', () => {
-  const {readFileSync} = await import('node:fs')
   const worker = readFileSync(new URL('../public/sw.js', import.meta.url),'utf8')
   assert.match(worker,/url\.pathname\.startsWith\('\/api\/'\)/)
   assert.match(worker,/request\.mode === 'navigate'/)
