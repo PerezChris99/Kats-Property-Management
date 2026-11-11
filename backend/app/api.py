@@ -825,8 +825,15 @@ def tenant_lease(user):
     lease = db.session.query(Lease).filter_by(tenant_id=tenant_id, status="ACTIVE").first()
     if not lease:
         return jsonify(lease=None)
-    return jsonify(lease=serialize(lease, "id", "tenant_id", "room_id", "start_date", "end_date",
-                                 "rent_ugx", "deposit_ugx", "due_day", "status"))
+    details = serialize(lease, "id", "tenant_id", "room_id", "start_date", "end_date",
+                        "rent_ugx", "deposit_ugx", "due_day", "status")
+    room = db.session.get(Room, lease.room_id)
+    if room:
+        details["room_number"] = room.number
+        property_ = db.session.get(Property, room.property_id)
+        if property_:
+            details["property_name"] = property_.name
+    return jsonify(lease=details)
 
 @api.get("/tenant/dashboard")
 @roles("TENANT")
