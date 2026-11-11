@@ -2,6 +2,15 @@
 import os
 import uuid
 import pytest
+from app.document_rls import trusted_worker_scope
+
+@pytest.fixture(autouse=True)
+def migrated_db_test_service_context():
+    # Setup/verification SQL runs outside an HTTP request in this DISPOSABLE
+    # database; normal request tests still install their real JWT actor scope.
+    with trusted_worker_scope():
+        yield
+
 import psycopg
 from app import create_app
 from app.extensions import db
