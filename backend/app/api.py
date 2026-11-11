@@ -3,15 +3,17 @@ import unicodedata
 import hashlib
 import re
 from functools import wraps
+from types import SimpleNamespace
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import os
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, jsonify, request, current_app
 from flask_jwt_extended import (
     create_access_token, create_refresh_token, get_jwt_identity, get_jwt, decode_token,
     jwt_required, set_access_cookies, set_refresh_cookies, unset_jwt_cookies
 )
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, VerificationError
-from sqlalchemy import func, case
+from sqlalchemy import func, case, or_, and_
 from sqlalchemy.exc import IntegrityError
 from .extensions import db, limiter
 from .models import (
@@ -127,6 +129,17 @@ def roles(*allowed):
         return wrapped
     return decorator
 
+HISTORY_CURSOR_ROUTES = {
+    "/api/v1/invoices", "/api/v1/payments", "/api/v1/maintenance",
+    "/api/v1/audit", "/api/v1/notifications",
+}
+
+
+def history_cursor_codec():
+    # Opaque authenticated cursor: no client-selected SQL or raw DB offset.
+    return URLSafeTimedSerializer(current_app.secret_key, salt="kats-history-page-v1")
+
+
 def list_page(model, query):
     try:
         page = int(request.args.get("page", 1))
@@ -135,6 +148,36 @@ def list_page(model, query):
         abort(400, description="Invalid pagination parameters")
     if not 1 <= page <= 200 or not 1 <= size <= 100 or (page - 1) * size > 10000:
         abort(400, description="Pagination exceeds bounded offset; narrow the query")
+    cursor_text = request.args.get("cursor")
+    if cursor_text is not None:
+        if (request.path not in HISTORY_CURSOR_ROUTES or page != 1 or
+                not isinstance(cursor_text, str) or
+                not 1 <= len(cursor_text) <= 512):
+            abort(400, description="Invalid cursor pagination request")
+        try:
+            item = history_cursor_codec().loads(cursor_text, max_age=3600)
+            if (not isinstance(item, dict) or item.get("path") != request.path or
+                    item.get("subject") != get_jwt_identity() or
+                    item.get("size") != size or not isinstance(item.get("id"), str)):
+                raise ValueError()
+            stamp = datetime.fromisoformat(item["created"])
+        except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
+            abort(400, description="Cursor invalid or expired")
+        query = query.filter(or_(model.created_at < stamp,
+                                 and_(model.created_at == stamp, model.id < item["id"])))
+        query = query.order_by(None).order_by(model.created_at.desc(), model.id.desc())
+        rows = query.limit(size + 1).all()
+        selected = rows[:size]
+        next_cursor = None
+        if len(rows) > size and selected:
+            last = selected[-1]
+            next_cursor = history_cursor_codec().dumps({
+                "path": request.path, "subject": get_jwt_identity(),
+                "size": size, "created": last.created_at.isoformat(),
+                "id": last.id
+            })
+        return SimpleNamespace(items=selected, total=None, page=1,
+                               next_cursor=next_cursor)
     count = request.args.get("include_total", "1") != "0"
     return query.paginate(page=page, per_page=size, error_out=False, count=count)
 
@@ -497,7 +540,8 @@ def invoices():
         abort(403)
     results = list_page(Invoice, query.order_by(Invoice.created_at.desc()))
     fields = ("id", "invoice_number", "lease_id", "tenant_id", "period_start", "period_end", "due_date", "total_ugx", "paid_ugx", "credit_ugx", "status")
-    return jsonify(items=[serialize(inv, *fields) for inv in results.items], total=results.total)
+    return jsonify(items=[serialize(inv, *fields) for inv in results.items], total=results.total,
+                   next_cursor=getattr(results, "next_cursor", None))
 
 @api.post("/invoices")
 @roles(*STAFF)
@@ -577,7 +621,8 @@ def payments():
     elif user.role not in STAFF:
         abort(403)
     results = list_page(Payment, query.order_by(Payment.created_at.desc()))
-    return jsonify(items=[serialize(p, "id", "invoice_id", "amount_ugx", "method", "status", "created_at") for p in results.items], total=results.total)
+    return jsonify(items=[serialize(p, "id", "invoice_id", "amount_ugx", "method", "status", "created_at") for p in results.items], total=results.total,
+                   next_cursor=getattr(results, "next_cursor", None))
 
 @api.post("/payments/manual")
 @roles(*STAFF)
@@ -658,7 +703,8 @@ def maintenance_list():
     elif user.role not in STAFF:
         abort(403)
     results = list_page(MaintenanceRequest, query.order_by(MaintenanceRequest.created_at.desc()))
-    return jsonify(items=[serialize(m, "id", "room_id", "title", "priority", "status") for m in results.items], total=results.total)
+    return jsonify(items=[serialize(m, "id", "room_id", "title", "priority", "status") for m in results.items], total=results.total,
+                   next_cursor=getattr(results, "next_cursor", None))
 
 @api.post("/maintenance")
 @jwt_required()
@@ -847,7 +893,8 @@ def integrations(user):
 @roles("OWNER", "SUPER_ADMIN")
 def audit_entries(user):
     results = list_page(AuditLog, db.session.query(AuditLog).order_by(AuditLog.created_at.desc()))
-    return jsonify(items=[serialize(a, "id", "actor_id", "action", "target_type", "target_id", "created_at") for a in results.items], total=results.total)
+    return jsonify(items=[serialize(a, "id", "actor_id", "action", "target_type", "target_id", "created_at") for a in results.items], total=results.total,
+                   next_cursor=getattr(results, "next_cursor", None))
 
 
 @api.get("/tenant/lease")
