@@ -73,3 +73,57 @@ def test_celery_scope_cannot_leak_to_another_task():
     assert context["role"] == "SERVICE"
     assert context["tenant_id"] == ""
     assert _SCOPE.get() is None
+
+
+def test_signed_cursor_pagination_does_not_duplicate_or_leak_history(app):
+    from datetime import datetime, timezone
+    from urllib.parse import quote
+    owner = create_user("cursor-owner@kats.test", "OWNER")
+    other = create_user("cursor-other@kats.test", "OWNER")
+    prop = Property(name="Cursor test", address="Kampala", district="Kampala")
+    db.session.add(prop)
+    db.session.flush()
+    room = Room(property_id=prop.id, number="C1", rent_ugx=250000)
+    db.session.add(room)
+    db.session.flush()
+    same_time = datetime(2026, 11, 11, 11, 0, tzinfo=timezone.utc)
+    for i in range(5):
+        db.session.add(MaintenanceRequest(
+            room_id=room.id, title=f"Ticket {i}",
+            description="Pagination regression", priority="LOW",
+            created_at=same_time))
+    db.session.commit()
+    owner_client = auth_client(app, owner)
+    first = owner_client.get("/api/v1/maintenance?cursor=start&page_size=2")
+    assert first.status_code == 200, first.json
+    assert first.json["total"] is None
+    assert len(first.json["items"]) == 2
+    assert first.json["next_cursor"]
+    cursor = first.json["next_cursor"]
+    second = owner_client.get("/api/v1/maintenance?cursor=" + quote(cursor) + "&page_size=2")
+    assert second.status_code == 200
+    third = owner_client.get("/api/v1/maintenance?cursor=" + quote(second.json["next_cursor"]) + "&page_size=2")
+    assert third.status_code == 200
+    assert third.json["next_cursor"] is None
+    ids = [v["id"] for row in (first, second, third) for v in row.json["items"]]
+    assert len(ids) == len(set(ids)) == 5
+    assert owner_client.get("/api/v1/maintenance?cursor="+quote(cursor)+"&page_size=3").status_code == 400
+    assert owner_client.get("/api/v1/maintenance?cursor="+quote(cursor)+"t&page_size=2").status_code == 400
+    other_client = auth_client(app, other)
+    assert other_client.get("/api/v1/maintenance?cursor="+quote(cursor)+"&page_size=2").status_code == 400
+    assert owner_client.get("/api/v1/properties?cursor=start").status_code == 400
+    assert owner_client.get("/api/v1/maintenance?page=2&cursor=start").status_code == 400
+
+
+def test_http_caching_only_applies_to_public_anonymous_read(client):
+    public = client.get("/api/v1/public/landing-content")
+    assert public.status_code == 200
+    assert "max-age=60" in public.headers["Cache-Control"]
+    etag = public.headers.get("ETag")
+    assert etag
+    not_modified = client.get("/api/v1/public/landing-content", headers={"If-None-Match": etag})
+    assert not_modified.status_code == 304
+    assert "public" in not_modified.headers["Cache-Control"]
+    private = client.get("/api/v1/auth/me")
+    assert private.status_code == 401
+    assert private.headers["Cache-Control"] == "no-store"
