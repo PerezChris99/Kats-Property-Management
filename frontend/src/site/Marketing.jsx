@@ -287,7 +287,7 @@ export function RequestAccessPage() {
           <label>Why do you need access?<textarea required minLength="10" maxLength="2000" rows="3" value={values.message} onChange={e => change('message', e.target.value)} placeholder="Your property or team and the work you manage"/></label>
           <label className="pm-consent"><input type="checkbox" checked={values.consent} required onChange={e => change('consent', e.target.checked)}/><span>I agree to the handling of this request under the <Link to="/privacy">Privacy policy</Link>.</span></label>
           <input className="pm-honeypot" aria-hidden="true" tabIndex={-1} autoComplete="off" name="website" value={values.website} onChange={e => change('website', e.target.value)}/>
-          <div className="pm-form-submit"><button className="pm-cta pm-cta-yellow" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Send access request'} <ArrowRight size={17}/></button><small>No account is created until approval.</small></div>
+          <div className="pm-form-submit"><button className="pm-cta pm-cta-yellow" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Send access request'} <ArrowRight size={17}/></button><small>Submitting does not create an account.</small></div>
         </form>
       </div>
       <aside className="pm-request-guide" aria-label="Access review process"><span className="pm-form-index">02 / REVIEW</span>
