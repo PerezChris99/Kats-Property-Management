@@ -7,11 +7,10 @@ never imports real contact data or touches a deployed database.
 from __future__ import annotations
 
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from secrets import token_urlsafe
 from sys import path as sys_path
-from zoneinfo import ZoneInfo
 
 from argon2 import PasswordHasher
 
@@ -99,7 +98,7 @@ def seed() -> None:
         db.session.add(landlord)
         db.session.flush()
         # Use the current Kampala calendar so the rent figures make sense on launch.
-        today = datetime.now(ZoneInfo('Africa/Kampala')).date()
+        today = datetime.now(timezone(timedelta(hours=3))).date()
         invoice_months = (previous_month(today), today.replace(day=1))
         property_rooms = []
         for name, address, district, count in PROPERTIES:
@@ -172,7 +171,7 @@ def seed() -> None:
                 if paid:
                     payment = Payment(
                         invoice_id=invoice.id, amount_ugx=paid, method="BANK_TRANSFER",
-                        status="RECONCILED", settled_at=datetime.now(ZoneInfo("Africa/Kampala")),
+                        status="RECONCILED", settled_at=datetime.now(timezone.utc),
                         reference=f"DEMO-RECON-{i:02d}-{month:%Y%m}",
                         idempotency_key=f"demo-reconciled-{i:02d}-{month:%Y%m}",
                         created_by=user.id, reviewed_by=landlord.id,
