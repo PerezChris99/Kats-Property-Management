@@ -6,10 +6,12 @@ from app.extensions import db
 from conftest import auth_client, create_user, csrf
 
 PUBLIC_GET={
+    "/api/v1/auth/demo-accounts",  # anonymous only on loopback, isolated preview; always 404 elsewhere
     "/api/v1/public/landing-content",
     "/api/v1/public/legal/<slug>",
 }
 PUBLIC_POST={
+    "/api/v1/auth/demo-sign-in",  # isolated preview only; default 404, separately tested
     "/api/v1/auth/login",
     "/api/v1/auth/register",
     "/api/v1/auth/recover",
