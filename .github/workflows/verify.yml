@@ -3,11 +3,12 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [perez, main]
-# Cancel superseded commits instead of consuming browser/Windows runners for
-# obsolete SHA checks. Keep main and PR-head concurrency independent.
+    branches: [main]
+# The perez branch is validated by its PR, not by a duplicate push job.
+# Separate main and PR concurrency groups to prevent queued PR checks from
+# blocking behind obsolete pushed-branch runs.
 concurrency:
-  group: kats-verify-${{ github.head_ref || github.ref_name }}
+  group: kats-verify-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 jobs:
   backend:
