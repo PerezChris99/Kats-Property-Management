@@ -9,6 +9,15 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 import pytest
+from app.document_rls import trusted_worker_scope
+
+@pytest.fixture(autouse=True)
+def migrated_db_test_service_context():
+    # Setup/verification SQL runs outside an HTTP request in this DISPOSABLE
+    # database; normal request tests still install their real JWT actor scope.
+    with trusted_worker_scope():
+        yield
+
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from argon2 import PasswordHasher
