@@ -329,6 +329,7 @@ def test_fast_start_launches_frontend_without_waiting_for_flask(monkeypatch):
 
 
 def test_fast_backend_launches_without_initialization(monkeypatch):
+    monkeypatch.setenv("KATS_SEED_DEMO", "1")
     started = []
     monkeypatch.setenv("KATS_FAST_START", "1")
     monkeypatch.setenv("KATS_DEV_BACKEND", "preview")
@@ -337,6 +338,7 @@ def test_fast_backend_launches_without_initialization(monkeypatch):
     monkeypatch.setattr(native, "existing_kats_service", lambda kind: False)
     monkeypatch.setattr(native, "select_backend_mode", lambda: "preview")
     monkeypatch.setattr(native, "ready_backend", lambda mode: started.append("Flask checked") or "python.exe")
+    monkeypatch.setattr(native, "invoke", lambda args, **_kw: started.append("Preview seeded") if "seed_demo_preview.py" in str(args[-1]) else None)
     monkeypatch.setattr(native, "backend",
                         lambda: (_ for _ in ()).throw(AssertionError("No pip on quick start")))
     monkeypatch.setattr(native, "prepare_backend",
@@ -354,7 +356,7 @@ def test_fast_backend_launches_without_initialization(monkeypatch):
     monkeypatch.setattr(native, "start_service",
                         lambda name, *_a, **_kw: started.append(name) or (name, Proc()))
     native.launch("backend-stack")
-    assert started == ["Flask checked", "Flask"]
+    assert started == ["Flask checked", "Preview seeded", "Flask"]
 
 
 def test_dedicated_ports_match_shared_vite_config():

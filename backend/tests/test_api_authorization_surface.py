@@ -2,6 +2,8 @@
 import re
 
 PUBLIC={
+ ("GET","/api/v1/auth/demo-accounts"),  # preview-only explicit 404 outside local SQLite
+ ("POST","/api/v1/auth/demo-sign-in"),
  ("GET","/api/v1/public/landing-content"),
  ("GET","/api/v1/public/legal/<slug>"),
  ("POST","/api/v1/auth/login"),

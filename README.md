@@ -17,6 +17,10 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 
 ---
 
+## One-click local landlord and tenant demo
+
+From VS Code, run **KATS: Demo start (landlord + 30 tenants)**, then open `http://127.0.0.1:5173/login`. Click the landlord entry or any of 30 searchable synthetic tenant accounts to sign in instantly. The local-only preview seeds linked properties, leases, invoices and sample payments; production auth is unchanged. See [Demo preview instructions](docs/DEMO_PREVIEW.md).
+
 ## Dedicated development ports
 
 React/Vite defaults to **`127.0.0.1:5173`**, Flask to **`127.0.0.1:8000`**.

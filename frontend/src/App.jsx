@@ -93,6 +93,33 @@ function Login({ onSuccess }) {
     const [showPassword, setShowPassword] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    const [demoAccounts, setDemoAccounts] = useState([]);
+    const [demoSearch, setDemoSearch] = useState('');
+    useEffect(() => {
+        // Never request or render demo shortcuts in the production frontend bundle.
+        if (!import.meta.env.DEV) return undefined;
+        let live = true;
+        api('auth/demo-accounts')
+            .then(payload => { if (live && payload.enabled) setDemoAccounts(payload.accounts || []); })
+            .catch(() => { /* Demo shortcuts are not exposed outside local preview. */ });
+        return () => { live = false; };
+    }, []);
+    async function signInDemo(key) {
+        if (busy) return;
+        setBusy(true);
+        setError('');
+        try {
+            const payload = await api('auth/demo-sign-in', {
+                method: 'POST', body: JSON.stringify({ account: key })
+            });
+            onSuccess(payload.user);
+            navigate('/dashboard');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Demo sign-in unavailable');
+        } finally {
+            setBusy(false);
+        }
+    }
     async function submit(event) {
         event.preventDefault();
         setBusy(true);
@@ -113,6 +140,26 @@ function Login({ onSuccess }) {
     return <main className="auth-layout"><div className="pm-login-layout">
       <div className="pm-login-aside" style={{ '--pm-auth-photo': 'url("' + PHOTOS[2].url + '")' }}><div><span className="pm-kicker pm-kicker-light">WELCOME BACK</span><h2>Property work,<br/><span>simplified.</span></h2><p>Your properties, tenants, rent records and maintenance in one carefully organized workspace.</p><div className="pm-login-benefits"><div><Building2 size={23}/> See your property portfolio</div><div><CheckCircle2 size={23}/> Keep rental activity accountable</div><div><ShieldCheck size={23}/> Work with role-scoped access</div></div></div></div>
       <section className="auth-card pm-login-card" aria-labelledby="pm-signin-title"><Link to="/" className="pm-brand" aria-label="KATS Property Management home"><img src="/brand-mark.svg" width="56" height="56" alt=""/><span><strong>KATS</strong><small>Property Management</small></span></Link><h1 id="pm-signin-title">Sign in to your account</h1><p className="pm-login-caption">Use the credentials issued by your property administrator. An authenticator code is required only if MFA is enabled for your account.</p>
+      {demoAccounts.length === 31 && <section className="pm-demo-signins" aria-label="Demo accounts for local preview">
+        <div className="pm-demo-header"><div><span className="pm-demo-kicker">LOCAL DEMO</span><h2>Explore the live workspace</h2><p>Fictional rental records. Click an account to sign in instantly.</p></div><span className="pm-demo-count">31 accounts</span></div>
+        <button type="button" className="pm-demo-owner" disabled={busy}
+          onClick={() => signInDemo('landlord')}>
+          <span className="pm-demo-avatar" aria-hidden="true">L</span>
+          <span><strong>Landlord workspace</strong><small>{demoAccounts[0]?.name}</small></span>
+          <ArrowRight size={18} aria-hidden="true"/>
+        </button>
+        <div className="pm-demo-tenant-head"><label htmlFor="pm-demo-search">Tenant workspaces</label><span>30 linked leases</span></div>
+        <input id="pm-demo-search" className="pm-demo-search" type="search" value={demoSearch}
+          onChange={event => setDemoSearch(event.target.value)} placeholder="Find a demo tenant…" autoComplete="off"/>
+        <div className="pm-demo-tenant-list" role="group" aria-label="Sign in as a demo tenant">
+          {demoAccounts.filter(account => account.role === 'TENANT' &&
+            account.name.toLowerCase().includes(demoSearch.trim().toLowerCase())).map(account =>
+            <button type="button" key={account.key} disabled={busy}
+              onClick={() => signInDemo(account.key)}>
+              <span>{account.name}</span><ArrowRight size={15} aria-hidden="true"/>
+            </button>)}
+        </div>
+      </section>}
       <form onSubmit={submit}><label>Email address<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} maxLength={254} required placeholder="you@company.com"/></label>
       <label>Password<div className="pm-password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Enter your password"/><button type="button" className="pm-reveal-password" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>{showPassword ? <EyeOff size={19}/> : <Eye size={19}/>}</button></div></label>
       <label>Authenticator code (if enabled)<input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Six-digit code"/></label>
@@ -390,7 +437,7 @@ function TenantHome() {
     return <section className="page"><span className="eyebrow">TENANT PORTAL</span><h1>My rental account</h1><p>Your current lease and recorded rent activity.</p>
     {error && <p role="alert" className="error">{error}</p>}
     {summary ? <div className="stat-grid"><div className="stat"><small>Invoiced</small><strong>UGX {summary.total_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Paid</small><strong>UGX {summary.paid_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Outstanding</small><strong>UGX {summary.outstanding_ugx.toLocaleString('en-UG')}</strong></div></div> : <p>Loading rent summary…</p>}
-    <div className="quick"><h2>My lease</h2>{lease ? <p>Room reference: {lease.room_id}. Rent: UGX {Number(lease.rent_ugx).toLocaleString('en-UG')}. Ends: {lease.end_date}.</p> : <p>No active lease is currently linked to your account.</p>}<Link to="/invoices">Invoices</Link><Link to="/payments">Payments</Link><Link to="/maintenance">Maintenance</Link></div>
+    <div className="quick"><h2>My lease</h2>{lease ? <p><strong>{lease.property_name || 'Your property'}</strong> · Unit {lease.room_number || lease.room_id} · Monthly rent: UGX {Number(lease.rent_ugx).toLocaleString('en-UG')} · Lease ends: {lease.end_date}.</p> : <p>No active lease is currently linked to your account.</p>}<Link to="/invoices">Invoices</Link><Link to="/payments">Payments</Link><Link to="/maintenance">Maintenance</Link></div>
   </section>;
 }
 function CaretakerHome() {
