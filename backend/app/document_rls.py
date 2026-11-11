@@ -1,4 +1,4 @@
-"""Per-request PostgreSQL row-security context for private documents.
+"""Per-request PostgreSQL row-security context for private documents and tenancy records.
 
 Scope is derived from a *verified* JWT and the database, never from client
 headers. SET LOCAL values are reapplied after each commit/new transaction.
@@ -6,6 +6,7 @@ No session-scoped SET statements are used, so pooled connections cannot leak
 one tenant's row context to another.
 """
 from contextvars import ContextVar
+from contextlib import contextmanager
 from flask import g
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from sqlalchemy import event, text
@@ -48,3 +49,16 @@ def clear_document_scope(_error=None):
     if token is not None:
         _SCOPE.reset(token)
         g.kats_rls_token=None
+
+@contextmanager
+def trusted_worker_scope():
+    """Only Celery worker execution should call this, never an API endpoint.
+
+    This context is not inferred from request inputs. It survives transaction
+    restarts but is cleared after the task, preventing pooled-connection leaks.
+    """
+    token = _SCOPE.set({"role": "SERVICE", "user_id": "", "tenant_id": ""})
+    try:
+        yield
+    finally:
+        _SCOPE.reset(token)
