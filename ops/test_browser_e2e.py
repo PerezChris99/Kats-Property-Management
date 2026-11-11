@@ -288,7 +288,8 @@ def test_uganda_legal_context_and_media_attribution_are_available(page):
     expect(page.get_by_role("heading", name="Relevant statutory guidance")).to_be_visible()
     expect(page.get_by_text("Security deposits", exact=True)).to_be_visible()
     expect(page.get_by_role("link", name=re.compile("Landlord and Tenant Act, 2022"))).to_have_attribute("target", "_blank")
-    page.get_by_role("link", name="Image licenses").click()
+    page.get_by_role("navigation", name="Other legal pages").get_by_role(
+        "link", name="Image licenses").click()
     expect(page).to_have_url(re.compile(r"/image-attributions$"))
     expect(page.get_by_role("heading", name="Image sources & licenses")).to_be_visible()
     assert page.get_by_role("link", name="Creative Commons Attribution-ShareAlike 4.0").count() == 5
