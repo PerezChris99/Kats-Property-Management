@@ -9,6 +9,7 @@ import { api } from '../lib/api';
 import { PHOTOS, PHOTO_LICENSE } from './media';
 import { POLICY_LINKS, POLICY_PAGES } from './legal';
 import './site.css';
+import './redesign.css';
 
 const PRINCIPLES = [
   { icon: Building2, title: 'Owners', detail: 'Portfolio visibility.' },
@@ -147,7 +148,7 @@ function HeroCarousel({ user }) {
   return <section ref={heroRef} className="pm-hero" aria-label="Property management introduction" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) setPaused(false); }}>
     <div className="pm-hero-images" aria-hidden="true">{PHOTOS.map((item, n) => <div className={'pm-slide' + (n === index ? ' is-current' : '')} key={item.url} style={{ backgroundImage: 'url("' + item.url + '")' }}/>)}</div>
     <div className="pm-hero-shade"/>
-    <div className="pm-hero-inner"><div className="pm-glass pm-hero-panel"><span className="pm-kicker pm-kicker-light"><span className="pm-spark" /> BUILT FOR UGANDAN RENTALS</span><h1>Manage property. <em>Know the full picture.</em></h1><p>Manage units, leases, rent and repairs in one place.</p><div className="pm-hero-actions"><Link className="pm-cta pm-cta-yellow" to={user ? '/dashboard' : '/request-access'}>{user ? 'Open workspace' : 'Request access'} <ArrowRight size={18}/></Link><Link className="pm-cta pm-cta-ghost" to="/how-it-works">How it works</Link></div><div className="pm-hero-points"><span><Check size={15}/> UGX rent records</span><span><Check size={15}/> Secure role access</span></div></div></div>
+    <div className="pm-hero-inner"><div className="pm-hero-copy"><span className="pm-kicker pm-kicker-light"><span className="pm-spark" /> BUILT FOR UGANDAN RENTALS</span><h1>Manage property. <em>Know the full picture.</em></h1><p>Manage units, leases, rent and repairs in one place.</p><div className="pm-hero-actions"><Link className="pm-cta pm-cta-yellow" to={user ? '/dashboard' : '/request-access'}>{user ? 'Open workspace' : 'Request access'} <ArrowRight size={18}/></Link><Link className="pm-cta pm-cta-ghost" to="/how-it-works">How it works</Link></div><div className="pm-hero-points"><span><Check size={15}/> UGX rent records</span><span><Check size={15}/> Secure role access</span></div></div></div>
     <div className="pm-carousel-bottom"><div className="pm-carousel-controls"><button onClick={() => move(-1)} aria-label="Previous residential photo"><ChevronLeft/></button><span className="pm-carousel-count">0{index + 1} / 0{PHOTOS.length}</span><button onClick={() => move(1)} aria-label="Next residential photo"><ChevronRight/></button></div><div className="pm-carousel-dots" aria-label="Choose a residential photo">{PHOTOS.map((p, n) => <button type="button" key={p.credit} aria-label={'Show photo ' + (n + 1)} aria-current={index === n ? 'true' : undefined} onClick={() => setIndex(n)} className={index === n ? 'is-current' : ''}/>)}</div><a className="pm-hero-credit" href={PHOTOS[index].credit} target="_blank" rel="noopener noreferrer">{PHOTOS[index].location} · {PHOTOS[index].author}</a></div>
   </section>;
 }
@@ -182,7 +183,30 @@ export function LandingPage({ user }) {
 }
 
 function PageHero({ eyebrow, title, text, photo = PHOTOS[0], children }) {
-  return <section className="pm-page-hero"><div className="pm-page-hero-image" style={{backgroundImage: 'linear-gradient(90deg,rgba(7,24,49,.88),rgba(7,28,55,.42)),url("' + photo.url + '")'}}/><div className="pm-container pm-page-hero-inner"><span className="pm-kicker pm-kicker-light">{eyebrow}</span><h1>{title}</h1><p>{text}</p>{children}</div></section>;
+  const heroRef = useRef(null);
+  useEffect(() => {
+    const hero = heroRef.current;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (!hero || reduced.matches) return undefined;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const rect = hero.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+      hero.style.setProperty('--pm-page-shift', Math.max(-65, Math.min(65, -rect.top * .13)).toFixed(1) + 'px');
+    };
+    const onScroll = () => { if (!frame) frame = window.requestAnimationFrame(update); };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      window.cancelAnimationFrame(frame);
+      hero.style.removeProperty('--pm-page-shift');
+    };
+  }, []);
+  return <section ref={heroRef} className="pm-page-hero"><div className="pm-page-hero-image" style={{backgroundImage: 'linear-gradient(90deg,rgba(7,24,49,.88),rgba(7,28,55,.42)),url("' + photo.url + '")'}}/><div className="pm-container pm-page-hero-inner"><span className="pm-kicker pm-kicker-light">{eyebrow}</span><h1>{title}</h1><p>{text}</p>{children}</div></section>;
 }
 export function FeaturesPage() {
   return <main className="pm-main"><PageHero eyebrow="THE PLATFORM" title="Everything you need to manage rentals." text="Keep units, tenants, rent and repairs organized." photo={PHOTOS[2]}/>
@@ -246,9 +270,10 @@ export function RequestAccessPage() {
     } finally { setBusy(false); }
   }
   return <main className="pm-main"><PageHero eyebrow="REQUEST ACCESS" title="Get access to KATS." text="Request an account for an existing property operation. An administrator reviews every request." photo={PHOTOS[2]}/>
-    <section className="pm-section pm-request-section"><div className="pm-container pm-request-layout">
+    <section className="pm-section pm-request-section" aria-labelledby="pm-request-heading"><div className="pm-container pm-request-layout">
       <div className="pm-contact-form">
-        <SectionTitle eyebrow="ACCOUNT REQUEST" title="Tell us who you are." text="Submitting does not create an account."/>
+        <div className="pm-request-form-head"><span className="pm-form-index">01 / REQUEST</span><span className="pm-request-security"><ShieldCheck size={15} aria-hidden="true"/> Reviewed by an administrator</span></div>
+        <div className="pm-section-title"><span className="pm-kicker">YOUR DETAILS</span><h2 id="pm-request-heading">Request your workspace.</h2><p>Share a few details. We’ll route your request for review.</p></div>
         {success && <p role="status" className="pm-form-success"><CheckCircle2 size={20}/>{success}</p>}
         {error && <p role="alert" className="error">{error}</p>}
         <form onSubmit={submit}>
@@ -262,13 +287,16 @@ export function RequestAccessPage() {
           <label>Why do you need access?<textarea required minLength="10" maxLength="2000" rows="3" value={values.message} onChange={e => change('message', e.target.value)} placeholder="Your property or team and the work you manage"/></label>
           <label className="pm-consent"><input type="checkbox" checked={values.consent} required onChange={e => change('consent', e.target.checked)}/><span>I agree to the handling of this request under the <Link to="/privacy">Privacy policy</Link>.</span></label>
           <input className="pm-honeypot" aria-hidden="true" tabIndex={-1} autoComplete="off" name="website" value={values.website} onChange={e => change('website', e.target.value)}/>
-          <button className="pm-cta pm-cta-yellow" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Submit request'} <ArrowRight size={17}/></button>
+          <div className="pm-form-submit"><button className="pm-cta pm-cta-yellow" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Send access request'} <ArrowRight size={17}/></button><small>No account is created until approval.</small></div>
         </form>
       </div>
-      <aside className="pm-request-guide"><span className="pm-kicker">WHAT HAPPENS NEXT</span>
-        <h2>Access is controlled.</h2>
-        <ol><li>Your request enters the owner’s review queue.</li><li>The administrator checks your identity and role.</li><li>Approved users receive a separate account invitation.</li></ol>
-        <p>Already have an account? <Link to="/login" className="pm-text-link">Sign in <ArrowRight size={16}/></Link></p>
+      <aside className="pm-request-guide" aria-label="Access review process"><span className="pm-form-index">02 / REVIEW</span>
+        <div className="pm-guide-mark" aria-hidden="true"><ShieldCheck size={29} strokeWidth={1.5}/></div>
+        <span className="pm-kicker">WHAT HAPPENS NEXT</span>
+        <h2>Secure access, without the friction.</h2>
+        <p className="pm-guide-intro">Your property records stay private. Every new account is reviewed before access is granted.</p>
+        <ol><li><strong>Submit details</strong><span>Tell us your role and property.</span></li><li><strong>Administrator review</strong><span>Your request is checked for the correct permissions.</span></li><li><strong>Account invitation</strong><span>If approved, you’ll receive instructions to sign in.</span></li></ol>
+        <div className="pm-guide-footer"><span>ALREADY REGISTERED?</span><Link to="/login" className="pm-text-link">Sign in <ArrowRight size={16}/></Link></div>
       </aside>
     </div></section>
   </main>;
