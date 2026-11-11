@@ -36,9 +36,17 @@ def validate_production_config():
             raise RuntimeError(key + " must be an unpredictable secret")
     if not os.environ["DATABASE_URL"].startswith("postgresql"):
         raise RuntimeError("PostgreSQL is required for production")
+    from urllib.parse import urlparse, parse_qs
+    parsed_db = urlparse(os.environ["DATABASE_URL"])
+    mode = parse_qs(parsed_db.query).get("sslmode", [""])[0]
+    if not parsed_db.hostname or not parsed_db.username or not parsed_db.password:
+        raise RuntimeError("Production PostgreSQL URL requires a host, restricted user and password")
+    if mode != "verify-full":
+        raise RuntimeError("Production PostgreSQL requires sslmode=verify-full with verified certificates")
+    if os.environ["SECRET_KEY"] == os.environ["JWT_SECRET_KEY"]:
+        raise RuntimeError("SECRET_KEY and JWT_SECRET_KEY must be independently generated")
     if os.getenv("COOKIE_SECURE") != "true":
         raise RuntimeError("Production requires COOKIE_SECURE=true")
-    from urllib.parse import urlparse
     origins = [x.strip() for x in os.environ["CORS_ORIGINS"].split(",") if x.strip()]
     if not origins:
         raise RuntimeError("At least one HTTPS CORS origin is required")
@@ -64,6 +72,15 @@ def validate_production_config():
         timeout = int(os.getenv("DB_POOL_TIMEOUT", "10"))
         if not 1 <= pool <= 30 or not 0 <= overflow <= 15 or not 1 <= timeout <= 60:
             raise ValueError()
+        workers = int(os.getenv("API_WORKERS", "2"))
+        celery_workers = int(os.getenv("CELERY_WORKER_CONCURRENCY", "2"))
+        budget = int(os.getenv("DB_CONNECTION_BUDGET", "80"))
+        # API/worker pools are per-process. Reserve 10 slots for migrations,
+        # administration, managed backup tools and incident recovery.
+        if (not 1 <= workers <= 16 or not 1 <= celery_workers <= 16
+                or not 20 <= budget <= 1000
+                or (workers + celery_workers) * (pool + overflow) + 10 > budget):
+            raise ValueError()
     except ValueError:
-        raise RuntimeError("Database pool limits out of safe bounds") from None
+        raise RuntimeError("Database pool or connection budget exceeds configured safe capacity") from None
 
