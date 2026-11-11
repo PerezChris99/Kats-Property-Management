@@ -89,7 +89,8 @@ function DataCell({ column, value }) {
 // intentionally public TEST credential, never an administrator secret.
 const PUBLIC_DEMO_ENABLED = import.meta.env.VITE_KATS_PUBLIC_DEMO === 'true' &&
   typeof import.meta.env.VITE_KATS_DEMO_PASSWORD === 'string' &&
-  import.meta.env.VITE_KATS_DEMO_PASSWORD.length >= 12;
+  import.meta.env.VITE_KATS_DEMO_PASSWORD.length >= 12 &&
+  !import.meta.env.VITE_KATS_DEMO_PASSWORD.startsWith('REPLACE');
 const PUBLIC_DEMO_ACCOUNTS = [
   { email: 'landlord@demo.kats.invalid', name: 'Landlord' },
   ...Array.from({ length: 30 }, (_, i) => ({
