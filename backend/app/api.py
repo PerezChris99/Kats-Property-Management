@@ -1,5 +1,7 @@
 from datetime import date, datetime, timezone, timedelta
 import unicodedata
+import hashlib
+import re
 from functools import wraps
 import os
 from flask import Blueprint, abort, jsonify, request
@@ -669,20 +671,52 @@ def maintenance_create():
     tenant_id = None
     if user.role == "TENANT":
         tenant_id = db.session.query(Tenant.id).filter_by(user_id=user.id).scalar()
-        if not tenant_id or not db.session.query(Lease.id).filter_by(tenant_id=tenant_id, room_id=room.id, status="ACTIVE").first():
+        if not tenant_id or not db.session.query(Lease.id).filter_by(
+            tenant_id=tenant_id, room_id=room.id, status="ACTIVE"
+        ).first():
             abort(403)
     elif user.role not in STAFF:
         abort(403)
     priority = str(obj.get("priority", "MEDIUM")).upper()
     if priority not in ("LOW", "MEDIUM", "HIGH", "URGENT"):
         return fail("Invalid priority")
-    req = MaintenanceRequest(room_id=room.id, tenant_id=tenant_id, title=required_string(obj, "title", 160),
-                             description=required_string(obj, "description", 3000), priority=priority)
+    title = required_string(obj, "title", 160)
+    description = required_string(obj, "description", 3000)
+    key = obj.get("idempotency_key")
+    digest = None
+    if key is not None:
+        if (not isinstance(key, str) or not 8 <= len(key) <= 128
+                or not re.fullmatch(r"[A-Za-z0-9._:-]+", key)):
+            return fail("Invalid maintenance idempotency key")
+        # Namespaced by the authenticated account: no cross-tenant key reuse.
+        digest = hashlib.sha256((user.id + ":" + key).encode("utf-8")).hexdigest()
+        existing = db.session.query(MaintenanceRequest).filter_by(idempotency_key=digest).first()
+        if existing:
+            if (existing.room_id != room.id or existing.tenant_id != tenant_id or
+                    existing.title != title or existing.description != description or
+                    existing.priority != priority):
+                return fail("Idempotency key reused with different maintenance details", 409)
+            return jsonify(request=serialize(existing, "id", "status", "title"),
+                           reused=True), 200
+    req = MaintenanceRequest(room_id=room.id, tenant_id=tenant_id, title=title,
+                             description=description, priority=priority,
+                             idempotency_key=digest)
     db.session.add(req)
-    db.session.flush()
-    audit(user, "maintenance.create", "maintenance", req.id)
-    db.session.commit()
-    return jsonify(request=serialize(req, "id", "status", "title")), 201
+    try:
+        db.session.flush()
+        audit(user, "maintenance.create", "maintenance", req.id)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        if digest:
+            existing = db.session.query(MaintenanceRequest).filter_by(idempotency_key=digest).first()
+            if existing and (existing.room_id, existing.tenant_id, existing.title,
+                             existing.description, existing.priority) == (
+                    room.id, tenant_id, title, description, priority):
+                return jsonify(request=serialize(existing, "id", "status", "title"),
+                               reused=True), 200
+        return fail("Conflicting maintenance request. Check existing requests.", 409)
+    return jsonify(request=serialize(req, "id", "status", "title"), reused=False), 201
 
 @api.get("/expenses")
 @roles(*STAFF)
