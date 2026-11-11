@@ -186,17 +186,64 @@ def login():
         if matched is None or (user.mfa_last_step is not None and matched <= user.mfa_last_step):
             return fail("Invalid or previously used authenticator code", 401)
         user.mfa_last_step = matched
+    return _issue_login_session(user)
+
+
+def _issue_login_session(user, *, event="auth.login"):
+    """Normal audited, revocable JWT cookie login for password and demo flows."""
     response = jsonify(user=serialize(user, "id", "full_name", "role"))
     claims = {"sv": user.session_version}
     refresh_token = create_refresh_token(identity=user.id, additional_claims=claims)
-    from datetime import datetime, timezone
     expiry = datetime.fromtimestamp(decode_token(refresh_token)["exp"], tz=timezone.utc)
     db.session.add(RefreshSession(user_id=user.id, token_jti=decode_token(refresh_token)["jti"], expires_at=expiry))
-    audit(user, "auth.login", "user", user.id)
+    audit(user, event, "user", user.id)
     db.session.commit()
     set_access_cookies(response, create_access_token(identity=user.id, additional_claims=claims))
     set_refresh_cookies(response, refresh_token)
     return response
+
+
+@api.get("/auth/demo-accounts")
+@limiter.limit("30 per minute")
+def demo_accounts():
+    from .demo_preview import demo_http_allowed
+    if not demo_http_allowed():
+        abort(404)
+    from .models import User
+    accounts = []
+    for key, email in [("landlord", "landlord@demo.kats.invalid")] + [
+        (f"tenant-{i:02d}", f"tenant{i:02d}@demo.kats.invalid") for i in range(1, 31)
+    ]:
+        account = db.session.query(User).filter_by(email=email, is_active=True).first()
+        if account and account.role == ("OWNER" if key == "landlord" else "TENANT"):
+            accounts.append({"key": key, "name": account.full_name,
+                             "role": "LANDLORD" if key == "landlord" else "TENANT"})
+    # An unseeded preview never displays non-functional shortcuts.
+    if len(accounts) != 31:
+        return jsonify(enabled=False, accounts=[])
+    return jsonify(enabled=True, accounts=accounts)
+
+
+@api.post("/auth/demo-sign-in")
+@limiter.limit("10 per minute")
+def demo_sign_in():
+    from .demo_preview import demo_http_allowed
+    if not demo_http_allowed():
+        abort(404)
+    obj = data()
+    key = obj.get("account")
+    if key == "landlord":
+        email, role = "landlord@demo.kats.invalid", "OWNER"
+    elif isinstance(key, str) and len(key) == 9 and key.startswith("tenant-") and key[-2:].isdigit() and 1 <= int(key[-2:]) <= 30:
+        email, role = f"tenant{key[-2:]}@demo.kats.invalid", "TENANT"
+    else:
+        return fail("Unknown demo account", 400)
+    user = db.session.query(User).filter_by(email=email, role=role, is_active=True).first()
+    if user is None or user.mfa_enabled:
+        return fail("Demo account is unavailable. Run preview setup.", 404)
+    if role == "TENANT" and not db.session.query(Tenant.id).filter_by(user_id=user.id).first():
+        return fail("Demo tenant has no linked rental profile.", 404)
+    return _issue_login_session(user, event="auth.demo_login")
 
 @api.post("/auth/refresh")
 @jwt_required(refresh=True)
