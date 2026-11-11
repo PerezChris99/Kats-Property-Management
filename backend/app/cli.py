@@ -94,12 +94,25 @@ def register_commands(app):
         """)).scalar()
         if not policy:
             raise click.ClickException("Private-document RLS policy is missing")
+        scoped_tables=("tenants","leases","invoices","payments",
+                       "maintenance_requests","notifications")
+        for table in scoped_tables:
+            state=db.session.execute(text("""
+              SELECT cls.relrowsecurity, cls.relforcerowsecurity,
+                     EXISTS (SELECT 1 FROM pg_policies p
+                             WHERE p.schemaname=current_schema()
+                               AND p.tablename=cls.relname
+                               AND p.policyname='kats_runtime_scope')
+              FROM pg_class cls
+              WHERE cls.oid = to_regclass(:table)
+            """),{"table":table}).first()
+            if not state or not all(state):
+                raise click.ClickException("Core tenant/finance FORCE RLS missing for " + table)
         expected=int(os.getenv("DB_POOL_SIZE","5"))+int(os.getenv("DB_MAX_OVERFLOW","2"))
-        click.echo("PASS: application DB role is restricted; private document RLS "
-                   "is forced and policy exists; Redis, HTTPS origins and secrets "
-                   "pass configuration checks.")
-        click.echo(f"WARNING: pool allowance is {expected} connections per web worker, "
-                   "plus independent Celery/administrative usage. RLS on other data "
-                   "tables still relies on API object authorization.")
+        click.echo("PASS: restricted application DB role, document/tenant/finance "
+                   "FORCE RLS policies, Redis and production configuration checks.")
+        click.echo(f"WARNING: pool allowance is {expected} connections per web worker "
+                   "plus Celery, exports and administration; benchmark your database "
+                   "connection budget and review remaining API-only tables.")
         click.echo("NEXT: validate public TLS edge, providers, backups, "
                    "S3 antivirus, penetration tests and staging load benchmarks.")
