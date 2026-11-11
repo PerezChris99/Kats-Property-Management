@@ -313,9 +313,49 @@ function Dashboard({ user }) {
     const [summary, setSummary] = useState(null);
     const [error, setError] = useState('');
     useEffect(() => { api('dashboard').then(setSummary).catch(err => setError(String(err))); }, []);
-    return <section className="page"><span className="eyebrow">PORTFOLIO OVERVIEW</span><h1>Welcome, {user.full_name.split(' ')[0]}</h1><p>Current recorded balances, not estimates of unverified payments.</p>{error && <p role="alert" className="error">{error}</p>}{!summary ? <p>Loading dashboard…</p> : <div className="stat-grid">
-  {[['Expected', summary.expected_ugx, true], ['Collected', summary.collected_ugx, true], ['Outstanding', summary.outstanding_ugx, true], ['Occupied rooms', summary.occupied_rooms, false], ['Vacant / other rooms', summary.vacant_rooms, false], ['Open maintenance', summary.open_maintenance, false]].map(([label, value, currency]) => <div className="stat" key={String(label)}><small>{label}</small><strong>{currency ? 'UGX ' : ''}{Number(value).toLocaleString('en-UG')}</strong></div>)}</div>}
-  <div className="quick"><h2>Common actions</h2><Link to="/properties">Properties</Link><Link to="/rooms">Rooms</Link><Link to="/invoices">Invoices</Link><Link to="/payments">Payments</Link></div></section>;
+    const money = value => 'UGX ' + Number(value || 0).toLocaleString('en-UG');
+    const occupied = Number(summary?.occupied_rooms || 0);
+    const vacant = Number(summary?.vacant_rooms || 0);
+    const occupancy = (occupied + vacant) > 0 ? Math.round(100 * occupied / (occupied + vacant)) : null;
+    const collected = Number(summary?.collected_ugx || 0);
+    const expected = Number(summary?.expected_ugx || 0);
+    const collection = expected > 0 ? Math.min(100, Math.max(0, Math.round(100 * collected / expected))) : null;
+    return <section className="page kats-overview">
+      <div className="kats-overview-head">
+        <div><span className="eyebrow">YOUR PORTFOLIO, AT A GLANCE</span>
+          <h1>Welcome back, {user.full_name.split(' ')[0]}.</h1>
+          <p>Recorded balances and operational activity. Unverified payments are not counted as collected.</p>
+        </div>
+        <Link className="button" to="/reports">View reports <ArrowRight size={16}/></Link>
+      </div>
+      {error && <p role="alert" className="error">{error}</p>}
+      {!summary ? <p role="status" className="data-loading">Loading your portfolio overview…</p> : <>
+        <div className="kats-overview-spotlight">
+          <div className="kats-overview-primary">
+            <span className="kats-overview-label">RENT PERFORMANCE</span>
+            <span className="kats-overview-desc">Collected rent</span>
+            <strong>{money(summary.collected_ugx)}</strong>
+            <div className="kats-meter" role="img" aria-label={collection === null ? 'No expected rent recorded' : collection + '% of expected rent collected'}>
+              <span style={{width: (collection ?? 0) + '%'}}/>
+            </div>
+            <div className="kats-meter-notes"><span>{collection === null ? 'No expected rent recorded' : collection + '% of expected'}</span><span>Expected: {money(summary.expected_ugx)}</span></div>
+          </div>
+          <div className="kats-overview-secondary">
+            <span className="kats-overview-label">ATTENTION REQUIRED</span>
+            <div><small>Outstanding</small><strong>{money(summary.outstanding_ugx)}</strong></div>
+            <div><small>Open maintenance</small><strong>{Number(summary.open_maintenance || 0).toLocaleString('en-UG')}</strong></div>
+            <Link to="/maintenance">Review maintenance <ArrowRight size={16}/></Link>
+          </div>
+        </div>
+        <div className="kats-overview-section-head"><h2>Portfolio health</h2><span>Recorded units</span></div>
+        <div className="stat-grid">
+          <div className="stat"><small>Occupied rooms</small><strong>{occupied.toLocaleString('en-UG')}</strong></div>
+          <div className="stat"><small>Vacant / other rooms</small><strong>{vacant.toLocaleString('en-UG')}</strong></div>
+          <div className="stat"><small>Recorded occupancy</small><strong>{occupancy === null ? '—' : occupancy + '%'}</strong></div>
+        </div>
+      </>}
+      <div className="quick kats-overview-actions"><h2>Go to workspace</h2><div><Link to="/properties">Properties <ArrowRight size={15}/></Link><Link to="/rooms">Rooms <ArrowRight size={15}/></Link><Link to="/invoices">Invoices <ArrowRight size={15}/></Link><Link to="/payments">Payments <ArrowRight size={15}/></Link></div></div>
+    </section>;
 }
 function ReportsPage() {
     const [month, setMonth] = useState('');
