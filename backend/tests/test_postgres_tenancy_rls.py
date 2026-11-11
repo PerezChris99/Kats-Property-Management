@@ -105,9 +105,11 @@ def test_core_financial_row_policies_default_deny_and_enforce_tenant_isolation()
                                     (ids[kind],)).fetchall()
                 assert [x[0] for x in actual]==[ids[kind][0]],kind
             # Tenant cannot rewrite their own personal identity under SQL RLS.
-            assert conn.execute(
-                "UPDATE tenants SET full_name='Forbidden' WHERE id=%s",
-                (ids["tenant"][0],)).rowcount==0
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                with conn.transaction():  # savepoint keeps outer read transaction healthy
+                    conn.execute(
+                        "UPDATE tenants SET full_name='Forbidden' WHERE id=%s",
+                        (ids["tenant"][0],))
         # Session-scoped config must not survive transaction commit.
         assert conn.execute("SELECT count(*) FROM invoices WHERE id=ANY(%s)",
                             (ids["invoice"],)).fetchone()[0]==0
