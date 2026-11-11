@@ -238,3 +238,31 @@ def test_hero_respects_reduced_motion(browser):
         ) == "none"
     finally:
         context.close()
+
+
+@pytest.mark.parametrize("legacy,section", [
+    ("/features", "capabilities"),
+    ("/how-it-works", "workflow"),
+    ("/about", "about"),
+])
+def test_legacy_marketing_urls_redirect_to_home_sections(page, legacy, section):
+    page.goto(BASE + legacy, wait_until="domcontentloaded")
+    expect(page).to_have_url(re.compile(r"/#" + re.escape(section) + r"$"))
+    expect(page.locator("#" + section)).to_be_visible()
+    expect(page.get_by_role("heading", level=1)).to_contain_text("Manage property")
+
+
+def test_public_navigation_is_management_first(page):
+    page.goto(BASE + "/", wait_until="domcontentloaded")
+    nav = page.get_by_role("navigation", name="Main navigation")
+    expect(nav.get_by_role("link", name="Home")).to_have_count(1)
+    expect(nav.get_by_role("link", name="Request access")).to_have_count(1)
+    expect(nav.get_by_role("link", name="Sign in")).to_have_count(1)
+    for old in ("Features", "How it works", "About"):
+        expect(nav.get_by_role("link", name=old, exact=True)).to_have_count(0)
+    expect(page.locator("#capabilities")).to_be_visible()
+    expect(page.locator("#workflow")).to_be_visible()
+    expect(page.locator("#about")).to_be_visible()
+    expect(page.locator(".pm-faq")).to_have_count(0)
+    expect(page.locator(".pm-problem")).to_have_count(0)
+    expect(page.locator(".pm-endcap")).to_have_count(1)
