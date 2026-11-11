@@ -496,3 +496,96 @@ def test_real_role_workspaces_fit_narrow_and_wide_screens(browser, width, height
                 expect(page.locator(".mobile-nav")).to_be_visible()
     finally:
         context.close()
+
+
+@pytest.mark.parametrize("width,height", [
+    (390, 844), (430, 932), (768, 1024),
+    (1024, 768), (1365, 768), (1440, 900)
+])
+@pytest.mark.parametrize("route,form_selector", [
+    ("/request-access", ".pm-request-page .pm-contact-form form"),
+    ("/login", ".pm-login-card form"),
+])
+def test_primary_conversion_forms_fit_typical_viewport_without_content_clipping(
+    browser, width, height, route, form_selector
+):
+    """Compact primary forms should fit; tiny/zoomed/keyboard layouts retain scrolling."""
+    context = browser.new_context(viewport={"width":width,"height":height},
+                                  reduced_motion="reduce")
+    page = context.new_page()
+    try:
+        page.goto(BASE+route, wait_until="domcontentloaded")
+        expect(page.locator(form_selector)).to_be_visible()
+        measurements = page.evaluate("""selector => {
+            const form=document.querySelector(selector).getBoundingClientRect();
+            const header=document.querySelector('.pm-header').getBoundingClientRect();
+            const footer=document.querySelector('.pm-footer').getBoundingClientRect();
+            const main=document.querySelector('main').getBoundingClientRect();
+            const width=document.documentElement.clientWidth;
+            return {formTop:form.top,formBottom:form.bottom,
+                    headerBottom:header.bottom,footerTop:footer.top,
+                    mainBottom:main.bottom,viewportHeight:innerHeight,
+                    width,scrollWidth:document.documentElement.scrollWidth};
+        }""",form_selector)
+        assert measurements["scrollWidth"] <= measurements["width"]+2, (route,width,measurements)
+        assert measurements["formTop"] >= measurements["headerBottom"]-4, (route,width,measurements)
+        assert measurements["formBottom"] <= height+3, (route,width,measurements)
+        # The request page has no separate hero, and the user only needs
+        # to scroll to visit the footer, not to finish entering required fields.
+        if route == "/request-access":
+            assert measurements["footerTop"] >= height-3, measurements
+            assert page.locator(".pm-request-page .pm-page-hero").count() == 0
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("width,height", [
+    (320,720),(390,844),(768,1024),(1024,768),(1440,900),(1920,1080)
+])
+def test_footer_background_is_subtle_and_legal_links_are_two_columns(browser,width,height):
+    context = browser.new_context(viewport={"width":width,"height":height},
+                                  reduced_motion="reduce")
+    page=context.new_page()
+    try:
+        page.goto(BASE+"/",wait_until="domcontentloaded")
+        footer=page.locator("footer.pm-footer")
+        footer.scroll_into_view_if_needed()
+        expect(footer).to_have_class(re.compile(r"has-photo"))
+        expect(footer.get_by_role("navigation", name="Footer navigation")).to_be_visible()
+        result=page.evaluate("""() => {
+            const footer=document.querySelector('footer.pm-footer');
+            const legal=footer.querySelector('.pm-footer-legal');
+            const styles=getComputedStyle(legal);
+            const photo=getComputedStyle(footer,'::before');
+            const links=[...legal.querySelectorAll('a')].map(n=>n.getBoundingClientRect());
+            return {columns:styles.gridTemplateColumns.split(' ').filter(Boolean).length,
+                background:photo.backgroundImage, opacity:photo.opacity,
+                width:document.documentElement.clientWidth,
+                escaped:links.some(r=>r.left < -2 || r.right > innerWidth+2)};
+        }""")
+        assert result["columns"] == 2, (width,result)
+        assert "wikimedia.org" in result["background"], result
+        assert not result["escaped"], (width,result)
+        expect(footer.get_by_role("link",name="Image licenses")).to_be_visible()
+    finally:
+        context.close()
+
+
+def test_small_landscape_keeps_complete_form_reachable_without_hidden_inputs(browser):
+    context=browser.new_context(viewport={"width":568,"height":320},
+                                reduced_motion="reduce")
+    page=context.new_page()
+    try:
+        for route, selector in (
+            ("/request-access",".pm-request-page form"),
+            ("/login",".pm-login-card form")
+        ):
+            page.goto(BASE+route,wait_until="domcontentloaded")
+            form=page.locator(selector)
+            expect(form).to_be_visible()
+            bottom=form.locator('button[type="submit"]') if route=="/request-access" else form.get_by_role("button",name="Sign in securely")
+            bottom.scroll_into_view_if_needed()
+            expect(bottom).to_be_in_viewport()
+            assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2")
+    finally:
+        context.close()
