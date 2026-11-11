@@ -96,6 +96,8 @@ function Login({ onSuccess }) {
     const [demoAccounts, setDemoAccounts] = useState([]);
     const [demoSearch, setDemoSearch] = useState('');
     useEffect(() => {
+        // Never request or render demo shortcuts in the production frontend bundle.
+        if (!import.meta.env.DEV) return undefined;
         let live = true;
         api('auth/demo-accounts')
             .then(payload => { if (live && payload.enabled) setDemoAccounts(payload.accounts || []); })
