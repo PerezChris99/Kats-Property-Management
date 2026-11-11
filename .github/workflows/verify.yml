@@ -91,9 +91,11 @@ jobs:
               conn.execute("GRANT USAGE ON SCHEMA public TO kats_rls_test")
               conn.execute("GRANT SELECT ON documents TO kats_rls_test")
               conn.execute("GRANT SELECT ON caretaker_assignments TO kats_rls_test")
+              conn.execute("GRANT SELECT ON tenants, leases, invoices, payments, maintenance_requests, notifications TO kats_rls_test")
+              conn.execute("GRANT UPDATE (full_name) ON tenants TO kats_rls_test")
           PY
-      - name: PostgreSQL document RLS isolation
-        run: python -m pytest -q tests/test_postgres_document_rls.py
+      - name: PostgreSQL document and tenancy RLS isolation
+        run: python -m pytest -q tests/test_postgres_document_rls.py tests/test_postgres_tenancy_rls.py
         env:
           APP_ENV: testing
           TEST_POSTGRES_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
