@@ -33,6 +33,30 @@ production**: SQLite does not enforce PostgreSQL RLS and background Celery
 scheduling/payment-provider integrations are inactive. Financial workflows
 must not be considered operationally accepted in preview mode.
 
+## Start both services when Flask is already running
+
+Use **Tasks: Run Task → KATS: Start Dev (Frontend + Backend)**, even if
+an older KATS Flask process is already active at `127.0.0.1:8000`.
+
+The launcher checks both local ports first. If it recognizes an existing
+healthy KATS Flask endpoint, it **reuses that backend** and starts only
+the missing React/Vite frontend on `127.0.0.1:5173`. It also handles
+the reverse situation (frontend already running) and avoids running
+setup or migrations against the reused backend. Foreign or unhealthy
+processes occupying those ports are never killed or silently reused.
+
+The terminal will report `React ... (started)`, `Flask ... (existing)`
+and `[CONNECTED]` once React's API proxy reaches Flask and SQL.
+Use **http://127.0.0.1:5173** to open the UI, **not** port 8000;
+port 8000 is exclusively the API backend. Logs from reused processes
+remain in their original terminal. Logs from newly launched processes
+stream into the current VS Code terminal.
+
+If you only want to add the UI without re-running the combined launcher,
+you can also use **KATS: Native frontend (BAT)** in VS Code or
+`.\start-frontend.bat` in PowerShell from the repository root.
+Use **KATS: Stop (preserve database)** to stop both native launchers.
+
 ## If VS Code reports "task errors" or startup takes minutes
 
 Previous KATS task definitions used an invalid VS Code problem matcher

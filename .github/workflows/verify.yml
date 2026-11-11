@@ -320,3 +320,62 @@ jobs:
           } finally {
             Pop-Location
           }
+
+      - name: Windows reuse running Flask and launch missing React
+        shell: pwsh
+        env:
+          KATS_DEV_BACKEND: preview
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $repo = Join-Path $env:GITHUB_WORKSPACE 'Kats Property Management'
+          $apiOut = Join-Path $env:RUNNER_TEMP 'kats-already-running-api.log'
+          $apiErr = Join-Path $env:RUNNER_TEMP 'kats-already-running-api-err.log'
+          $uiOut = Join-Path $env:RUNNER_TEMP 'kats-attach-ui.log'
+          $uiErr = Join-Path $env:RUNNER_TEMP 'kats-attach-ui-err.log'
+          $python = (Get-Command python).Source
+          $api = $null
+          $ui = $null
+          Push-Location $repo
+          try {
+            $api = Start-Process -FilePath $python -ArgumentList @('ops/run_windows.py','backend') -WorkingDirectory $repo -RedirectStandardOutput $apiOut -RedirectStandardError $apiErr -PassThru
+            $apiReady = $false
+            for ($i=0; $i -lt 45; $i++) {
+              Start-Sleep -Seconds 1
+              if ($api.HasExited) { throw "Standalone backend exited ($($api.ExitCode))" }
+              try {
+                $apiResponse = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/readyz' -TimeoutSec 2
+                if ($apiResponse.status -eq 'ready') { $apiReady = $true; break }
+              } catch {}
+            }
+            if (-not $apiReady) { throw 'Existing backend failed to become ready' }
+            $ui = Start-Process -FilePath $python -ArgumentList @('ops/run_windows.py','start') -WorkingDirectory $repo -RedirectStandardOutput $uiOut -RedirectStandardError $uiErr -PassThru
+            $uiReady = $false
+            for ($i=0; $i -lt 45; $i++) {
+              Start-Sleep -Seconds 1
+              if ($ui.HasExited) { throw "Frontend+backend launcher exited ($($ui.ExitCode))" }
+              try {
+                $uiResponse = Invoke-RestMethod -Uri 'http://127.0.0.1:5173/readyz' -TimeoutSec 2
+                if ($uiResponse.status -eq 'ready') { $uiReady = $true; break }
+              } catch {}
+            }
+            if (-not $uiReady) { throw 'Frontend failed to start alongside existing backend' }
+            & python ops/run_windows.py doctor
+            if ($LASTEXITCODE -ne 0) { throw 'React proxy did not reach existing Flask' }
+            $log = Get-Content $uiOut -Raw
+            if ($log -notmatch '\[reuse\] Existing KATS backend' -or $log -notmatch '\[React\]' -or $log -notmatch '\[READY\]') {
+              throw 'Missing React startup logs or existing-backend reuse acknowledgement'
+            }
+            Write-Host '[PASS] Already-running Flask + newly started React: both endpoints and logs verified.'
+          } finally {
+            & python ops/run_windows.py stop
+            foreach ($process in @($ui,$api)) {
+              if ($null -ne $process -and -not $process.WaitForExit(25000)) {
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                throw 'Combined and existing service did not exit after native stop'
+              }
+            }
+            foreach ($file in @($apiOut,$apiErr,$uiOut,$uiErr)) {
+              if (Test-Path $file) { Get-Content $file -Tail 50 }
+            }
+            Pop-Location
+          }

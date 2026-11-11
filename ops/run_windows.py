@@ -267,10 +267,54 @@ def dependencies(args, settings):
             "--env-file", str(CONFIG), "-f", str(COMPOSE), *args],
            env=environment(settings))
 
+def port_open(port):
+    """Inspect loopback only; never take over an unknown listener."""
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.75):
+            return True
+    except OSError:
+        return False
+
+
+def existing_kats_service(kind):
+    """Recognize healthy KATS frontend/backend before spawning a duplicate."""
+    port = 5173 if kind == "frontend" else 8000
+    if not port_open(port):
+        return False
+    try:
+        if kind == "frontend":
+            with urllib.request.urlopen("http://127.0.0.1:5173/", timeout=3) as result:
+                html = result.read(16384).decode("utf-8", errors="replace")
+                genuine = result.status == 200 and "<title>KATS" in html and "/src/main.jsx" in html
+        else:
+            with urllib.request.urlopen("http://127.0.0.1:8000/readyz", timeout=3) as result:
+                info = json.load(result)
+                genuine = (result.status == 200 and info.get("status") == "ready"
+                           and bool(result.headers.get("X-Request-ID")))
+            if genuine:
+                try:
+                    urllib.request.urlopen("http://127.0.0.1:8000/api/v1/auth/me", timeout=3)
+                    genuine = False
+                except urllib.error.HTTPError as exc:
+                    genuine = (exc.code in (401, 422) and
+                               bool(exc.headers.get("X-Request-ID")))
+        if genuine:
+            print(f"[reuse] Existing KATS {kind} is healthy at 127.0.0.1:{port}. "
+                  "Leaving its terminal and process running.", flush=True)
+            return True
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    raise StartupError(
+        f"Port {port} is occupied by another or unhealthy application. "
+        "Stop that process or use the native KATS Stop task; "
+        "no unrelated service was terminated."
+    )
+
+
 def check_port(port):
-    with socket.socket() as sock:
-        if sock.connect_ex(("127.0.0.1", port)) == 0:
-            raise StartupError(f"Port {port} is in use; stop the other local app or Docker stack.")
+    if port_open(port):
+        raise StartupError(f"Port {port} is already occupied; avoid duplicate servers.")
+
 
 def reachable(url):
     try:
@@ -367,27 +411,29 @@ def launch(mode):
     run_back = mode in ("start", "backend", "backend-stack")
     backend_mode = select_backend_mode() if run_back else None
     preview = backend_mode == "preview"
-    if run_front:
-        check_port(5173)
-    if run_back:
-        check_port(8000)
-    npm = frontend(build=False) if run_front else None
-    python = backend() if run_back else None
-    runtime = prepare_backend(settings, python, backend_mode) if run_back else base
+    # If the backend already runs, start only the missing frontend; likewise
+    # preserve an existing KATS Vite server when starting the backend.
+    reuse_front = existing_kats_service("frontend") if run_front else False
+    reuse_back = existing_kats_service("backend") if run_back else False
+    if run_front and not reuse_front:
+        frontend(build=False)
+    python = backend() if run_back and not reuse_back else None
+    runtime = (prepare_backend(settings, python, backend_mode)
+               if run_back and not reuse_back else base)
     if stop_requested(started_at):
         print('[stop] Startup cancelled by stop request.', flush=True)
         return
     processes = []
     flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     try:
-        if run_front:
+        if run_front and not reuse_front:
             node = require("node")
             # Spawn Node directly instead of npm.cmd so Ctrl+Break is deliverable.
             vite = FRONT / "node_modules" / "vite" / "bin" / "vite.js"
             processes.append(start_service("React", [node, str(vite),
                 "--host", "127.0.0.1", "--port", "5173", "--strictPort"],
                 cwd=FRONT, env=base, flags=flags))
-        if run_back:
+        if run_back and not reuse_back:
             runtime["PYTHONUNBUFFERED"] = "1"
             processes.append(start_service("Flask", [str(python), "-m", "flask",
                 "--app", "wsgi", "run", "--host", "127.0.0.1", "--port", "8000",
@@ -414,11 +460,14 @@ def launch(mode):
             raise StartupError("Service readiness timed out; inspect startup errors above.")
         ready = []
         if run_front:
-            ready.append("React http://localhost:5173")
+            ready.append("React http://127.0.0.1:5173" + (" (existing)" if reuse_front else " (started)"))
         if run_back:
-            ready.append("Flask http://localhost:8000" + (" (SQLite PREVIEW)" if preview else ""))
+            ready.append("Flask http://127.0.0.1:8000" + (" (existing)" if reuse_back else (" (SQLite PREVIEW)" if preview else " (started)")))
         print("\n[READY] " + " | ".join(ready), flush=True)
         print("[READY] Ctrl+C or stop.bat requests graceful shutdown.", flush=True)
+        if reuse_front or reuse_back:
+            print("[reuse] Only the newly started services are owned by this terminal. "
+                  "Existing service logs remain in their original terminal.", flush=True)
         connected = False
         while True:
             if stop_requested(started_at):
