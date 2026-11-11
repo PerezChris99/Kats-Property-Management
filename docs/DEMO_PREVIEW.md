@@ -10,7 +10,7 @@
 4. Under **LOCAL DEMO**, click **Landlord workspace** or any of the 30 searchable **Tenant workspaces**. The server issues the normal authenticated cookies and opens the correct dashboard.
 5. Sign out to switch between landlord and tenant accounts.
 
-The dedicated task initialises the isolated SQLite preview automatically. A separate **KATS: Demo preview setup (30 tenants)** task is available if you want to initialise or verify the sample data without launching services. Existing custom accounts and changes are preserved. The seeder refuses incomplete existing demo accounts rather than deleting or overwriting them.
+The dedicated task initialises the isolated SQLite preview automatically. **Only the dedicated Demo tasks opt into synthetic seeding**; ordinary Native start/setup does not add fictional tenants to an existing developer database. A separate **KATS: Demo preview setup (30 tenants)** task is available if you want to initialise or verify the sample data without launching services. Existing custom accounts and changes are preserved. The seeder refuses incomplete existing demo accounts rather than deleting or overwriting them.
 
 ### Demo dataset
 
