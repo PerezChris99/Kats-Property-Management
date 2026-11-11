@@ -59,8 +59,8 @@ docker compose --env-file .env.production -f compose.production.yml \
 ```
 
 This checks production configuration, current Alembic schema revision,
-non-superuser/non-BYPASSRLS DB role, FORCE RLS on private documents, and
-Redis connectivity. Any failure blocks the release until fixed; the tool
+non-superuser/non-BYPASSRLS DB role, FORCE RLS on private documents plus
+core tenancy, finance, maintenance and notification tables, and Redis connectivity. Any failure blocks the release until fixed; the tool
 does not write, migrate or reveal connection secrets. **PASS is not
 business/go-live approval**. TLS, real backup restore, supplier approval,
 mobile-money settlement, EFRIS, permissions, legal and data-protection

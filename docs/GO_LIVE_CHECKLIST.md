@@ -23,7 +23,7 @@ The owner must approve this checklist based on evidence; source code alone does 
 - [ ] Load, dependency scanning, auth attacks, file-upload attacks and authorization tests show no outstanding critical/high/medium risk.
 - [ ] Encrypted offsite backups, witnessed staging restore, rollback and on-call monitoring have evidence.
 - [ ] Staging and production domains, TLS, secure DNS, restricted managed Postgres/Redis and secrets configured using docs/PRODUCTION_DEPLOYMENT.md.
-- [ ] Read-only production preflight passes as a restricted runtime role against schema head, document RLS and Redis.
+- [ ] Read-only production preflight passes with a restricted runtime role against schema head, FORCE RLS/policies on all seven core private tables, verified PostgreSQL TLS and Redis. CI green is not equivalent to deployment approval.
 - [ ] Real browser → API → database readiness is confirmed through the public domain (not an SPA fallback or mocked API).
 - [ ] Graceful API/worker shutdown verified during a rolling deploy with no lost committed records or duplicated retries.
 - [ ] Owner reviews access requests and sends separate one-time invitations; public requests never create accounts.
