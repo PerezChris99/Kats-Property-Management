@@ -55,7 +55,8 @@
         "cwd": "${workspaceFolder}",
         "env": {
           "KATS_DEV_BACKEND": "preview",
-          "KATS_FAST_START": "0"
+          "KATS_FAST_START": "0",
+          "KATS_DEMO_STRICT": "1"
         }
       },
       "presentation": {
