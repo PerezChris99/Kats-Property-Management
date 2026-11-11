@@ -25,7 +25,7 @@ def create_app(test_config=None):
             "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT", "10")),
             "pool_recycle": int(os.getenv("DB_POOL_RECYCLE", "1800")),
             "pool_use_lifo": True,
-            "connect_args": {"options": "-c statement_timeout=15000 -c idle_in_transaction_session_timeout=30000"}
+            "connect_args": {"options": "-c statement_timeout=15000 -c lock_timeout=3500 -c idle_in_transaction_session_timeout=30000 -c application_name=kats-api"}
         }
     if os.getenv("TRUST_PROXY_HEADERS", "false").lower() == "true":
         # Trust exactly one hop; the frontend proxy MUST overwrite, not append,
@@ -71,8 +71,18 @@ def create_app(test_config=None):
         response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
         response.headers["X-Request-ID"] = secrets.token_hex(12)
         if request.path.startswith("/api/"):
-            response.headers["Cache-Control"] = "no-store"
-            response.headers["Pragma"] = "no-cache"
+            # Private records are never browser/proxy cached. Only genuinely
+            # public, identity-independent GET endpoints get short HTTP caching.
+            public_read = (request.method == "GET" and response.status_code == 200
+                           and (request.path == "/api/v1/public/landing-content"
+                                or request.path.startswith("/api/v1/public/legal/")))
+            if public_read:
+                response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=120"
+                response.add_etag()
+                response.make_conditional(request)
+            else:
+                response.headers["Cache-Control"] = "no-store"
+                response.headers["Pragma"] = "no-cache"
             response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
         if request.is_secure and os.getenv("APP_ENV") == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
