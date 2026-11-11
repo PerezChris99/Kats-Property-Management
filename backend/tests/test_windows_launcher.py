@@ -290,6 +290,7 @@ def test_preview_environment_is_local_only_and_never_inherits_live_providers(mon
 
 
 def test_preview_setup_never_calls_docker_or_migrations(monkeypatch, tmp_path):
+    monkeypatch.setenv("KATS_SEED_DEMO", "1")
     monkeypatch.setattr(launcher, "STATE", tmp_path)
     commands=[]
     monkeypatch.setattr(launcher, "invoke", lambda args, **kw: commands.append((args,kw)))
