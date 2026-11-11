@@ -206,7 +206,7 @@ function ResourcePage({ resource, user }) {
     useEffect(() => {
         const controller = new AbortController();
         void load(controller.signal);
-        return () => { controller.abort(); latestLoad.current++; };
+        return () => { controller.abort(); };
     }, [load]);
     useEffect(() => { setPage(1); setFilter(''); }, [resource.path]);
     useEffect(() => {
