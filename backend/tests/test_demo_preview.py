@@ -145,3 +145,29 @@ def test_partial_demo_accounts_are_not_overwritten(app, monkeypatch):
         seed.seed()
     assert db.session.query(User).count() == 1
     assert db.session.query(Property).count() == 0
+
+
+def test_public_neon_demo_seeder_is_fully_opt_in_and_rejects_non_neon(monkeypatch):
+    import pytest
+    seed=load_seeder()
+    monkeypatch.setenv("KATS_PUBLIC_DEMO_PASSWORD", "OnlySyntheticDemoPassphrase2026!")
+    monkeypatch.setenv("KATS_PUBLIC_DEMO_SEED", "1")
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@ep-demo.neon.tech/katsproperty")
+    with pytest.raises(RuntimeError, match="staging context"):
+        seed.assert_public_neon_demo_database()
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/katsproperty")
+    with pytest.raises(RuntimeError, match="dedicated katsproperty Neon"):
+        seed.assert_public_neon_demo_database()
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@ep-demo.neon.tech/customerdb")
+    with pytest.raises(RuntimeError, match="dedicated katsproperty Neon"):
+        seed.assert_public_neon_demo_database()
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@ep-demo.neon.tech/katsproperty")
+    monkeypatch.setenv("MTN_MOMO_ENABLED", "true")
+    with pytest.raises(RuntimeError, match="cannot enable live"):
+        seed.assert_public_neon_demo_database()
+    monkeypatch.setenv("MTN_MOMO_ENABLED", "false")
+    monkeypatch.setenv("KATS_PUBLIC_DEMO_PASSWORD", "weak")
+    with pytest.raises(RuntimeError, match="16\+ character"):
+        seed.assert_public_neon_demo_database()

@@ -85,6 +85,20 @@ function DataCell({ column, value }) {
     }
     return <>{formats(column, value)}</>;
 }
+// Public demos use only synthetic records. The shared password is an
+// intentionally public TEST credential, never an administrator secret.
+const PUBLIC_DEMO_ENABLED = import.meta.env.VITE_KATS_PUBLIC_DEMO === 'true' &&
+  typeof import.meta.env.VITE_KATS_DEMO_PASSWORD === 'string' &&
+  import.meta.env.VITE_KATS_DEMO_PASSWORD.length >= 12 &&
+  !import.meta.env.VITE_KATS_DEMO_PASSWORD.startsWith('REPLACE');
+const PUBLIC_DEMO_ACCOUNTS = [
+  { email: 'landlord@demo.kats.invalid', name: 'Landlord' },
+  ...Array.from({ length: 30 }, (_, i) => ({
+    email: 'tenant' + String(i + 1).padStart(2, '0') + '@demo.kats.invalid',
+    name: 'Tenant ' + String(i + 1).padStart(2, '0')
+  }))
+];
+
 function Login({ onSuccess }) {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
@@ -165,7 +179,20 @@ function Login({ onSuccess }) {
       <label>Authenticator code (if enabled)<input type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Six-digit code"/></label>
       {error && <p role="alert" className="error">{error}</p>}
       <button className="pm-cta pm-cta-yellow" disabled={busy}>{busy ? 'Signing in…' : 'Sign in securely'} <ArrowRight size={18}/></button></form>
-      <div className="pm-login-links"><Link to="/forgot-password">Forgot your password?</Link><Link to="/request-access">Request access</Link></div><div className="pm-login-security"><ShieldCheck size={23}/><span>Session protection and role-based authorization help keep private property records in the right hands. No third-party social login is claimed.</span></div></section></div></main>;
+      <div className="pm-login-links"><Link to="/forgot-password">Forgot your password?</Link><Link to="/request-access">Request access</Link></div><div className="pm-login-security"><ShieldCheck size={23}/><span>Session protection and role-based authorization help keep private property records in the right hands. No third-party social login is claimed.</span></div></section>
+      {PUBLIC_DEMO_ENABLED && <aside className="pm-public-demo-pane" aria-label="Demo Accounts — for testing only">
+        <span className="pm-public-demo-label">PUBLIC DEMONSTRATION · SYNTHETIC RECORDS</span>
+        <h2>Demo Accounts</h2>
+        <p className="pm-demo-context">For testing only. Select an account to fill the form, then sign in. All records are fictional.</p>
+        <div className="pm-demo-shared-password"><span>Shared demonstration password</span><code>{import.meta.env.VITE_KATS_DEMO_PASSWORD}</code></div>
+        <div className="pm-public-demo-scroll">
+          {PUBLIC_DEMO_ACCOUNTS.map(account => <button key={account.email} type="button" className="pm-public-demo-choice"
+            onClick={() => { setEmail(account.email); setPassword(import.meta.env.VITE_KATS_DEMO_PASSWORD); setMfaCode(''); setError(''); }}>
+            <span><strong>{account.name}</strong><small>{account.email}</small></span><span className="pm-demo-action">Use account <ArrowRight size={13} aria-hidden="true"/></span>
+          </button>)}
+        </div>
+        <p className="pm-demo-disclaimer">Credentials are intentionally public. Never use these accounts for real tenancies, customers or payments.</p>
+      </aside>}</div></main>;
 }
 function ResourcePage({ resource, user }) {
     const [rows, setRows] = useState([]);

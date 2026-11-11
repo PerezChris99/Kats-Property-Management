@@ -886,3 +886,95 @@ body,.kats-public,.portal,.auth-layout {
  .pm-login-card .pm-demo-owner,
  .pm-login-card .pm-demo-tenant-list button {transition:none;}
 }
+
+
+/* Public demo selector: a separate, clearly labelled utility pane that never
+ * displaces the original sign-in form or alters the production auth contract. */
+@media (min-width:1100px) {
+  .auth-layout:has(.pm-public-demo-pane) .pm-login-layout {
+    width:min(1440px,calc(100% - 42px));
+    max-width:1440px;
+    display:grid;
+    grid-template-columns:minmax(225px,.72fr) minmax(370px,1fr) minmax(295px,.76fr);
+    align-items:stretch;
+  }
+  .auth-layout:has(.pm-public-demo-pane) .pm-login-layout > * {
+    min-width:0;
+  }
+}
+.pm-public-demo-pane {
+  display:flex;flex-direction:column;min-width:0;
+  border-left:1px solid #d4e4ed;
+  padding:clamp(21px,2.8vw,42px) clamp(20px,2.4vw,32px);
+  background:#edf5f9;
+  font-family:'IBM Plex Sans','Segoe UI',sans-serif;
+  color:#12354f;
+}
+.pm-public-demo-label {
+  font-size:10px;font-weight:750;line-height:1.5;letter-spacing:.13em;
+  color:#78601f;
+}
+.pm-public-demo-pane h2 {
+  font-family:'Newsreader',Georgia,serif;
+  font-size:clamp(29px,3vw,43px);
+  line-height:1.05;letter-spacing:-.04em;font-weight:550;
+  margin:12px 0;color:#0b2945;
+}
+.pm-public-demo-pane .pm-demo-context {
+  margin:0 0 18px;color:#496579;font-size:13px;line-height:1.6;
+}
+.pm-demo-shared-password {
+  background:#092b48;color:#fff;
+  border-top:3px solid #e5bc51;
+  padding:13px 14px;display:grid;gap:6px;
+}
+.pm-demo-shared-password span {font-size:11px;color:#d3e5ee;}
+.pm-demo-shared-password code {
+  font-size:13px;font-weight:650;color:#f6d786;
+  word-break:break-all;white-space:normal;
+  user-select:all;
+}
+.pm-public-demo-scroll {
+  overflow:auto;max-height:330px;scrollbar-width:thin;
+  display:grid;align-content:start;
+  background:rgba(255,255,255,.8);border:1px solid #cbdce7;
+}
+.pm-public-demo-choice {
+  display:flex;align-items:center;justify-content:space-between;
+  gap:8px;width:100%;min-width:0;text-align:left;
+  border:0;border-bottom:1px solid #e1eaf0;
+  background:transparent;color:#153d57;padding:11px;
+  cursor:pointer;
+}
+.pm-public-demo-choice:last-child {border-bottom:0;}
+.pm-public-demo-choice:hover {background:#dceef7;}
+.pm-public-demo-choice:focus-visible {
+  outline:3px solid #087cb9;outline-offset:-3px;
+}
+.pm-public-demo-choice > span:first-child {min-width:0;display:grid;gap:3px;}
+.pm-public-demo-choice strong {font-size:12px;font-weight:700;}
+.pm-public-demo-choice small {
+  color:#537183;font-size:10px;overflow-wrap:anywhere;
+}
+.pm-public-demo-choice .pm-demo-action {
+  display:flex;gap:4px;align-items:center;flex:none;
+  font-size:10px;font-weight:700;color:#0b759c;
+}
+.pm-demo-disclaimer {
+  margin:16px 0 0!important;font-size:11px!important;
+  color:#5b7283!important;line-height:1.55!important;
+}
+@media(max-width:1099px) {
+  .auth-layout:has(.pm-public-demo-pane) .pm-login-layout {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  }
+  .auth-layout:has(.pm-public-demo-pane) .pm-login-aside {display:none;}
+}
+@media(max-width:720px) {
+  .auth-layout:has(.pm-public-demo-pane) .pm-login-layout {
+    display:flex;flex-direction:column;
+  }
+  .pm-public-demo-pane {border-left:0;border-top:1px solid #d4e4ed;}
+  .pm-public-demo-scroll {max-height:200px;}
+}
