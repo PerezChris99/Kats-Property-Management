@@ -2,6 +2,90 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "KATS: Demo start (landlord + 30 tenants)",
+      "dependsOn": [
+        "KATS: Demo backend (preview)",
+        "KATS: Native frontend (BAT)"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "detail": "Starts 30-tenant local demo with auto-seed. Backend LEFT and frontend RIGHT in VS Code. Open /login for one-click accounts."
+    },
+    {
+      "label": "KATS: Demo preview setup (30 tenants)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "setup"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "KATS_DEV_BACKEND": "preview"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "kats-demo"
+      },
+      "problemMatcher": [],
+      "detail": "Creates/reuses the isolated SQLite preview and seeds 1 landlord, 30 linked tenant accounts, leases and rent records. Never connects to production."
+    },
+    {
+      "label": "KATS: Demo backend (preview)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "backend-stack"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "KATS_DEV_BACKEND": "preview",
+          "KATS_FAST_START": "0"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "kats-dev-parallel",
+        "focus": false,
+        "clear": false,
+        "showReuseMessage": false
+      },
+      "problemMatcher": [
+        {
+          "owner": "kats-native",
+          "fileLocation": "relative",
+          "pattern": {
+            "regexp": "^\\[KATS-PROBLEM\\] (.+):(\\d+): (.+)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
+          },
+          "background": {
+            "activeOnStart": true,
+            "endsPattern": "^\\[READY\\]"
+          }
+        }
+      ],
+      "isBackground": true,
+      "detail": "LEFT: initialize synthetic preview data if absent and start Flask on loopback only."
+    },
+    {
       "label": "KATS: Start Dev (Frontend + Backend)",
       "detail": "Starts TWO independent VS Code terminal panes simultaneously: LEFT Flask/backend and RIGHT React/Vite frontend. Setup/install/build is a separate task.",
       "problemMatcher": [],
