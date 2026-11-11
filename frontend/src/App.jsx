@@ -109,6 +109,14 @@ function Login({ onSuccess }) {
     const [error, setError] = useState('');
     const [demoAccounts, setDemoAccounts] = useState([]);
     const [demoSearch, setDemoSearch] = useState('');
+    const [demoExpanded, setDemoExpanded] = useState(() =>
+        typeof window === 'undefined' || window.matchMedia('(min-width: 761px)').matches);
+    useEffect(() => {
+        const media = window.matchMedia('(min-width: 761px)');
+        const onResize = event => setDemoExpanded(event.matches);
+        media.addEventListener('change', onResize);
+        return () => media.removeEventListener('change', onResize);
+    }, []);
     useEffect(() => {
         // Never request or render demo shortcuts in the production frontend bundle.
         if (!import.meta.env.DEV) return undefined;
@@ -161,6 +169,9 @@ function Login({ onSuccess }) {
       <button className="pm-cta pm-cta-yellow" disabled={busy}>{busy ? 'Signing in…' : 'Sign in securely'} <ArrowRight size={18}/></button></form>
       <div className="pm-login-links"><Link to="/forgot-password">Forgot your password?</Link><Link to="/request-access">Request access</Link></div><div className="pm-login-security"><ShieldCheck size={23}/><span>Session protection and role-based authorization help keep private property records in the right hands. No third-party social login is claimed.</span></div></section>
       {!PUBLIC_DEMO_ENABLED && demoAccounts.length === 31 && <aside className="pm-local-demo-pane" aria-label="Local demo accounts">
+        <details className="pm-demo-disclosure" open={demoExpanded}
+          onToggle={event => setDemoExpanded(event.currentTarget.open)}>
+          <summary>Explore 31 demo accounts</summary>
         <section className="pm-demo-signins" aria-label="Demo accounts for local preview">
         <div className="pm-demo-header"><div><span className="pm-demo-kicker">LOCAL DEMO</span><h2>Explore the live workspace</h2><p>Fictional rental records. Click an account to sign in instantly.</p></div><span className="pm-demo-count">31 accounts</span></div>
         <button type="button" className="pm-demo-owner" disabled={busy}
@@ -181,8 +192,12 @@ function Login({ onSuccess }) {
             </button>)}
         </div>
       </section>
+        </details>
       </aside>}
       {PUBLIC_DEMO_ENABLED && <aside className="pm-public-demo-pane" aria-label="Demo Accounts — for testing only">
+        <details className="pm-public-demo-disclosure" open={demoExpanded}
+          onToggle={event => setDemoExpanded(event.currentTarget.open)}>
+          <summary>Demo accounts for testing · 31 users</summary>
         <span className="pm-public-demo-label">PUBLIC DEMONSTRATION · SYNTHETIC RECORDS</span>
         <h2>Demo Accounts</h2>
         <p className="pm-demo-context">For testing only. Select an account to fill the form, then sign in. All records are fictional.</p>
@@ -194,6 +209,7 @@ function Login({ onSuccess }) {
           </button>)}
         </div>
         <p className="pm-demo-disclaimer">Credentials are intentionally public. Never use these accounts for real tenancies, customers or payments.</p>
+        </details>
       </aside>}</div></main>;
 }
 function ResourcePage({ resource, user }) {
