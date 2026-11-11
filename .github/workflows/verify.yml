@@ -379,3 +379,81 @@ jobs:
             }
             Pop-Location
           }
+
+      - name: Windows actual parallel split-task startup (backend LEFT, frontend RIGHT)
+        shell: pwsh
+        env:
+          KATS_DEV_BACKEND: preview
+          KATS_FAST_START: '1'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $repo = Join-Path $env:GITHUB_WORKSPACE 'Kats Property Management'
+          $python = (Get-Command python).Source
+          $backOut = Join-Path $env:RUNNER_TEMP 'kats-parallel-back.log'
+          $backErr = Join-Path $env:RUNNER_TEMP 'kats-parallel-back-error.log'
+          $frontOut = Join-Path $env:RUNNER_TEMP 'kats-parallel-front.log'
+          $frontErr = Join-Path $env:RUNNER_TEMP 'kats-parallel-front-error.log'
+          $back = $null
+          $front = $null
+          Push-Location $repo
+          try {
+            # Previous Windows smoke tests created the isolated .venv,
+            # installed npm dependencies and initialized the preview DB.
+            if (-not (Test-Path (Join-Path $repo '.venv/Scripts/python.exe'))) {
+              throw 'The isolated test Python environment is missing'
+            }
+            if (-not (Test-Path (Join-Path $repo 'frontend/node_modules/vite/bin/vite.js'))) {
+              throw 'The Vite CLI is missing'
+            }
+            if (-not (Test-Path (Join-Path $repo '.local/kats-preview.sqlite3'))) {
+              throw 'The preview database is missing'
+            }
+            $started = Get-Date
+            # Independent commands, no dependsOn=sequence or startup sleep.
+            $back = Start-Process -FilePath $python -ArgumentList @('ops/run_windows.py', 'backend-stack') -WorkingDirectory $repo -RedirectStandardOutput $backOut -RedirectStandardError $backErr -PassThru
+            $front = Start-Process -FilePath $python -ArgumentList @('ops/run_windows.py', 'frontend') -WorkingDirectory $repo -RedirectStandardOutput $frontOut -RedirectStandardError $frontErr -PassThru
+            $ready = $false
+            for ($i = 0; $i -lt 45; $i++) {
+              if ($back.HasExited -or $front.HasExited) {
+                throw "A parallel launcher exited prematurely: backend=$($back.HasExited), frontend=$($front.HasExited)"
+              }
+              Start-Sleep -Seconds 1
+              try {
+                $api = Invoke-RestMethod 'http://127.0.0.1:8000/readyz' -TimeoutSec 2
+                $bridge = Invoke-RestMethod 'http://127.0.0.1:5173/readyz' -TimeoutSec 2
+                if ($api.status -eq 'ready' -and $bridge.status -eq 'ready') {
+                  $ready = $true
+                  break
+                }
+              } catch {}
+            }
+            if (-not $ready) { throw 'Both services did not become ready in parallel' }
+            & python ops/run_windows.py doctor
+            if ($LASTEXITCODE -ne 0) { throw 'Proxied React-Flask-SQL bridge check failed' }
+            Start-Sleep -Seconds 1
+            $left = Get-Content $backOut -Raw
+            $right = Get-Content $frontOut -Raw
+            if ($left -notmatch '\[Flask\]' -or $left -notmatch '\[READY\]') {
+              throw 'Backend pane is missing Flask logs / readiness'
+            }
+            if ($right -notmatch '\[React\]' -or $right -notmatch '\[READY\]') {
+              throw 'Frontend pane is missing React logs / readiness'
+            }
+            if ($left -match 'Installing changed' -or $right -match 'Installing changed' -or
+                $left -match 'Seeding new route permissions' -or $right -match 'Running full JSX') {
+              throw 'Normal startup performed slow install/build/DB preparation'
+            }
+            Write-Host '[PASS] Two independent Windows launchers ran in parallel with both live logs.'
+          } finally {
+            & python ops/run_windows.py stop
+            foreach ($proc in @($front, $back)) {
+              if ($null -ne $proc -and -not $proc.WaitForExit(25000)) {
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                throw 'Parallel task did not stop cleanly'
+              }
+            }
+            foreach ($file in @($backOut, $backErr, $frontOut, $frontErr)) {
+              if (Test-Path $file) { Get-Content $file -Tail 50 }
+            }
+            Pop-Location
+          }

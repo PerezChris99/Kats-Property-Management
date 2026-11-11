@@ -17,16 +17,18 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 
 ---
 
-## Fast, single-command native development
+## Parallel VS Code development
 
-In VS Code choose **Tasks: Run Task → KATS: Start Dev (Frontend + Backend)**.
-The launcher runs the frontend and backend in one integrated terminal,
-with live prefixed logs. It detects a healthy **already-running KATS backend**
-and starts only the missing frontend, or vice versa. Open the UI at
-**http://127.0.0.1:5173** (port 8000 is the API). It does **not** rebuild
-React or reinstall packages on every startup. The initial setup task is separate; Docker-free SQLite
-preview is available. See [native troubleshooting](docs/NATIVE_DEVELOPMENT.md)
-for the connection test and graceful stop.
+Select **Tasks: Run Task → KATS: Start Dev (Frontend + Backend)**.
+Two independent integrated terminals start **in parallel**: Flask/backend
+**left** and React/Vite frontend **right**. Logs stream live in both.
+Regular starts never run a release build, npm/pip install or migrations.
+Run **KATS: Native setup (database + build)** once for missing prerequisites.
+
+Alternatively run ` .\start.bat ` from PowerShell to open the exact
+backend-left/frontend-right layout in Windows Terminal. Access the UI at
+**http://127.0.0.1:5173**, with Flask on port 8000.
+See [native runbook](docs/NATIVE_DEVELOPMENT.md) for details.
 
 ## 1. Core capabilities
 

@@ -3,29 +3,13 @@
   "tasks": [
     {
       "label": "KATS: Start Dev (Frontend + Backend)",
-      "detail": "Single reliable VS Code terminal with live [React] and [Flask] logs. Docker-free SQLite preview supported; no build/pip install on repeat starts.",
+      "detail": "Starts TWO independent VS Code terminal panes simultaneously: LEFT Flask/backend and RIGHT React/Vite frontend. Setup/install/build is a separate task.",
       "problemMatcher": [],
-      "type": "process",
-      "command": "powershell.exe",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}\\ops\\vscode_task.ps1",
-        "-Target",
-        "start"
+      "dependsOn": [
+        "KATS: Native backend stack (BAT)",
+        "KATS: Native frontend (BAT)"
       ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "focus": true,
-        "clear": false,
-        "showReuseMessage": false
-      }
+      "dependsOrder": "parallel"
     },
     {
       "label": "KATS: Native setup (database + build)",
@@ -101,11 +85,12 @@
     {
       "label": "KATS: Native start (split in VS Code)",
       "dependsOn": [
-        "KATS: Native frontend (BAT)",
-        "KATS: Native backend stack (BAT)"
+        "KATS: Native backend stack (BAT)",
+        "KATS: Native frontend (BAT)"
       ],
       "dependsOrder": "parallel",
-      "problemMatcher": []
+      "problemMatcher": [],
+      "detail": "Alias of Start Dev: backend LEFT, frontend RIGHT, concurrent tasks."
     },
     {
       "label": "KATS: Native frontend (BAT)",
@@ -139,14 +124,19 @@
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
-        "group": "kats-native-split",
-        "focus": false,
+        "group": "kats-dev-parallel",
+        "focus": true,
+        "clear": false,
         "showReuseMessage": false
       },
       "options": {
-        "cwd": "${workspaceFolder}"
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "KATS_FAST_START": "1"
+        }
       },
-      "isBackground": true
+      "isBackground": true,
+      "detail": "RIGHT: React/Vite logs and HMR; never blocks backend launch."
     },
     {
       "label": "KATS: Native backend stack (BAT)",
@@ -181,13 +171,18 @@
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
-        "group": "kats-native-split",
+        "group": "kats-dev-parallel",
         "focus": false,
+        "clear": false,
         "showReuseMessage": false
       },
       "options": {
-        "cwd": "${workspaceFolder}"
-      }
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "KATS_FAST_START": "1"
+        }
+      },
+      "detail": "LEFT: Flask API and optional Celery logs; never blocks frontend launch."
     },
     {
       "label": "KATS: Native backend (BAT)",

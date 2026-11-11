@@ -1,6 +1,6 @@
 """Native Windows development launcher invoked by root .bat scripts.
 
-Starts React and Flask in split Windows/VS Code terminals. Uses Docker-backed
+Starts React and Flask in separate Windows/VS Code terminal panes. Uses Docker-backed
 PostgreSQL/Redis when available; if Docker is absent, safely falls back to
 an isolated SQLite-only local preview with no Celery worker or Beat.
 No operational .env or database is read or modified.
@@ -183,8 +183,8 @@ def frontend(*, build=False):
     node, npm = require("node"), require("npm.cmd")
     major = subprocess.run([node, "-p", "process.versions.node.split('.')[0]"],
                            capture_output=True, text=True, check=False)
-    if major.returncode or not major.stdout.strip().isdigit() or int(major.stdout.strip()) < 22:
-        raise StartupError("Node.js 22 or newer is required.")
+    if major.returncode or not major.stdout.strip().isdigit() or int(major.stdout.strip()) < 20:
+        raise StartupError("Node.js 20 or newer is required. Run setup after updating Node.")
     STATE.mkdir(exist_ok=True)
     lock = FRONT / "package-lock.json"
     stamp = STATE / "npm-lock.sha256"
@@ -254,6 +254,55 @@ def backend():
         stamp.write_text(digest, encoding="utf-8")
     return python
 
+
+
+def ready_frontend():
+    """Fast-start Vite; setup/install belongs to the explicit setup task."""
+    node = require("node")
+    probe = subprocess.run(
+        [node, "-p", "process.versions.node.split('.')[0]"],
+        capture_output=True, text=True, check=False, timeout=4
+    )
+    if (probe.returncode or not probe.stdout.strip().isdigit()
+            or int(probe.stdout.strip()) < 20):
+        raise StartupError(
+            "Frontend needs Node.js 20+ on PATH. Install/activate Node then reload VS Code."
+        )
+    vite = FRONT / "node_modules" / "vite" / "bin" / "vite.js"
+    if not vite.is_file():
+        raise StartupError(
+            "Vite is not installed. Run 'KATS: Native setup (database + build)' "
+            "once, or 'npm ci' in the frontend directory."
+        )
+    print("[React] Vite dependencies found; launching without npm install or build.",
+          flush=True)
+    return node
+
+
+def ready_backend(mode):
+    """Fast-start Flask against an already-initialized isolated local DB."""
+    python = VENV / "Scripts" / "python.exe"
+    if not python.is_file():
+        raise StartupError(
+            "Project Python .venv missing. Run 'KATS: Native setup (database + build)' "
+            "once before starting."
+        )
+    probe = subprocess.run(
+        [str(python), "-c", "import flask, flask_sqlalchemy, flask_jwt_extended"],
+        capture_output=True, text=True, check=False, timeout=8
+    )
+    if probe.returncode:
+        raise StartupError(
+            "Flask dependencies missing from .venv. Run the Native setup task once."
+        )
+    if mode == "preview" and not (STATE / "kats-preview.sqlite3").is_file():
+        raise StartupError(
+            "Local SQLite database not initialized. Run 'KATS: Native setup "
+            "(database + build)' once; regular Start Dev never migrates databases."
+        )
+    print(f"[Flask] Existing {mode} environment found; starting without "
+          "pip install, migrations or permission seeding.", flush=True)
+    return python
 
 def venv_environment(base):
     result = base.copy()
@@ -415,10 +464,15 @@ def launch(mode):
     # preserve an existing KATS Vite server when starting the backend.
     reuse_front = existing_kats_service("frontend") if run_front else False
     reuse_back = existing_kats_service("backend") if run_back else False
+    quick = os.getenv("KATS_FAST_START") == "1"
     if run_front and not reuse_front:
-        frontend(build=False)
-    python = backend() if run_back and not reuse_back else None
-    runtime = (prepare_backend(settings, python, backend_mode)
+        if quick:
+            ready_frontend()
+        else:
+            frontend(build=False)
+    python = (ready_backend(backend_mode) if quick else backend()) if (run_back and not reuse_back) else None
+    runtime = ((venv_environment(environment(settings, preview=preview))
+                if quick else prepare_backend(settings, python, backend_mode))
                if run_back and not reuse_back else base)
     if stop_requested(started_at):
         print('[stop] Startup cancelled by stop request.', flush=True)
@@ -496,7 +550,7 @@ def launch(mode):
 def windows_terminal_command(executable, root=ROOT):
     """Build two side-by-side panes in ONE Windows Terminal window.
 
-    Each pane has an independent process, exit status and Ctrl+C handler.
+    Backend is first/left; frontend is split to its right. Both are independent.
     -V creates a vertical divider (left/right), not an upper/lower split.
     """
     root = Path(root)
@@ -505,12 +559,12 @@ def windows_terminal_command(executable, root=ROOT):
     return [
         str(executable), "-w", "new",
         "new-tab", "--startingDirectory", str(root),
-        "--title", "KATS Frontend",
-        "cmd.exe", "/k", f'call "{frontend_batch}"',
+        "--title", "KATS Backend",
+        "cmd.exe", "/k", f'call "{backend_batch}" backend-stack',
         ";",
         "split-pane", "-V", "--startingDirectory", str(root),
-        "--title", "KATS Backend + Celery",
-        "cmd.exe", "/k", f'call "{backend_batch}" backend-stack',
+        "--title", "KATS Frontend",
+        "cmd.exe", "/k", f'call "{frontend_batch}"',
     ]
 
 
@@ -538,8 +592,8 @@ def start_split():
     except OSError as exc:
         raise StartupError(f"Cannot open Windows Terminal split panes: {exc}") from exc
     print("[launch] Opened a Windows Terminal window with side-by-side panes:", flush=True)
-    print("         LEFT: React (http://localhost:5173)", flush=True)
-    print("         RIGHT: Flask + Celery worker + Celery beat (http://localhost:8000)", flush=True)
+    print("         LEFT: Flask API (http://127.0.0.1:8000)", flush=True)
+    print("         RIGHT: React Vite (http://127.0.0.1:5173)", flush=True)
     print("         Stop each pane with Ctrl+C; stop.bat preserves local database volumes.", flush=True)
     print("[VS Code] For side-by-side INTEGRATED terminals instead, run task:", flush=True)
     print("          KATS: Native start (split in VS Code)", flush=True)
