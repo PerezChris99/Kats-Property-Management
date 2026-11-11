@@ -86,6 +86,26 @@ def test_core_financial_row_policies_default_deny_and_enforce_tenant_isolation()
           "notification":[r.id for r in notice_rows],
         }
         user_ids=[r.id for r in users];caretaker_id=caretaker.id
+    # Exercise Flask's two-phase tenant scope lookup against actual FORCE RLS;
+    # SQLite unit tests cannot detect an unscoped profile query on PostgreSQL.
+    from conftest import auth_client, csrf
+    with app.app_context():
+        tenant_user=db.session.get(User,user_ids[0])
+        api_client=auth_client(app,tenant_user)
+        lease_response=api_client.get("/api/v1/tenant/lease")
+        assert lease_response.status_code==200,lease_response.get_json(silent=True)
+        assert lease_response.json["lease"]["id"]==ids["lease"][0]
+        summary=api_client.get("/api/v1/tenant/dashboard")
+        assert summary.status_code==200
+        assert summary.json["invoices"]==1
+        own_invoices=api_client.get("/api/v1/invoices")
+        assert own_invoices.status_code==200
+        assert [entry["id"] for entry in own_invoices.json["items"]]==[ids["invoice"][0]]
+        created=api_client.post("/api/v1/maintenance",json={
+            "room_id":lease_response.json["lease"]["room_id"],
+            "title":"RLS integration repair","description":"RLS-verified tenant work order"
+        },headers=csrf(api_client))
+        assert created.status_code==201,created.get_json(silent=True)
     tables={"tenant":"tenants","lease":"leases","invoice":"invoices",
             "payment":"payments","repair":"maintenance_requests",
             "notification":"notifications"}
