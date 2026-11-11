@@ -43,6 +43,12 @@ def assert_preview_database(app=None) -> None:
 
 
 def demo_http_allowed() -> bool:
+    # A local reverse proxy can make external traffic appear to originate from
+    # loopback; require the public-facing HTTP Host to be loopback too.
+    from urllib.parse import urlsplit
+    hostname = urlsplit("//" + request.host).hostname
+    if hostname not in ("127.0.0.1", "localhost", "::1"):
+        return False
     if request.remote_addr not in ("127.0.0.1", "::1"):
         return False
     return demo_preview_enabled()
