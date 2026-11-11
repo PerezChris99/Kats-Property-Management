@@ -32,7 +32,10 @@ test('Ugandan property photos have verified file sources, license and visible at
   assert.ok(media.includes('Kololo, Kampala'));
   assert.ok(media.includes('Entebbe'));
   assert.ok(media.includes('creativecommons.org/licenses/by-sa/4.0'));
-  assert.ok(ui.includes('pm-credits'));
+  assert.equal(ui.includes('className="pm-credits"'), false);
+  assert.ok(ui.includes('ImageAttributionsPage'));
+  assert.ok(ui.includes('PHOTO_LICENSE'));
+  assert.ok(app.includes('path="/image-attributions"'));
   assert.ok(ui.includes('PHOTO_LICENSE'));
   assert.ok(app.includes("'--pm-auth-photo'"));
   assert.equal(css.includes('images.unsplash.com'), false);
@@ -45,7 +48,7 @@ test('the carousel uses smooth layer parallax, independent slides and reduced-mo
   assert.ok(ui.includes("window.requestAnimationFrame(tick)"));
   assert.ok(ui.includes("hero.style.setProperty('--pm-parallax-y'"));
   assert.ok(ui.includes("window.matchMedia('(prefers-reduced-motion: reduce)')"));
-  assert.ok(ui.includes('setInterval(advance, 6500)'));
+  assert.ok(ui.includes('setInterval(advance, 5200)'));
   assert.equal(ui.includes('setParallax'), false);
   assert.ok(css.includes('translate3d(0,var(--pm-parallax-y,0px),0)'));
   assert.ok(css.includes('prefers-reduced-motion:reduce'));
@@ -94,7 +97,10 @@ test('legal pages have publication precedence and avoid claims of certification'
   }
   assert.ok(ui.includes('published ?'));
   assert.ok(ui.includes('operator/legal review'));
-  assert.ok(legal.includes('not measured KATS customer outcomes'));
+  assert.ok(legal.includes('not verified customer data'));
+  assert.ok(legal.includes('UGANDA_POLICY_CONTEXT'));
+  assert.ok(ui.includes('lawContext.sources.map'));
+  assert.ok(ui.includes('published ?'));
 });
 test('sign in still uses backend login and MFA without nonfunctional social sign-in buttons', () => {
   const app = read('src/App.jsx');
@@ -196,4 +202,55 @@ test('redundant marketing views are removed without affecting operational module
   assert.ok(app.includes('path="/request-access" element={<RequestAccessPage/>}'));
   assert.ok(app.includes('path="/forgot-password" element={<ForgotPasswordPage/>}'));
   assert.ok(app.includes("element={<LegalPage slug={slug}/> }") || app.includes('element={<LegalPage slug={slug}/>}'));
+});
+
+
+test('hero loads first Wikimedia image at high priority without starting every slide simultaneously', () => {
+  const html = read('index.html');
+  const ui = read('src/site/Marketing.jsx');
+  const media = read('src/site/media.js');
+  assert.ok(html.includes('rel="preload" as="image" fetchpriority="high"'));
+  assert.ok(html.includes('preconnect" href="https://thumb.wikimedia.org"'));
+  assert.equal(html.includes('images.unsplash.com'), false);
+  assert.ok(media.includes('960px-Apartment_block_in_kololo_Kampala.jpg'));
+  assert.ok(ui.includes('function prime(n)'));
+  assert.ok(ui.includes('const [ready, setReady]'));
+  assert.ok(ui.includes('style={ready.has(n) ?'));
+});
+
+test('typography, house back-to-top and developer link preserve accessible controls', () => {
+  const ui = read('src/site/Marketing.jsx');
+  const css = read('src/site/redesign.css');
+  const html = read('index.html');
+  assert.ok(html.includes('family=Newsreader:opsz,wght@6..72,400..700'));
+  assert.ok(html.includes('family=IBM+Plex+Sans'));
+  assert.ok(css.includes("font-family:'Newsreader'"));
+  assert.ok(css.includes('html {scroll-behavior:smooth'));
+  assert.ok(css.includes('html {scroll-behavior:auto!important;}'));
+  assert.ok(ui.includes('aria-label="Return to top"'));
+  assert.ok(ui.includes('<House size={22}'));
+  assert.ok(ui.includes('window.scrollTo({'));
+  assert.ok(ui.includes('href="https://kweeziperez.com" target="_blank" rel="noopener noreferrer"'));
+  assert.ok(ui.includes('Developed by Kweezi Perez Christopher'));
+  const footer = ui.slice(ui.indexOf('function PublicFooter('),ui.indexOf('export function PublicShell('));
+  assert.equal(footer.includes('Photo credits'), false);
+  assert.equal(footer.includes('pm-credits'), false);
+  assert.equal(footer.includes('Ugandan residential photos'), false);
+});
+
+test('Uganda legal context names primary law and preserves operator publication precedence', () => {
+  const ui = read('src/site/Marketing.jsx');
+  const legal = read('src/site/legal.js');
+  for (const law of ['Landlord and Tenant Act, 2022', 'Data Protection and Privacy Act, 2019', 'Data Protection and Privacy Regulations, 2021', 'Electronic Transactions Act, 2011', 'Land Act, 1998']) {
+    assert.ok(legal.includes(law), law);
+  }
+  for (const slug of ['privacy', 'terms', 'cookies', 'refund', 'data-protection', 'acceptable-use', 'disclaimer', 'accessibility']) {
+    assert.ok(legal.includes("  '"+slug+"':") || legal.includes('  '+slug+':'));
+  }
+  assert.ok(ui.includes('UGANDA_POLICY_CONTEXT[slug]'));
+  assert.ok(ui.includes('lawContext.sections.map'));
+  assert.ok(ui.includes('lawContext.sources.map'));
+  assert.ok(ui.includes('Operator-published version'));
+  assert.ok(ui.includes('not legal advice'));
+  assert.ok(read('src/App.jsx').includes('path="/image-attributions" element={<ImageAttributionsPage/>}'));
 });
