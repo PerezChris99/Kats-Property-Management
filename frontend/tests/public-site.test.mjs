@@ -287,3 +287,44 @@ test('narrow landscape and operational workspaces keep flexible content widths',
   assert.ok(css.includes('overscroll-behavior-x:contain;'));
   assert.ok(portal.includes('.mobile-nav'));
 });
+
+
+test('licensed footer image is lazily composed behind accessible two-column legal links', () => {
+  const ui=read('src/site/Marketing.jsx');
+  const css=read('src/site/redesign.css');
+  const media=read('src/site/media.js');
+  const footer=ui.slice(ui.indexOf('function PublicFooter()'),ui.indexOf('export function PublicShell('));
+  assert.ok(footer.includes('new IntersectionObserver('));
+  assert.ok(footer.includes("rootMargin: '280px 0px'"));
+  assert.ok(footer.includes("'--pm-footer-photo': 'url(\"' + PHOTOS[4].url"));
+  assert.ok(footer.includes("nearViewport ? ' has-photo'"));
+  assert.ok(css.includes('.kats-public .pm-footer::before'));
+  assert.ok(css.includes('linear-gradient(115deg,rgba(6,20,39,.84)'));
+  assert.ok(css.includes('.kats-public .pm-footer-links > .pm-footer-legal'));
+  assert.ok(css.includes('grid-template-columns:repeat(2,minmax(0,1fr));'));
+  assert.ok(media.includes('Ariel_view_of_Kampala_Urban_suburb'));
+  assert.ok(footer.includes('to="/image-attributions"'));
+});
+
+test('request access and sign in retain every form control while removing oversized marketing bands', () => {
+  const ui=read('src/site/Marketing.jsx');
+  const app=read('src/App.jsx');
+  const css=read('src/site/redesign.css');
+  const request=ui.slice(ui.indexOf('export function RequestAccessPage()'),
+                         ui.indexOf('export function LegalPage('));
+  assert.ok(request.includes('className="pm-main pm-request-page"'));
+  assert.equal(request.includes('<PageHero'),false);
+  assert.ok(request.includes('id="pm-request-heading"'));
+  for(const word of ['full_name','email','phone','role','portfolio','message','consent'])
+    assert.ok(request.includes('values.'+word));
+  assert.ok(request.includes('pm-request-mobile-note'));
+  assert.ok(app.includes('pm-login-card'));
+  assert.ok(app.includes('pm-local-demo-pane'));
+  assert.ok(app.includes('pm-public-demo-pane'));
+  assert.ok(app.includes('mfaCode'));
+  assert.ok(css.includes('min-height:calc(100svh - 76px)'));
+  assert.ok(css.includes('.kats-public .pm-request-page .pm-fields'));
+  assert.ok(css.includes('.kats-public .pm-login-card form'));
+  assert.ok(css.includes('@media (max-height:650px)'));
+  assert.equal(css.includes('.pm-request-page {overflow:hidden'),false);
+});
