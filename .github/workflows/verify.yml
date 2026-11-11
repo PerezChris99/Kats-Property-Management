@@ -106,6 +106,19 @@ jobs:
           APP_ENV: testing
           TEST_POSTGRES_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
           TEST_DOCUMENT_RLS_URL: postgresql://kats_rls_test:rls_ci_password@localhost:5432/kats_ci
+      - name: Full 31-account local PostgreSQL demo seed and runtime RLS/login integration
+        run: |
+          cd ..
+          python ops/local_postgres_demo.py setup
+          python ops/local_postgres_demo.py verify
+        env:
+          KATS_PG_ADMIN_USER: kats_ci
+          KATS_PG_ADMIN_PASSWORD: ci_only_password
+          KATS_PG_DEMO_PORT: '5432'
+          APP_ENV: development
+          MTN_MOMO_ENABLED: 'false'
+          AIRTEL_MONEY_ENABLED: 'false'
+          EFRIS_ENABLED: 'false'
   frontend:
     runs-on: ubuntu-latest
     defaults:
