@@ -1690,3 +1690,48 @@ body,.kats-public,.portal,.auth-layout {
 @media(prefers-reduced-motion:reduce) {
   .kats-public .pm-footer::before {transition:none;}
 }
+
+/* Optional local/public demo lists are expanded beside the form on desktop,
+   but start as an accessible disclosure on phones. All actual form controls
+   remain visible without forcing a tall 31-account list above the footer. */
+.kats-public .pm-demo-disclosure,
+.kats-public .pm-public-demo-disclosure {
+  display:block;
+  width:100%;
+  min-width:0;
+}
+.kats-public .pm-demo-disclosure > summary,
+.kats-public .pm-public-demo-disclosure > summary {
+  display:none;
+  cursor:pointer;
+  color:#113c59;
+  font-family:'IBM Plex Sans','Segoe UI',sans-serif;
+  font-size:13px;
+  font-weight:710;
+}
+@media (max-width:760px) {
+  .kats-public .pm-local-demo-pane {
+    align-items:stretch;
+    padding:10px 14px;
+  }
+  .kats-public .pm-public-demo-pane {
+    padding:10px 15px;
+  }
+  .kats-public .pm-demo-disclosure > summary,
+  .kats-public .pm-public-demo-disclosure > summary {
+    display:flex;
+    min-height:44px;
+    align-items:center;
+    line-height:1.4;
+    padding:10px 6px;
+  }
+  .kats-public :is(.pm-demo-disclosure,.pm-public-demo-disclosure) > summary::marker {
+    color:#0779a6;
+  }
+  .kats-public :is(.pm-demo-disclosure,.pm-public-demo-disclosure)[open] > summary {
+    border-bottom:1px solid #ccdee8;
+    margin-bottom:10px;
+  }
+  .kats-public .pm-local-demo-pane .pm-demo-signins {padding:12px;}
+  .kats-public .pm-public-demo-disclosure .pm-public-demo-scroll {max-height:180px;}
+}
