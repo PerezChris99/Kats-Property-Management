@@ -449,3 +449,49 @@ def test_responsive_public_routes_keep_content_and_footer_inside_viewport(browse
         assert not result["escaped"], (route,viewport,result)
     finally:
         context.close()
+
+
+@pytest.mark.parametrize("width,height", [
+    (320, 720), (390, 844), (768, 1024), (1024, 768), (1440, 900),
+])
+@pytest.mark.parametrize("role", ["OWNER", "TENANT"])
+def test_real_role_workspaces_fit_narrow_and_wide_screens(browser, width, height, role):
+    """Exercise actual logged-in UI with disposable demo rows, when available."""
+    context = browser.new_context(viewport={"width": width, "height": height},
+                                  reduced_motion="reduce", device_scale_factor=1)
+    page = context.new_page()
+    try:
+        page.goto(BASE + "/login", wait_until="domcontentloaded")
+        result = page.request.get(BASE + "/api/v1/auth/demo-accounts")
+        if result.status != 200 or not result.json().get("enabled"):
+            pytest.skip("Only exercises real authenticated screens with isolated demo seeding")
+        if role == "OWNER":
+            page.locator(".pm-demo-owner").click()
+        else:
+            page.locator(".pm-demo-search").fill("Sarah Namusoke")
+            page.locator(".pm-demo-tenant-list button").first.click()
+        expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
+        for route in ("/dashboard", "/invoices", "/maintenance"):
+            page.goto(BASE + route, wait_until="domcontentloaded")
+            expect(page.locator("main.portal-content")).to_be_visible()
+            result = page.evaluate("""() => {
+                const width=document.documentElement.clientWidth;
+                const selectors=['.portal','.portal-main','.portal-content',
+                    '.portal-content .page','.page-head','.record-toolbar',
+                    '.pagination-controls','.module-card','.stat',
+                    '.data-table-wrap','.mobile-nav'];
+                const escaped=selectors.flatMap(selector =>
+                    [...document.querySelectorAll(selector)].filter(el => {
+                        const rect=el.getBoundingClientRect();
+                        const style=getComputedStyle(el);
+                        return style.display !== 'none' && rect.width > 0 &&
+                            (rect.left < -2 || rect.right > width+2);
+                    }).map(el => selector));
+                return {width,scrollWidth:document.documentElement.scrollWidth,escaped};
+            }""")
+            assert result["scrollWidth"] <= result["width"]+2, (role,route,width,result)
+            assert not result["escaped"], (role,route,width,result)
+            if width <= 800:
+                expect(page.locator(".mobile-nav")).to_be_visible()
+    finally:
+        context.close()
