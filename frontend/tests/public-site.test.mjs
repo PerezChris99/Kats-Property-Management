@@ -109,6 +109,8 @@ test('redesigned home hero is text-only and has centered editorial styling', () 
   assert.ok(design.includes('.pm-hero-copy'));
   assert.ok(design.includes('text-align:center'));
   assert.ok(design.includes('prefers-reduced-motion:reduce'));
+  const entry = read('src/main.jsx');
+  assert.ok(entry.indexOf("import './site/redesign.css'") > entry.indexOf("import './worldclass.css'"));
 });
 
 test('access request retains real submission and accessible glass review timeline', () => {
