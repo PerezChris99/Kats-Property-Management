@@ -194,7 +194,7 @@ def prepare_backend(settings, python, mode):
     print("[backend] Seeding new route permissions...", flush=True)
     invoke([str(python), "-m", "flask", "--app", "wsgi", "seed-permissions"],
            cwd=BACK, env=runtime)
-    if preview:
+    if preview and os.getenv("KATS_SEED_DEMO") == "1":
         print("[DEMO] Checking local landlord and tenant sample data...", flush=True)
         invoke([str(python), str(ROOT / "ops" / "seed_demo_preview.py")], cwd=BACK, env=runtime)
     return runtime
@@ -535,7 +535,7 @@ def launch(mode):
     runtime = ((venv_environment(environment(settings, preview=preview))
                 if quick else prepare_backend(settings, python, backend_mode))
                if run_back and not reuse_back else base)
-    if run_back and not reuse_back and quick and preview:
+    if run_back and not reuse_back and quick and preview and os.getenv("KATS_SEED_DEMO") == "1":
         # Fast-start still guarantees demo accounts on the isolated preview DB.
         invoke([str(python), str(ROOT / "ops" / "seed_demo_preview.py")],
                cwd=BACK, env=runtime)
