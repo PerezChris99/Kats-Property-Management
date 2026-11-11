@@ -123,7 +123,10 @@ jobs:
       - name: Install Chromium for responsive layout verification
         run: |
           python -m pip install -r ../backend/requirements.txt 'playwright>=1.56,<2'
-          python -m playwright install --with-deps chromium
+          # Hosted Ubuntu already has Chromium runtime libraries. The
+          # --with-deps option needlessly downloads optional font packages
+          # from Ubuntu mirrors; DNS outages there blocked the browser suite.
+          python -m playwright install chromium
       - name: Live browser ↔ Flask ↔ SQLite, access form, auth and responsive checks
         env:
           KATS_BASE_URL: http://127.0.0.1:5173
