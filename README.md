@@ -17,6 +17,10 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 
 ---
 
+## Vercel + Neon demonstration
+
+The optional Flask/Vite Vercel Services configuration, publicly labelled synthetic sample-login sidebar and guarded Neon dataset seeder are documented in [Vercel + Neon deployment](docs/VERCEL_NEON_DEPLOYMENT.md). **Not live:** the connected Vercel account returned 403 on `katsproperty` project creation. Neon has been provisioned but not migrated or seeded; Redis/workers still require an approved production setup. Never expose real tenant credentials in a public demo.
+
 ## One-click local landlord and tenant demo
 
 From VS Code, run **KATS: Demo start (landlord + 30 tenants)**, then open `http://127.0.0.1:5173/login`. Click the landlord entry or any of 30 searchable synthetic tenant accounts to sign in instantly. The local-only preview seeds linked properties, leases, invoices and sample payments; production auth is unchanged. See [Demo preview instructions](docs/DEMO_PREVIEW.md).
