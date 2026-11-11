@@ -88,7 +88,7 @@ export function PublicShell({ user, logout }) {
   function returnToTop() {
     window.scrollTo({
       top: 0,
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
     });
   }
   useEffect(() => {
