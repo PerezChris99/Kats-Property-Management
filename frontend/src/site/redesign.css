@@ -357,3 +357,54 @@
     background:#fff!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;
   }
 }
+
+
+/* Sign-in is a first-class part of the same design, not a default auth template. */
+.auth-layout:has(.pm-login-layout) {
+ padding:clamp(18px,3vw,45px);background:
+ radial-gradient(ellipse 55% 50% at 0% 0%,rgba(61,173,231,.12),transparent),
+ radial-gradient(ellipse 44% 45% at 100% 100%,rgba(245,203,85,.08),transparent),#f2f7fb;
+}
+.pm-login-layout {
+ width:min(100%,1240px);max-width:1240px;min-height:660px;
+ border:1px solid rgba(165,197,218,.43);border-radius:17px;
+ box-shadow:0 24px 75px rgba(7,41,76,.1);background:rgba(255,255,255,.9);
+}
+.pm-login-aside {padding:clamp(30px,4.3vw,67px);}
+.pm-login-aside:after {background:linear-gradient(145deg,rgba(4,23,48,.91),rgba(8,49,81,.61));}
+.pm-login-aside h2 {font-size:clamp(38px,3.6vw,57px);line-height:1.07;letter-spacing:-.055em;}
+.pm-login-aside p {color:#e6f1f9;font-size:16px;line-height:1.7;max-width:390px;}
+.pm-login-benefits {border-color:rgba(255,255,255,.22);}
+.pm-login-card {background:rgba(255,255,255,.91);padding:clamp(29px,4.5vw,65px);}
+.pm-login-card h1 {font-size:clamp(30px,3.2vw,46px)!important;line-height:1.12;}
+.pm-login-card .pm-login-caption {font-size:14px;line-height:1.65;color:#58728b;}
+.pm-login-card :is(input,select) {
+ border:1px solid #b9cfdd;border-radius:8px;min-height:49px;background:#fbfdff;
+ font-size:15px;
+}
+.pm-login-card :is(input,select):focus-visible {
+ outline:2px solid rgba(28,142,198,.24);border-color:#1382b8;outline-offset:0;
+}
+.pm-login-card .pm-cta {min-height:49px;border-radius:8px;}
+.pm-login-security {border-top:1px solid #e0eaf1;}
+/* Long-form trust/legal content: strict reading width and navigation hierarchy. */
+.kats-public .pm-legal-layout {gap:clamp(25px,4vw,64px);}
+.kats-public .pm-legal-layout aside nav a {border-radius:0 7px 7px 0;font-weight:620;}
+.kats-public .pm-legal-body {
+ max-width:900px;background:rgba(255,255,255,.91);
+ border:1px solid var(--editorial-line);border-radius:12px;
+ box-shadow:var(--editorial-shadow);padding:clamp(24px,4vw,56px);
+}
+.kats-public .pm-legal-body p {max-width:75ch;font-size:15px;line-height:1.83;color:#445b70;}
+.kats-public .pm-legal-body h2 {letter-spacing:-.035em;}
+@media(max-width:760px) {
+ .auth-layout:has(.pm-login-layout) {padding:14px;}
+ .pm-login-layout {min-height:0;border-radius:13px;}
+ .pm-login-aside {padding:30px;min-height:270px;}
+ .pm-login-card {padding:29px 23px;}
+ .kats-public .pm-legal-layout {grid-template-columns:minmax(0,1fr);}
+ .kats-public .pm-legal-layout aside {position:static;}
+}
+@media(prefers-reduced-transparency:reduce) {
+ .pm-login-card,.kats-public .pm-legal-body {background:#fff;backdrop-filter:none;-webkit-backdrop-filter:none;}
+}
