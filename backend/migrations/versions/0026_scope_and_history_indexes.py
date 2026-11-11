@@ -56,7 +56,7 @@ PAYMENT_ASSIGNED_INVOICE = (
 # These expressions use only fixed SQL authored here, never interpolated input.
 POLICIES = (
     ("tenants",
-     f"({STAFF}) OR ({ROLE}='TENANT' AND user_id={ACTOR} AND id={TENANT})",
+     f"({STAFF}) OR ({ROLE}='TENANT' AND user_id={ACTOR})",
      f"({STAFF})"),
     ("leases",
      f"({STAFF}) OR ({TENANT_SELF}) OR ({LEASE_ASSIGNED})",
