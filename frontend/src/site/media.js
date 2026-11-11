@@ -1,12 +1,12 @@
 /* Real Ugandan property photography from Wikimedia Commons, verified by file pages.
  * Each file remains CC BY-SA 4.0; cropped responsively with CSS (visual crop).
- * Credit, source and license are displayed in the footer and photo captions.
+ * Credit, source and license are available from the hero's source link\n * and the dedicated /image-attributions notice (never hidden in the footer).
  * These buildings are NOT represented as customers or managed KATS properties.
  * Use fixed Wikimedia thumbnail URLs, not random stock/Unsplash search APIs.
  */
 export const PHOTOS = [
   {
-    url: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ef/Apartment_block_in_kololo_Kampala.jpg/1280px-Apartment_block_in_kololo_Kampala.jpg',
+    url: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ef/Apartment_block_in_kololo_Kampala.jpg/960px-Apartment_block_in_kololo_Kampala.jpg',
     alt: 'Apartment buildings photographed in Kololo, Kampala, Uganda',
     author: 'Alvinategyeka', location: 'Kololo, Kampala',
     credit: 'https://commons.wikimedia.org/wiki/File:Apartment_block_in_kololo_Kampala.jpg'
