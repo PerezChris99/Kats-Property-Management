@@ -300,3 +300,41 @@ def test_first_hero_image_is_preloaded_and_typography_is_editorial(page):
     expect(page.locator(".pm-hero-images .pm-slide")).to_have_count(5)
     font = page.locator(".pm-hero h1").evaluate("el => getComputedStyle(el).fontFamily")
     assert "Newsreader" in font
+
+
+@pytest.mark.parametrize("account,role", [("landlord", "OWNER"), ("tenant-07", "TENANT")])
+def test_seeded_demo_logins_open_real_role_scoped_workspace(browser, account, role):
+    """Opt-in real browser E2E for a running, explicitly seeded local preview.
+
+    An ordinary unseeded CI preview skips this test rather than mutating a
+    developer or CI database behind their back.
+    """
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+    try:
+        page.goto(BASE + "/login", wait_until="domcontentloaded")
+        preview = page.request.get(BASE + "/api/v1/auth/demo-accounts")
+        if preview.status != 200 or not preview.json().get("enabled"):
+            pytest.skip("Local preview demo must first be seeded by KATS: Demo start")
+        assert len(preview.json()["accounts"]) == 31
+        expect(page.locator(".pm-demo-owner")).to_be_visible()
+        if account == "landlord":
+            page.locator(".pm-demo-owner").click()
+        else:
+            page.locator(".pm-demo-search").fill("Mariam Nankya")
+            page.locator(".pm-demo-tenant-list button").first.click()
+        expect(page).to_have_url(re.compile(r"/dashboard$"))
+        user = page.request.get(BASE + "/api/v1/auth/me")
+        assert user.status == 200
+        assert user.json()["user"]["role"] == role
+        if role == "OWNER":
+            summary = page.request.get(BASE + "/api/v1/dashboard")
+            assert summary.status == 200
+            assert summary.json()["occupied_rooms"] >= 30
+        else:
+            lease = page.request.get(BASE + "/api/v1/tenant/lease")
+            assert lease.status == 200
+            assert lease.json()["lease"]["status"] == "ACTIVE"
+            assert page.request.get(BASE + "/api/v1/properties").status == 403
+    finally:
+        context.close()
