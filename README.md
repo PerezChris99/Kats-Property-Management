@@ -21,8 +21,10 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 
 In VS Code choose **Tasks: Run Task → KATS: Start Dev (Frontend + Backend)**.
 The launcher runs the frontend and backend in one integrated terminal,
-with live prefixed logs. It does **not** rebuild React or reinstall packages
-on every startup. The initial setup task is separate; Docker-free SQLite
+with live prefixed logs. It detects a healthy **already-running KATS backend**
+and starts only the missing frontend, or vice versa. Open the UI at
+**http://127.0.0.1:5173** (port 8000 is the API). It does **not** rebuild
+React or reinstall packages on every startup. The initial setup task is separate; Docker-free SQLite
 preview is available. See [native troubleshooting](docs/NATIVE_DEVELOPMENT.md)
 for the connection test and graceful stop.
 

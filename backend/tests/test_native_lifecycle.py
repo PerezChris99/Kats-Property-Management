@@ -151,3 +151,115 @@ def test_backend_start_skips_pip_if_existing_project_packages_are_healthy(tmp_pa
     requirements.write_text("Flask>=3.1,<4\\nredis>=5,<7\\n",encoding="utf-8")
     native.backend()
     assert any("install" in args for args in calls), "Changed requirements must invoke pip"
+
+
+def test_existing_kats_backend_is_reused_and_foreign_port_is_rejected(monkeypatch, capsys):
+    """An existing KATS API does not block the Vite frontend from starting."""
+    monkeypatch.setattr(native, "port_open", lambda port: port == 8000)
+
+    class Response:
+        status = 200
+        headers = {"X-Request-ID": "request-123"}
+        def __init__(self, payload):
+            self.payload = payload
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            pass
+        def read(self, *_args):
+            return self.payload
+
+    def valid_backend(url, timeout):
+        if url.endswith("/readyz"):
+            return Response(b'{"status":"ready"}')
+        if url.endswith("/api/v1/auth/me"):
+            raise urllib.error.HTTPError(
+                url, 401, "Unauthorized", {"X-Request-ID": "request-123"}, None
+            )
+        raise AssertionError("Wrong backend route")
+
+    monkeypatch.setattr(native.urllib.request, "urlopen", valid_backend)
+    assert native.existing_kats_service("backend") is True
+    assert native.existing_kats_service("frontend") is False
+    assert "[reuse] Existing KATS backend" in capsys.readouterr().out
+
+    def foreign_backend(url, timeout):
+        return Response(b"<html>Another application</html>")
+    monkeypatch.setattr(native.urllib.request, "urlopen", foreign_backend)
+    with pytest.raises(native.StartupError, match="Port 8000 is occupied"):
+        native.existing_kats_service("backend")
+
+
+def test_existing_kats_frontend_is_recognized_by_page_signature(monkeypatch):
+    monkeypatch.setattr(native, "port_open", lambda port: port == 5173)
+
+    class Response:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            pass
+        def read(self, *_args):
+            return b'<!doctype html><title>KATS property management</title><script src="/src/main.jsx"></script>'
+    monkeypatch.setattr(native.urllib.request, "urlopen",
+                        lambda *_args, **_kwargs: Response())
+    assert native.existing_kats_service("frontend")
+
+
+def test_combined_launch_starts_missing_react_when_flask_already_running(monkeypatch, capsys):
+    started = []
+    stopped = []
+    monkeypatch.setattr(native, "config", lambda: {"KATS_LOCAL_ONLY": "1"})
+    monkeypatch.setattr(native, "environment", lambda settings: {})
+    monkeypatch.setattr(native, "select_backend_mode", lambda: "preview")
+    monkeypatch.setattr(native, "existing_kats_service",
+                        lambda kind: kind == "backend")
+    monkeypatch.setattr(native, "frontend", lambda **kwargs: started.append("prepare React"))
+    monkeypatch.setattr(native, "backend",
+                        lambda: (_ for _ in ()).throw(AssertionError("Flask already running")))
+    monkeypatch.setattr(native, "prepare_backend",
+                        lambda *_args: (_ for _ in ()).throw(AssertionError("Must not rebuild DB")))
+    monkeypatch.setattr(native, "require", lambda name: "node.exe")
+    monkeypatch.setattr(native, "reachable", lambda url: True)
+    checks = iter((False, True))
+    monkeypatch.setattr(native, "stop_requested", lambda *_args: next(checks))
+    monkeypatch.setattr(native, "kill_tree", lambda proc: stopped.append(proc))
+
+    class FakeProc:
+        returncode = None
+        def poll(self): return None
+
+    def fake_start(name, command, **_kwargs):
+        started.append(name)
+        return name, FakeProc()
+    monkeypatch.setattr(native, "start_service", fake_start)
+    native.launch("start")
+    assert started == ["prepare React", "React"]
+    assert len(stopped) == 1
+    stdout = capsys.readouterr().out
+    assert "React http://127.0.0.1:5173 (started)" in stdout
+    assert "Flask http://127.0.0.1:8000 (existing)" in stdout
+
+
+def test_combined_launch_starts_missing_backend_when_react_already_running(monkeypatch):
+    started = []
+    monkeypatch.setattr(native, "config", lambda: {"KATS_LOCAL_ONLY": "1"})
+    monkeypatch.setattr(native, "environment", lambda settings: {})
+    monkeypatch.setattr(native, "select_backend_mode", lambda: "preview")
+    monkeypatch.setattr(native, "existing_kats_service", lambda kind: kind == "frontend")
+    monkeypatch.setattr(native, "frontend",
+                        lambda **kwargs: (_ for _ in ()).throw(AssertionError("React already running")))
+    monkeypatch.setattr(native, "backend", lambda: "python.exe")
+    monkeypatch.setattr(native, "prepare_backend",
+                        lambda *args: started.append("prepare Flask") or {})
+    monkeypatch.setattr(native, "reachable", lambda url: True)
+    checks = iter((False, True))
+    monkeypatch.setattr(native, "stop_requested", lambda *_args: next(checks))
+    monkeypatch.setattr(native, "kill_tree", lambda proc: None)
+    class FakeProc:
+        returncode = None
+        def poll(self): return None
+    monkeypatch.setattr(native, "start_service",
+                        lambda name, command, **kwargs: (started.append(name) or (name, FakeProc())))
+    native.launch("start")
+    assert started == ["prepare Flask", "Flask"]
