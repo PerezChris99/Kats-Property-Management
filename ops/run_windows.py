@@ -508,6 +508,23 @@ def launch(mode):
     # preserve an existing KATS Vite server when starting the backend.
     reuse_front = existing_kats_service("frontend") if run_front else False
     reuse_back = existing_kats_service("backend") if run_back else False
+    if preview and reuse_back and os.getenv("KATS_DEMO_STRICT") == "1":
+        # Never silently reuse a PostgreSQL/ordinary backend for the demo task.
+        try:
+            with urllib.request.urlopen(
+                f"{BACKEND_ORIGIN}/api/v1/auth/demo-accounts", timeout=3
+            ) as response:
+                existing_demo = json.load(response)
+                usable = response.status == 200 and existing_demo.get("enabled") is True
+        except (OSError, ValueError):
+            usable = False
+        if not usable:
+            raise StartupError(
+                "Another backend is already running on the KATS port, but it is "
+                "not a ready local demo preview. Stop it using 'KATS: Stop "
+                "(preserve database)', then run 'KATS: Demo start (landlord + "
+                "30 tenants)'. Production/PostgreSQL data will not be reused."
+            )
     quick = os.getenv("KATS_FAST_START") == "1"
     if run_front and not reuse_front:
         if quick:
