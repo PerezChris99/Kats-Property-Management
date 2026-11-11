@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import './styles.css';
 import './worldclass.css';
+import './site/redesign.css';
 const element = document.getElementById('root');
 if (!element)
     throw new Error('Missing root');
