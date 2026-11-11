@@ -163,6 +163,7 @@ def create_app(test_config=None):
             return
         if request.path.startswith("/api/v1/public/") or request.path in (
             "/api/v1/auth/login", "/api/v1/auth/register",
+            "/api/v1/auth/refresh",  # refresh-only JWT cookie, not access JWT
             "/api/v1/auth/recover", "/api/v1/auth/complete-token",
             "/api/v1/auth/demo-accounts", "/api/v1/auth/demo-sign-in",
         ):
