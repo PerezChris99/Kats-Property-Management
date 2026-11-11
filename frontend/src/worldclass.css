@@ -1,0 +1,160 @@
+/* KATS / Workspace Atelier — restrained translucent operational surfaces.
+   Purpose-built on top of the existing design system. No business logic changes. */
+:root {
+  --kats-glass: rgba(255,255,255,.79);
+  --kats-glass-strong: rgba(255,255,255,.91);
+  --kats-outline: rgba(150,180,204,.39);
+  --kats-depth: 0 12px 42px rgba(10,42,76,.065), 0 1px 2px rgba(10,42,76,.025);
+  --kats-focus: #0879b2;
+}
+#root { min-width: 0; }
+.portal { isolation:isolate; }
+.portal-main {
+  background:
+    radial-gradient(ellipse 76% 38% at 96% 0%,rgba(56,189,248,.085),transparent 80%),
+    radial-gradient(ellipse 52% 35% at 1% 92%,rgba(238,197,95,.07),transparent 80%),
+    #f3f7fa;
+}
+.portal-content { min-width:0; }
+.portal-content .page { max-width: 1520px; margin-inline: auto; }
+.portal-bar {
+  background:rgba(249,252,255,.87);
+  -webkit-backdrop-filter:blur(20px) saturate(140%);
+  backdrop-filter:blur(20px) saturate(140%);
+}
+.side { background:linear-gradient(166deg,#081b37 0%,#0d2d50 69%,#123958 100%); }
+.side-account, .nav-search {
+  background:rgba(247,252,255,.065);
+  border-color:rgba(228,242,254,.16);
+  -webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(10px);
+}
+.side .nav-item { min-height:42px; }
+.side .nav-item.active { box-shadow:inset 2px 0 0 #76d4fc; }
+.portal-content .page > .eyebrow,
+.portal-content .page-head .eyebrow {
+  display:inline-flex;align-items:center;gap:9px;
+  font-size:11px;letter-spacing:.11em;line-height:1.5;
+  font-weight:800;color:var(--kats-focus);margin-bottom:9px;
+}
+.portal-content .page > .eyebrow::before,
+.portal-content .page-head .eyebrow::before {
+  content:"";width:18px;height:2px;background:currentColor;opacity:.7;
+}
+.portal-content .page h1 {
+  font-size:clamp(25px,2.55vw,35px);
+  font-weight:760;letter-spacing:-.045em;line-height:1.17;
+  max-width:25ch;margin-bottom:9px;text-wrap:balance;
+}
+.portal-content .page > p { font-size:14px;line-height:1.6; }
+.portal-content .page-head { align-items:end;margin-bottom:22px; }
+.portal-content .page-head > div { min-width:0; }
+.portal-content .page :is(.stat,.quick,.module-card,.resource-form,.data-table-wrap,.empty,.record-toolbar,.pagination-controls) {
+  border-radius:12px;
+  border:1px solid var(--kats-outline);
+  box-shadow:var(--kats-depth);
+}
+.portal-content .page :is(.stat,.quick,.module-card,.resource-form,.empty) {
+  background:var(--kats-glass);
+  -webkit-backdrop-filter:blur(15px) saturate(130%);
+  backdrop-filter:blur(15px) saturate(130%);
+}
+.portal-content .page .stat {
+  position:relative;isolation:isolate;overflow:hidden;
+  padding:19px 20px;gap:9px;min-height:120px;
+}
+.portal-content .page .stat::before {
+  content:"";position:absolute;top:0;right:0;width:65%;height:2px;
+  background:linear-gradient(90deg,transparent,var(--story-accent,#38bdf8));
+  opacity:.8;
+}
+.portal-content .page .stat small {font-size:12px;font-weight:680;color:#526982;}
+.portal-content .page .stat strong {font-size:clamp(23px,2.25vw,31px);font-weight:760;}
+.portal-content .page .stat-grid {gap:13px;margin:22px 0;}
+.portal-content .page .module-list {gap:14px;}
+.portal-content .page .module-card {padding:20px 21px;transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease;}
+@media (hover:hover) and (prefers-reduced-motion:no-preference) {
+  .portal-content .page .module-card:hover {
+    transform:translateY(-2px);border-color:rgba(71,148,190,.48);
+    box-shadow:0 15px 38px rgba(9,42,78,.095);
+  }
+}
+.portal-content .page :is(.quick,.resource-form) {padding:clamp(18px,2vw,24px);}
+.portal-content .page .data-table-wrap {
+  background:var(--kats-glass-strong);-webkit-backdrop-filter:blur(12px);
+  backdrop-filter:blur(12px);overflow-x:auto;max-width:100%;
+}
+.portal-content .page table {font-variant-numeric:tabular-nums;}
+.portal-content .page th {
+  background:rgba(235,243,249,.84);color:#344a63;
+  text-transform:none;letter-spacing:.015em;font-weight:750;
+  font-size:12px;border-bottom:1px solid #d7e5ef;
+}
+.portal-content .page td {background:transparent;line-height:1.5;}
+.portal-content .page tbody tr:hover {background:rgba(214,236,249,.27);}
+.portal-content .page :is(input,textarea,select) {
+  background:rgba(255,255,255,.93);border-color:#b7cbd9;
+  border-radius:8px;min-height:42px;
+}
+.portal-content .page :is(input,textarea,select):focus-visible {
+  border-color:var(--kats-focus);box-shadow:0 0 0 3px rgba(8,121,178,.13);
+}
+.portal-content .page :is(.button,.outline-button) {border-radius:8px;min-height:40px;}
+.portal-content .page .button {box-shadow:none;}
+.portal-content .page .button:not(:disabled):hover {box-shadow:0 5px 16px rgba(11,27,61,.12);}
+.portal-content .page :is(.error,[role="alert"]) {overflow-wrap:anywhere;}
+.portal-content .page :is(.fields,.module-list,.stat-grid) > * {min-width:0;}
+.portal-content .page .fields {grid-template-columns:repeat(2,minmax(0,1fr));}
+.portal-content .page :is(.record-toolbar,.pagination-controls) {box-shadow:none;}
+/* Every workflow has its own editorial signature without changing its data. */
+.portal-content[data-view="dashboard"] {--story-accent:#38bdf8;--kats-focus:#0879b2;}
+.portal-content:is([data-view="properties"],[data-view="buildings"],[data-view="floors"],[data-view="rooms"],[data-view="portfolio-editor"],[data-view="room-placement"]) {
+  --story-accent:#3cb9bd;--kats-focus:#147d82;
+}
+.portal-content:is([data-view="invoices"],[data-view="payments"],[data-view="expenses"],[data-view="expense-approvals"],[data-view="receipts"],[data-view="deposits"],[data-view="mobile-money"],[data-view="efris"],[data-view="statements"],[data-view="reports"],[data-view="trends"]) {
+  --story-accent:#d8a82e;--kats-focus:#886215;
+}
+.portal-content:is([data-view="maintenance"],[data-view="preventive-maintenance"],[data-view="work-orders"],[data-view="inspections"],[data-view="utilities"]) {
+  --story-accent:#46aa8c;--kats-focus:#27775f;
+}
+.portal-content:is([data-view="tenants"],[data-view="leases"],[data-view="renewals"],[data-view="proration"],[data-view="disputes"]) {
+  --story-accent:#8b91c7;--kats-focus:#565f97;
+}
+.portal-content:is([data-view="security"],[data-view="audit"],[data-view="permissions"],[data-view="users"],[data-view="invitations"],[data-view="privacy-requests"],[data-view="settings"],[data-view="legal"]) {
+  --story-accent:#52728f;--kats-focus:#285477;
+}
+.portal-content .page .eyebrow {color:var(--kats-focus,#0879b2);}
+.portal-content .page-head {border-bottom:1px solid rgba(150,180,204,.27);padding-bottom:16px;}
+/* Mobile-first: no horizontal page scroll or unreadable miniature panels. */
+@media(max-width:900px) {
+  .portal-content .page {padding-inline:clamp(14px,3vw,24px);}
+  .portal-content .page .stat-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:560px) {
+  .portal-content .page {padding:20px 14px 98px;}
+  .portal-content .page h1 {font-size:26px;max-width:100%;}
+  .portal-content .page .page-head {align-items:stretch;}
+  .portal-content .page :is(.stat-grid,.fields) {grid-template-columns:minmax(0,1fr);}
+  .portal-content .page .stat {padding:15px 16px;min-height:0;}
+  .portal-content .page .module-card {padding:16px;}
+  .portal-content .page .page-head .button {width:auto;max-width:100%;}
+}
+@media(prefers-reduced-transparency:reduce) {
+  .portal-content .page :is(.stat,.quick,.module-card,.resource-form,.empty,.data-table-wrap),
+  .portal-bar {background:#fff;backdrop-filter:none;-webkit-backdrop-filter:none;}
+}
+/* Public pages share material, but keep their existing individual compositions. */
+.kats-public :is(.pm-feature-card,.pm-chart-panel,.pm-form-card,.pm-process-card) {
+  background:rgba(255,255,255,.88);
+  border-color:rgba(166,196,215,.46);
+  -webkit-backdrop-filter:blur(12px) saturate(120%);
+  backdrop-filter:blur(12px) saturate(120%);
+  box-shadow:0 10px 34px rgba(11,40,76,.055);
+}
+.kats-public .pm-feature-card {min-height:0;}
+.kats-public .pm-feature-card h3 {font-size:clamp(19px,1.6vw,22px);line-height:1.3;}
+.kats-public .pm-feature-card p {font-size:14px;line-height:1.65;}
+.kats-public :is(.pm-feature-grid,.pm-chart-grid) > * {min-width:0;}
+@media(max-width:600px) {
+ .kats-public :is(.pm-feature-card,.pm-chart-panel) {padding:20px;}
+}
