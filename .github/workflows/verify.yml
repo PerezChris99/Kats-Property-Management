@@ -4,6 +4,11 @@ on:
     branches: [main]
   push:
     branches: [perez, main]
+# Cancel superseded commits instead of consuming browser/Windows runners for
+# obsolete SHA checks. Keep main and PR-head concurrency independent.
+concurrency:
+  group: kats-verify-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 jobs:
   backend:
     runs-on: ubuntu-latest
