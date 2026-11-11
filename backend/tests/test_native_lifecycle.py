@@ -381,3 +381,45 @@ def test_dedicated_port_contract_fails_closed_on_duplicate_or_invalid_ports(monk
         (directory / "dev_ports.json").write_text(content, encoding="utf-8")
         with pytest.raises(native.StartupError, match="distinct ports"):
             native.load_service_ports()
+
+
+def test_fast_backend_uses_lightweight_package_probe(monkeypatch, tmp_path):
+    """Startup checks package presence, without eagerly importing Flask."""
+    monkeypatch.setattr(native, "VENV", tmp_path / ".venv")
+    monkeypatch.setattr(native, "STATE", tmp_path / ".local")
+    python = tmp_path / ".venv" / "Scripts" / "python.exe"
+    python.parent.mkdir(parents=True)
+    python.write_bytes(b"stub python")
+    calls = []
+    def fake_run(args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(native.subprocess, "run", fake_run)
+    assert native.ready_backend("docker") == python
+    assert len(calls) == 1
+    assert "find_spec" in calls[0][0][2]
+    assert "import flask," not in calls[0][0][2]
+    assert calls[0][1]["timeout"] == 30
+
+
+def test_fast_backend_probe_timeout_is_actionable(monkeypatch, tmp_path):
+    monkeypatch.setattr(native, "VENV", tmp_path / ".venv")
+    python = tmp_path / ".venv" / "Scripts" / "python.exe"
+    python.parent.mkdir(parents=True)
+    python.write_bytes(b"stub python")
+    def timeout_run(args, **kwargs):
+        raise native.subprocess.TimeoutExpired(args, kwargs["timeout"])
+    monkeypatch.setattr(native.subprocess, "run", timeout_run)
+    with pytest.raises(native.StartupError, match="exceeded 30 seconds"):
+        native.ready_backend("docker")
+
+
+def test_fast_backend_missing_packages_explains_setup(monkeypatch, tmp_path):
+    monkeypatch.setattr(native, "VENV", tmp_path / ".venv")
+    python = tmp_path / ".venv" / "Scripts" / "python.exe"
+    python.parent.mkdir(parents=True)
+    python.write_bytes(b"stub python")
+    monkeypatch.setattr(native.subprocess, "run",
+                        lambda *_a, **_kw: SimpleNamespace(returncode=1))
+    with pytest.raises(native.StartupError, match="Native setup"):
+        native.ready_backend("docker")
