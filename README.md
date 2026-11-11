@@ -17,6 +17,14 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 
 ---
 
+## Dedicated development ports
+
+React/Vite defaults to **`127.0.0.1:5173`**, Flask to **`127.0.0.1:8000`**.
+[`ops/dev_ports.json`](ops/dev_ports.json) is their shared source of truth.
+Each process binds independently on loopback; Vite has strict port binding
+and forwards API/health requests to Flask. A collision is reported, not
+silently reassigned. Production reverse-proxy ports are separate.
+
 ## Parallel VS Code development
 
 Select **Tasks: Run Task → KATS: Start Dev (Frontend + Backend)**.

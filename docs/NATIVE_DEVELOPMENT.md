@@ -5,6 +5,16 @@ Access**. Real daily management happens **after sign-in** in role-restricted
 property, lease, rent, maintenance, reporting and administration workspaces.
 Access requests are reviewed by an OWNER/SUPER_ADMIN, not registrations.
 
+## Dedicated local service ports
+
+React/Vite runs at `http://127.0.0.1:5173`; Flask runs separately at
+`http://127.0.0.1:8000`. Both use one
+[`ops/dev_ports.json`](../ops/dev_ports.json) configuration shared by the
+Python launcher and Vite. `strictPort: true` blocks silent Vite fallback.
+Frontend `/api`, `/readyz`, and `/healthz` proxy to Flask's dedicated
+backend listener. Only valid, distinct ports are accepted, and both services
+remain loopback-only. Production reverse-proxy routing is unaffected.
+
 ## First-time setup, without Docker
 
 1. Open the repository in VS Code. Ensure Python 3.12+ and Node 20+ are on PATH.
