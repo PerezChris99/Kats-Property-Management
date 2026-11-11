@@ -240,9 +240,9 @@
   color:#e4f2fd;overflow:hidden;isolation:isolate;
 }
 .kats-public .pm-request-guide:before {
-  content:"";position:absolute;width:220px;height:220px;right:-90px;top:-90px;
-  border:1px solid rgba(119,199,237,.2);border-radius:50%;box-shadow:0 0 0 55px rgba(119,199,237,.028);
-  pointer-events:none;
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(circle at 100% 0%,rgba(119,199,237,.11),transparent 48%);
+  pointer-events:none;z-index:-1;
 }
 .kats-public .pm-request-guide .pm-form-index {color:#8bd9fc;}
 .kats-public .pm-guide-mark {
