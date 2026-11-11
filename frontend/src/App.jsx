@@ -530,8 +530,18 @@ export default function App() {
             }
         };
         void check();
-        const id = window.setInterval(() => { if (!document.hidden) void check(); }, 30000);
-        return () => { active = false; window.clearInterval(id); };
+        const wake = () => { if (!document.hidden && navigator.onLine) void check(); };
+        // Probe less often under load, but refresh immediately on network
+        // recovery or when the operator returns to the active workspace.
+        const id = window.setInterval(wake, 90000);
+        window.addEventListener('online', wake);
+        document.addEventListener('visibilitychange', wake);
+        return () => {
+            active = false;
+            window.clearInterval(id);
+            window.removeEventListener('online', wake);
+            document.removeEventListener('visibilitychange', wake);
+        };
     }, []);
 
     const navigate = useNavigate();
