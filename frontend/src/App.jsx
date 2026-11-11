@@ -32,7 +32,7 @@ const TenantStatementSelfPage = lazy(() => import('./Modules').then(m => ({ defa
 const ContactInboxPage = lazy(() => import('./Modules').then(m => ({ default: m.ContactInboxPage })));
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Building2, CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
-import { PublicShell, LandingPage, FeaturesPage, HowItWorksPage, AboutPage, RequestAccessPage, LegalPage } from './site/Marketing';
+import { PublicShell, LandingPage, RequestAccessPage, LegalPage } from './site/Marketing';
 import { PHOTOS } from './site/media';
 const RESOURCES = {
     properties: { title: 'Properties', path: 'properties', columns: ['name', 'address', 'district'], writable: ['OWNER', 'MANAGER', 'SUPER_ADMIN'],
@@ -490,9 +490,9 @@ export default function App() {
     return <>{!online && <div className="offline" role="status">Offline. Reconnect to view private records.</div>}<Suspense fallback={<div className="loading" role="status">Opening page…</div>}><Routes>
     <Route element={<PublicShell user={user} logout={logout}/>}>
       <Route path="/" element={<LandingPage user={user}/>}/>
-      <Route path="/features" element={<FeaturesPage/>}/>
-      <Route path="/how-it-works" element={<HowItWorksPage/>}/>
-      <Route path="/about" element={<AboutPage/>}/>
+      <Route path="/features" element={<Navigate to="/#capabilities" replace/>}/>
+      <Route path="/how-it-works" element={<Navigate to="/#workflow" replace/>}/>
+      <Route path="/about" element={<Navigate to="/#about" replace/>}/>
       <Route path="/request-access" element={<RequestAccessPage/>}/>
       <Route path="/contact" element={<Navigate to="/request-access" replace/>}/>
       <Route path="/pricing" element={<Navigate to="/request-access" replace/>}/>
