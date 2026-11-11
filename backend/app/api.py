@@ -287,8 +287,15 @@ def demo_sign_in():
     user = db.session.query(User).filter_by(email=email, role=role, is_active=True).first()
     if user is None or user.mfa_enabled:
         return fail("Demo account is unavailable. Run preview setup.", 404)
-    if role == "TENANT" and not db.session.query(Tenant.id).filter_by(user_id=user.id).first():
-        return fail("Demo tenant has no linked rental profile.", 404)
+    if role == "TENANT":
+        # FORCE RLS applies in local PostgreSQL even to the migration owner.
+        # This guarded local/demo-only operation must resolve tenancy under
+        # its explicit service scope, then issue an ordinary JWT session.
+        from .document_rls import trusted_worker_scope
+        with trusted_worker_scope():
+            linked = db.session.query(Tenant.id).filter_by(user_id=user.id).first()
+        if not linked:
+            return fail("Demo tenant has no linked rental profile.", 404)
     return _issue_login_session(user, event="auth.demo_login")
 
 @api.post("/auth/refresh")
