@@ -7,7 +7,7 @@ never imports real contact data or touches a deployed database.
 from __future__ import annotations
 
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from secrets import token_urlsafe
 from sys import path as sys_path
@@ -92,13 +92,14 @@ def seed() -> None:
             return
         # Realistic fiction, not real people, telephone numbers, addresses or payments.
         hasher = PasswordHasher()
+        preview_password_hash = hasher.hash(token_urlsafe(32))
         landlord = User(full_name="Grace Namatovu (Demo Landlord)",
                         email=LANDLORD_EMAIL,
-                        password_hash=hasher.hash(token_urlsafe(32)), role="OWNER")
+                        password_hash=preview_password_hash, role="OWNER")
         db.session.add(landlord)
         db.session.flush()
         # Use the current Kampala calendar so the rent figures make sense on launch.
-        today = date.today()
+        today = datetime.now(ZoneInfo('Africa/Kampala')).date()
         invoice_months = (previous_month(today), today.replace(day=1))
         property_rooms = []
         for name, address, district, count in PROPERTIES:
@@ -125,7 +126,7 @@ def seed() -> None:
         # Exactly 30 occupied rooms and three vacant demonstration units.
         for i, (name, room) in enumerate(zip(NAMES, property_rooms), start=1):
             user = User(full_name=name, email=demo_email(i),
-                        password_hash=hasher.hash(token_urlsafe(32)), role="TENANT")
+                        password_hash=preview_password_hash, role="TENANT")
             db.session.add(user)
             db.session.flush()
             tenant = Tenant(user_id=user.id, full_name=name,
