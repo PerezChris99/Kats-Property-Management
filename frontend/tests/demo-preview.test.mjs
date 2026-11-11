@@ -37,5 +37,6 @@ test('preview launchers prepare sample dataset without changing real database mo
   assert.ok(runner.includes('seed_demo_preview.py'));
   assert.ok(runner.includes('if preview:'));
   assert.ok(runner.includes('quick and preview'));
+  assert.ok(runner.includes('KATS_SEED_DEMO'));
   assert.ok(runner.includes('if run_back and not reuse_back and quick and preview:'));
 });
