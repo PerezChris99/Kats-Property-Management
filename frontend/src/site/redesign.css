@@ -408,3 +408,142 @@
 @media(prefers-reduced-transparency:reduce) {
  .pm-login-card,.kats-public .pm-legal-body {background:#fff;backdrop-filter:none;-webkit-backdrop-filter:none;}
 }
+
+
+/* Cinematic depth: image-only parallax, no card, no moving text.
+   The image extends beyond every side so scroll/pointer translation never
+   reveals the navy fallback beneath it. JS caps vertical shift at 91px. */
+.kats-public .pm-hero {
+  overflow:clip;
+  isolation:isolate;
+}
+.kats-public .pm-hero-images {
+  inset:-135px -24px;
+  transform:translate3d(var(--pm-parallax-x,0px),var(--pm-parallax-y,0px),0);
+  -webkit-backface-visibility:hidden;
+  backface-visibility:hidden;
+  will-change:transform;
+  pointer-events:none;
+}
+.kats-public .pm-hero .pm-slide {
+  background-position:center center;
+  background-size:cover;
+  will-change:opacity;
+}
+.kats-public .pm-hero-shade {
+  pointer-events:none;
+  background:linear-gradient(90deg,rgba(3,18,38,.57),rgba(3,18,38,.48) 50%,rgba(3,18,38,.57)),
+             linear-gradient(180deg,rgba(3,15,31,.31),rgba(3,15,31,.09) 39%,rgba(3,15,31,.7));
+}
+.kats-public .pm-hero-copy {position:relative;z-index:2;}
+.kats-public .pm-hero-actions .pm-cta-yellow {
+  color:#0b1b3d!important;
+  background:#f7cc54!important;
+  border-color:#f7cc54!important;
+  text-shadow:none;
+  font-weight:780;
+}
+.kats-public .pm-hero-actions .pm-cta-ghost {
+  color:#fff!important;
+  border-color:rgba(255,255,255,.74)!important;
+  background:rgba(5,27,53,.52)!important;
+  font-weight:730;
+}
+.kats-public .pm-hero-actions .pm-cta-ghost:hover {
+  background:rgba(7,30,54,.78)!important;
+}
+.kats-public .pm-hero-actions :is(.pm-cta-yellow,.pm-cta-ghost):focus-visible {
+  outline:3px solid #fff;outline-offset:3px;
+}
+/* Closing action belongs to the page flow. No container card or gradients
+   behind unreadable foreground text; each element owns its contrast. */
+.kats-public .pm-endcap {
+  position:relative;
+  padding:clamp(64px,7vw,110px) 0;
+  background:#edf5fa;
+  border-top:1px solid #d4e4ee;
+  border-bottom:1px solid #d4e4ee;
+}
+.kats-public .pm-endcap:before {
+  content:"";
+  position:absolute;
+  top:0;left:max(18px,calc((100% - 1460px) / 2));width:68px;height:3px;
+  background:#ddb44b;
+}
+.kats-public .pm-endcap-inner {
+  display:grid;
+  grid-template-columns:minmax(0,1.6fr) minmax(230px,.55fr);
+  align-items:center;
+  gap:clamp(25px,5vw,84px);
+}
+.kats-public .pm-endcap-copy {min-width:0;}
+.kats-public .pm-endcap-copy .pm-kicker {
+  color:#0b739f;
+  font-size:11px;
+  font-weight:800;
+}
+.kats-public .pm-endcap-copy h2 {
+  color:#0b1b3d;
+  font-size:clamp(34px,4.3vw,65px);
+  line-height:1.09;
+  letter-spacing:-.055em;
+  max-width:770px;
+  margin:15px 0 16px;
+}
+.kats-public .pm-endcap-copy p {
+  margin:0;
+  color:#465f74;
+  font-size:clamp(15px,1.3vw,18px);
+  line-height:1.6;
+  max-width:640px;
+}
+.kats-public .pm-endcap-actions {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:center;
+  gap:16px;
+}
+.kats-public .pm-endcap-primary {
+  display:inline-flex;align-items:center;justify-content:space-between;
+  gap:28px;
+  width:min(100%,310px);
+  min-height:54px;
+  padding:14px 19px;
+  border:1px solid #0b1b3d;
+  background:#0b1b3d;
+  border-radius:8px;
+  color:#fff!important;
+  font-size:15px;
+  font-weight:760;
+  text-decoration:none!important;
+  line-height:1.4;
+  transition:background .2s ease,border-color .2s ease,transform .2s ease;
+}
+.kats-public .pm-endcap-primary svg {color:#f5cd58;flex-shrink:0;}
+.kats-public .pm-endcap-primary:hover {background:#15375a;border-color:#15375a;transform:translateY(-1px);}
+.kats-public .pm-endcap-primary:focus-visible {outline:3px solid #087bb2;outline-offset:3px;}
+.kats-public .pm-endcap-actions > span {color:#516a7f;font-size:13px;line-height:1.5;}
+.kats-public .pm-endcap-actions > span a {
+  color:#086d9a;
+  font-weight:750;
+  text-decoration:underline;
+  text-underline-offset:3px;
+}
+@media(max-width:880px) {
+  .kats-public .pm-endcap-inner {grid-template-columns:minmax(0,1fr);gap:26px;}
+  .kats-public .pm-endcap-actions {flex-direction:row;align-items:center;flex-wrap:wrap;gap:15px 25px;}
+}
+@media(max-width:560px) {
+  .kats-public .pm-endcap {padding:56px 0;}
+  .kats-public .pm-endcap-copy h2 {font-size:clamp(31px,8vw,44px);}
+  .kats-public .pm-endcap-actions {align-items:flex-start;flex-direction:column;gap:14px;}
+  .kats-public .pm-endcap-primary {width:100%;}
+}
+@media(prefers-reduced-motion:reduce) {
+  .kats-public .pm-hero-images {
+    transform:none!important;will-change:auto;
+  }
+  .kats-public .pm-endcap-primary {transition:none!important;}
+  .kats-public .pm-endcap-primary:hover {transform:none;}
+}

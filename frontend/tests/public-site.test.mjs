@@ -135,3 +135,29 @@ test('workspace dashboard uses live response, not placeholder statistics', () =>
   assert.ok(css.includes('.kats-overview-spotlight'));
   assert.ok(css.includes('prefers-reduced-transparency:reduce'));
 });
+
+
+test('landing hero scenery has smooth parallax and reduced-motion protection', () => {
+  const ui = read('src/site/Marketing.jsx');
+  const css = read('src/site/redesign.css');
+  assert.ok(ui.includes("hero.style.setProperty('--pm-parallax-x'"));
+  assert.ok(ui.includes("hero.style.setProperty('--pm-parallax-y'"));
+  assert.ok(ui.includes("window.addEventListener('scroll', schedule, { passive: true })"));
+  assert.ok(ui.includes("hero.addEventListener('pointermove', onPointerMove"));
+  assert.ok(css.includes('translate3d(var(--pm-parallax-x,0px),var(--pm-parallax-y,0px),0)'));
+  assert.ok(css.includes('.kats-public .pm-hero-copy {position:relative;z-index:2;}'));
+  assert.ok(css.includes('prefers-reduced-motion:reduce'));
+});
+
+test('landing closing action is a page section, not a gradient card', () => {
+  const ui = read('src/site/Marketing.jsx');
+  const css = read('src/site/redesign.css');
+  assert.ok(ui.includes('className="pm-endcap"'));
+  assert.ok(ui.includes('className="pm-container pm-endcap-inner"'));
+  assert.ok(ui.includes('className="pm-endcap-primary"'));
+  assert.ok(ui.includes('<FAQ/><AccessCallout/></main>'));
+  assert.equal(ui.includes('className="pm-access-line"'), false);
+  assert.ok(css.includes('.kats-public .pm-endcap-primary'));
+  assert.ok(css.includes('background:#edf5fa'));
+  assert.ok(css.includes('color:#fff!important'));
+});

@@ -95,8 +95,20 @@ function SectionTitle({ eyebrow, title, text, center = false }) {
 function Photo({ photo, className = '' }) {
   return <figure className={'pm-photo ' + className}><img loading="lazy" src={photo.url} alt={photo.alt}/><figcaption><a href={photo.credit} target="_blank" rel="noopener noreferrer">{photo.location} · {photo.author}</a></figcaption></figure>;
 }
-function AccessCallout({ title = 'Ready to manage your properties?', description = 'Access is approved by the property administrator.' }) {
-  return <section className="pm-access-line" aria-label="Request access"><div><span className="pm-kicker">KATS WORKSPACE</span><h2>{title}</h2><p>{description}</p></div><Link className="pm-text-link" to="/request-access">Request access <ArrowRight size={17}/></Link></section>;
+function AccessCallout({ title = 'Your portfolio, finally in one place.', description = 'Bring properties, rent and daily operations into a clearer workspace.' }) {
+  return <section className="pm-endcap" aria-label="Get started with KATS">
+    <div className="pm-container pm-endcap-inner">
+      <div className="pm-endcap-copy">
+        <span className="pm-kicker">GET STARTED</span>
+        <h2>{title}</h2>
+        <p>{description}</p>
+      </div>
+      <div className="pm-endcap-actions">
+        <Link className="pm-endcap-primary" to="/request-access">Request access <ArrowRight size={18} aria-hidden="true"/></Link>
+        <span>Already registered? <Link to="/login">Sign in</Link></span>
+      </div>
+    </div>
+  </section>;
 }
 function HeroCarousel({ user }) {
   const [index, setIndex] = useState(0);
@@ -112,34 +124,63 @@ function HeroCarousel({ user }) {
     return () => window.clearInterval(timer);
   }, [paused, pathname]);
   useEffect(() => {
-    // Smooth compositor-layer parallax; avoids re-rendering five photo slides.
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    // Only the scenery moves. Copy and CTAs stay still for legibility.
+    // One eased, passive RAF loop handles scroll and fine desktop pointer depth.
     const hero = heroRef.current;
-    if (!hero || reduceMotion.matches) return undefined;
-    let current = 0;
-    let target = 0;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (!hero || reducedMotion.matches) return undefined;
     let live = true;
+    let x = 0;
+    let y = 0;
+    let pointerX = 0;
+    let pointerY = 0;
     function tick() {
       raf.current = 0;
-      if (!live) return;
+      if (!live || document.hidden) return;
       const bounds = hero.getBoundingClientRect();
       if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) return;
-      target = Math.max(-95, Math.min(95, -bounds.top * 0.20));
-      current += (target - current) * 0.22;
-      hero.style.setProperty('--pm-parallax-y', current.toFixed(2) + 'px');
-      if (Math.abs(target - current) > 0.4) raf.current = window.requestAnimationFrame(tick);
+      const scrollDepth = Math.max(0, Math.min(86, -bounds.top * 0.19));
+      const targetX = pointerX;
+      const targetY = scrollDepth + pointerY;
+      x += (targetX - x) * 0.13;
+      y += (targetY - y) * 0.13;
+      hero.style.setProperty('--pm-parallax-x', x.toFixed(2) + 'px');
+      hero.style.setProperty('--pm-parallax-y', y.toFixed(2) + 'px');
+      if (Math.abs(targetX - x) > 0.12 || Math.abs(targetY - y) > 0.12) {
+        raf.current = window.requestAnimationFrame(tick);
+      }
     }
-    function onScroll() {
+    const schedule = () => {
       if (!raf.current) raf.current = window.requestAnimationFrame(tick);
+    };
+    function onPointerMove(event) {
+      if (event.pointerType !== 'mouse') return;
+      const bounds = hero.getBoundingClientRect();
+      pointerX = (((event.clientX - bounds.left) / bounds.width) - 0.5) * 16;
+      pointerY = (((event.clientY - bounds.top) / bounds.height) - 0.5) * 10;
+      schedule();
     }
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
+    function onPointerLeave() {
+      pointerX = 0;
+      pointerY = 0;
+      schedule();
+    }
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    document.addEventListener('visibilitychange', schedule);
+    hero.addEventListener('pointermove', onPointerMove, { passive: true });
+    hero.addEventListener('pointerleave', onPointerLeave);
+    schedule();
     return () => {
       live = false;
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      document.removeEventListener('visibilitychange', schedule);
+      hero.removeEventListener('pointermove', onPointerMove);
+      hero.removeEventListener('pointerleave', onPointerLeave);
       window.cancelAnimationFrame(raf.current);
+      raf.current = 0;
+      hero.style.removeProperty('--pm-parallax-x');
       hero.style.removeProperty('--pm-parallax-y');
     };
   }, []);
@@ -178,7 +219,7 @@ function FAQ({ items = FAQS }) {
   return <section className="pm-section pm-faq"><div className="pm-container pm-faq-grid"><div><SectionTitle eyebrow="FAQ" title="Questions, answered." text="The essentials, without the jargon."/><Photo photo={PHOTOS[4]} className="pm-faq-photo"/></div><div className="pm-faq-items">{items.map(([q,answer])=><details key={q}><summary>{q}<span className="pm-faq-plus" aria-hidden="true">+</span></summary><p>{answer}</p></details>)}</div></div></section>;
 }
 export function LandingPage({ user }) {
-  return <main className="pm-main"><HeroCarousel user={user}/><TrustBand/><Problems/><Solution/><HowSteps short/><FAQ/><div className="pm-container"><AccessCallout/></div></main>;
+  return <main className="pm-main"><HeroCarousel user={user}/><TrustBand/><Problems/><Solution/><HowSteps short/><FAQ/><AccessCallout/></main>;
 }
 
 function PageHero({ eyebrow, title, text, photo = PHOTOS[0], children }) {
@@ -235,7 +276,7 @@ function OperationalCharts() {
   </div><p className="pm-data-note"><ShieldCheck size={18}/> Live reports are private to authorized users.</p></div></section>;
 }
 export function AboutPage() {
-  return <main className="pm-main"><PageHero eyebrow="ABOUT KATS" title="Built for property teams." text="Clear records. Better decisions." photo={PHOTOS[0]}/><section className="pm-section"><div className="pm-container pm-split"><div><SectionTitle eyebrow="OUR PURPOSE" title="Keep everyone informed." text="Give each role the information it needs."/><p className="pm-long-copy">Built around Ugandan rental workflows, UGX records and accountable teams.</p></div><Photo photo={PHOTOS[3]}/></div></section><OperationalCharts/><div className="pm-container"><AccessCallout title="Use KATS for daily property work."/></div></main>;
+  return <main className="pm-main"><PageHero eyebrow="ABOUT KATS" title="Built for property teams." text="Clear records. Better decisions." photo={PHOTOS[0]}/><section className="pm-section"><div className="pm-container pm-split"><div><SectionTitle eyebrow="OUR PURPOSE" title="Keep everyone informed." text="Give each role the information it needs."/><p className="pm-long-copy">Built around Ugandan rental workflows, UGX records and accountable teams.</p></div><Photo photo={PHOTOS[3]}/></div></section><OperationalCharts/><AccessCallout title="A better view of your day-to-day property work."/></main>;
 }
 
 export function RequestAccessPage() {

@@ -192,3 +192,49 @@ def test_access_request_is_submitted_to_backend_without_auto_account(page):
     page.get_by_role("button", name="Submit request").click()
     expect(page.get_by_role("status")).to_contain_text("Request submitted for administrator review")
     expect(page).to_have_url(re.compile(r"/request-access$"))
+
+
+def test_hero_depth_moves_on_scroll_and_closing_cta_is_unboxed(browser):
+    """Real scroll motion and actionable closing link, without a floating card."""
+    context = browser.new_context(
+        viewport={"width": 1365, "height": 850}, reduced_motion="no-preference"
+    )
+    page = context.new_page()
+    try:
+        page.goto(BASE + "/", wait_until="domcontentloaded")
+        hero = page.locator(".pm-hero")
+        expect(hero.locator(".pm-hero-copy")).to_be_visible()
+        assert hero.locator(".pm-hero-panel").count() == 0
+        page.evaluate("window.scrollTo(0, 320)")
+        page.wait_for_function("""() => {
+            const hero = document.querySelector('.pm-hero');
+            return Number.parseFloat(
+                getComputedStyle(hero).getPropertyValue('--pm-parallax-y')
+            ) > 12;
+        }""", timeout=6000)
+        endcap = page.get_by_role("region", name="Get started with KATS")
+        expect(endcap).to_be_visible()
+        assert endcap.locator(".pm-glass, .pm-hero-panel, .pm-access-line").count() == 0
+        expect(endcap.get_by_role("link", name="Request access")).to_have_attribute(
+            "href", "/request-access"
+        )
+        assert endcap.evaluate(
+            "el => getComputedStyle(el).backgroundColor"
+        ) == "rgb(237, 245, 250)"
+    finally:
+        context.close()
+
+
+def test_hero_respects_reduced_motion(browser):
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800}, reduced_motion="reduce"
+    )
+    page = context.new_page()
+    try:
+        page.goto(BASE + "/", wait_until="domcontentloaded")
+        page.evaluate("window.scrollTo(0, 260)")
+        assert page.locator(".pm-hero-images").evaluate(
+            "el => getComputedStyle(el).transform"
+        ) == "none"
+    finally:
+        context.close()
