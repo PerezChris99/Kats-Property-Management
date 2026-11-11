@@ -171,8 +171,8 @@ def seed() -> None:
                 ))
                 if paid:
                     payment = Payment(
-                        invoice_id=invoice.id, amount_ugx=paid, method="BANK",
-                        status="RECONCILED",
+                        invoice_id=invoice.id, amount_ugx=paid, method="BANK_TRANSFER",
+                        status="RECONCILED", settled_at=datetime.now(ZoneInfo("Africa/Kampala")),
                         reference=f"DEMO-RECON-{i:02d}-{month:%Y%m}",
                         idempotency_key=f"demo-reconciled-{i:02d}-{month:%Y%m}",
                         created_by=user.id, reviewed_by=landlord.id,
@@ -181,7 +181,7 @@ def seed() -> None:
                     db.session.flush()
                     db.session.add(LedgerEntry(
                         invoice_id=invoice.id, payment_id=payment.id,
-                        event="PAYMENT_RECONCILED", amount_ugx=paid,
+                        event="PAYMENT_RECEIVED", amount_ugx=paid,
                     ))
             if i % 7 == 0:
                 db.session.add(MaintenanceRequest(
