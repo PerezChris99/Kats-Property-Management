@@ -81,6 +81,27 @@ def test_demo_accounts_sign_in_through_normal_sessions(app, monkeypatch):
     assert tenant.get("/api/v1/properties").status_code == 403
     assert landlord.get("/api/v1/tenant/dashboard").status_code == 403
     assert tenant.post("/api/v1/auth/demo-sign-in", json={"account": "tenant-99"}).status_code == 400
+    lease_id = tenant.get("/api/v1/tenant/lease").json["lease"]["room_id"]
+    token = tenant.get_cookie("csrf_access_token")
+    assert token is not None
+    created = tenant.post("/api/v1/maintenance",
+                          json={"room_id": lease_id, "title": "Kitchen tap leaking",
+                                "description": "Synthetic tenant repair request",
+                                "priority": "MEDIUM"},
+                          headers={"X-CSRF-TOKEN": token.value})
+    assert created.status_code == 201
+    personal = tenant.get("/api/v1/maintenance")
+    assert personal.status_code == 200
+    assert any(x["id"] == created.json["request"]["id"] for x in personal.json["items"])
+    owner_jobs = landlord.get("/api/v1/maintenance")
+    assert owner_jobs.status_code == 200
+    assert any(x["id"] == created.json["request"]["id"] for x in owner_jobs.json["items"])
+    owner_token = landlord.get_cookie("csrf_access_token")
+    new_prop = landlord.post("/api/v1/properties",
+                             json={"name": "Owner demo addition", "address": "Demo only, Kampala",
+                                   "district": "Kampala"},
+                             headers={"X-CSRF-TOKEN": owner_token.value})
+    assert new_prop.status_code == 201
 
 
 def test_preview_guard_requires_exact_database_and_development_flags(monkeypatch, tmp_path):
