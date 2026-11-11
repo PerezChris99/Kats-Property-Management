@@ -620,3 +620,176 @@
 @media(prefers-reduced-motion:reduce) {
   .kats-public .pm-core-grid .pm-feature-card {transition:none;}
 }
+
+
+/* KATS typographic identity: Newsreader editorial display + IBM Plex Sans UI.
+   Deliberately avoid generic geometric-sans headings and colored card outlines.
+   The prior layout/grid is preserved. */
+html {scroll-behavior:smooth;scroll-padding-top:88px;}
+body,.kats-public,.portal,.auth-layout {
+  font-family:'IBM Plex Sans','Segoe UI',Arial,sans-serif;
+  font-optical-sizing:auto;
+  font-kerning:normal;
+  -webkit-font-smoothing:antialiased;
+}
+.kats-public :is(.pm-hero h1,.pm-section-title h2,.pm-endcap-copy h2,.pm-page-hero h1,.pm-contact-form .pm-section-title h2,.pm-request-guide h2,.pm-license-page h1),
+.portal-content :is(.page > h1,.page-head h1,.kats-overview-head h1) {
+  font-family:'Newsreader',Georgia,'Times New Roman',serif;
+  font-optical-sizing:auto;
+  font-style:normal;
+  font-weight:540;
+  letter-spacing:-.045em;
+  text-wrap:balance;
+}
+.kats-public .pm-hero h1 {
+  font-family:'Newsreader',Georgia,serif;
+  font-size:clamp(57px,7.2vw,112px);
+  font-weight:510;
+  letter-spacing:-.047em;
+  line-height:1.02;
+  max-width:1120px;
+}
+.kats-public .pm-hero h1 em {
+  font-style:italic;
+  font-weight:470;
+  color:#f7d16b;
+  letter-spacing:-.055em;
+}
+.kats-public .pm-hero p {
+  font-family:'IBM Plex Sans','Segoe UI',sans-serif;
+  font-weight:400;
+  letter-spacing:.003em;
+}
+.kats-public .pm-section-title h2 {font-weight:520;letter-spacing:-.037em;}
+.kats-public .pm-kicker,.kats-public .pm-card-eyebrow,
+.kats-public .pm-form-index,.kats-public .pm-nav,
+.kats-public .pm-footer h3 {font-family:'IBM Plex Sans','Segoe UI',sans-serif;letter-spacing:.075em;}
+.kats-public .pm-brand strong,.kats-public .pm-brand small {
+  font-family:'IBM Plex Sans','Segoe UI',sans-serif;
+}
+.kats-public .pm-core-grid .pm-feature-card {
+  border-radius:0;
+  box-shadow:none;
+  background:transparent;
+}
+.kats-public .pm-core-grid .pm-feature-card h3,
+.kats-public .pm-how-short .pm-step-grid h3 {
+  font-family:'IBM Plex Sans','Segoe UI',sans-serif;
+  font-weight:650;
+  letter-spacing:-.03em;
+}
+.kats-public .pm-how-short .pm-step-grid article {
+  border-radius:3px;
+  box-shadow:none;
+}
+.kats-public :is(.pm-header .pm-nav-login,.pm-nav .pm-nav-cta,
+.pm-endcap-primary,.pm-hero-actions .pm-cta,
+.pm-request-layout .pm-form-submit .pm-cta) {border-radius:4px;}
+.kats-public .pm-request-layout .pm-contact-form {
+  border-radius:7px;
+  box-shadow:0 18px 44px rgba(8,40,72,.055);
+}
+.kats-public .pm-request-layout :is(input:not([type=checkbox]),select,textarea) {
+  border-radius:4px;
+}
+.kats-public .pm-request-guide {border-radius:7px;box-shadow:0 15px 46px rgba(4,23,48,.12);}
+.kats-public .pm-legal-body {border-radius:5px;box-shadow:0 14px 45px rgba(7,34,64,.04);}
+.kats-public .pm-footer {background:#091c35;border-top:1px solid rgba(246,204,93,.55);}
+.kats-public .pm-footer-base {
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px 28px;padding-block:23px;
+}
+.kats-public .pm-footer-base .pm-developer-link {
+  color:#f1d17b!important;
+  font-weight:620;
+  font-size:13px;
+  text-decoration:none;
+  border-bottom:1px solid rgba(241,209,123,.5);
+  padding-bottom:2px;
+  transition:color .18s ease,border-color .18s ease;
+}
+.kats-public .pm-footer-base .pm-developer-link:hover,
+.kats-public .pm-footer-base .pm-developer-link:focus-visible {
+  color:#fff!important;
+  border-color:#fff;
+}
+/* House button: fixed to lower-right, keyboard accessible when shown. */
+.kats-public .pm-back-top {
+  position:fixed;
+  right:clamp(17px,2.4vw,34px);
+  bottom:calc(20px + env(safe-area-inset-bottom,0px));
+  z-index:125;
+  display:grid;place-items:center;
+  width:49px;height:49px;
+  border-radius:6px;
+  border:1px solid #d9b353;
+  background:#f4cf70;
+  box-shadow:0 8px 22px rgba(5,27,55,.14);
+  color:#092c4b;
+  cursor:pointer;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transform:translateY(12px);
+  transition:opacity .22s ease,visibility .22s ease,transform .22s ease,background .2s ease;
+}
+.kats-public .pm-back-top.is-visible {
+  opacity:1;visibility:visible;pointer-events:auto;
+  transform:translateY(0);
+}
+.kats-public .pm-back-top:hover {background:#ffe0a0;}
+.kats-public .pm-back-top:focus-visible {outline:3px solid #0b83bd;outline-offset:3px;}
+/* Uganda statute context: primary law sources, not fictitious certifications. */
+.kats-public .pm-uganda-law {
+  margin-top:40px;
+  padding:32px 0 0;
+  border-top:2px solid #d4a844;
+  background:transparent;
+}
+.kats-public .pm-uganda-law h2 {
+  font-family:'Newsreader',Georgia,serif;
+  font-size:clamp(29px,3vw,39px);
+  font-weight:530;
+  margin:12px 0 13px;
+  letter-spacing:-.03em;
+  color:#0c2845;
+}
+.kats-public .pm-uganda-law h3 {
+  font-family:'IBM Plex Sans',sans-serif;
+  font-size:17px;letter-spacing:-.015em;
+  margin:19px 0 8px;color:#153950;
+}
+.kats-public .pm-uganda-law p {
+  max-width:76ch;
+  font-size:14px;line-height:1.78;color:#496174;
+  margin:0 0 11px;
+}
+.kats-public .pm-law-entry {padding:12px 0 14px;border-bottom:1px solid #e0eaf1;}
+.kats-public .pm-law-sources {display:grid;gap:8px;margin:12px 0 21px;padding:0;list-style:none;}
+.kats-public .pm-law-sources a {color:#0879a6;text-decoration:underline;text-underline-offset:3px;font-size:14px;display:inline-flex;align-items:center;gap:8px;}
+.kats-public .pm-uganda-law .pm-law-review-note {
+  margin:19px 0 0;padding:15px 17px;
+  border-left:3px solid #d2ab45;
+  background:#f3f7f8;
+  color:#3a5162;
+  font-size:13px;
+}
+.kats-public .pm-license-page {padding-top:clamp(65px,8vw,100px);}
+.kats-public .pm-license-page h1 {
+  font-size:clamp(38px,5vw,65px);
+  color:#0b2542;margin:16px 0;
+}
+.kats-public .pm-license-page p {
+  max-width:70ch;color:#506b80;line-height:1.75;font-size:15px;
+}
+.kats-public .pm-license-page ul {margin:25px 0;padding-left:20px;max-width:85ch;}
+.kats-public .pm-license-page li {padding:11px 0;border-bottom:1px solid #d5e6f0;line-height:1.6;}
+.kats-public .pm-license-page li a {color:#0877a4;text-decoration:underline;text-underline-offset:3px;}
+@media(max-width:760px) {
+  .kats-public .pm-hero h1 {font-size:clamp(49px,11vw,74px);}
+  .kats-public .pm-footer-base {align-items:flex-start;flex-direction:column;}
+  .kats-public .pm-back-top {width:46px;height:46px;bottom:calc(15px + env(safe-area-inset-bottom,0px));}
+}
+@media(prefers-reduced-motion:reduce) {
+  html {scroll-behavior:auto!important;}
+  .kats-public .pm-back-top {transition:none!important;}
+  .kats-public .pm-footer-base .pm-developer-link {transition:none!important;}
+}
