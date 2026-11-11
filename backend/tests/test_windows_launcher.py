@@ -98,7 +98,11 @@ def test_launcher_preserves_virtualenv_and_worker_contract():
     assert '"--pool=solo"' in source
     assert '"db", "upgrade"' in source
     assert '"seed-permissions"' in source
-    assert "127.0.0.1:8000" in (ROOT / "frontend" / "vite.config.js").read_text(encoding="utf-8")
+    vite = (ROOT / "frontend" / "vite.config.js").read_text(encoding="utf-8")
+    assert "import ports from '../ops/dev_ports.json'" in vite
+    assert "port: frontendPort" in vite
+    assert "strictPort: true" in vite
+    assert "const backend = `http://127.0.0.1:${backendPort}`" in vite
 
 
 def test_windows_dispatcher_anchors_root_before_argument_handling():

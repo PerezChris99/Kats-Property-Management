@@ -30,9 +30,27 @@ VENV = ROOT / ".venv"
 CONFIG = ROOT / ".env.native"
 COMPOSE = ROOT / "compose.native-deps.yml"
 PROJECT = "kats-native"
-
 class StartupError(RuntimeError):
     pass
+
+# Single local-only port contract shared by launcher and Vite.
+def load_service_ports():
+    try:
+        ports = json.loads((ROOT / "ops" / "dev_ports.json").read_text(encoding="utf-8"))
+        frontend, backend = ports["frontend"], ports["backend"]
+        if (type(frontend) is not int or type(backend) is not int
+                or not (1024 <= frontend <= 65535)
+                or not (1024 <= backend <= 65535)
+                or frontend == backend):
+            raise ValueError("ports must be distinct")
+        return frontend, backend
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise StartupError("Invalid ops/dev_ports.json: two distinct ports (1024–65535) required") from exc
+
+FRONTEND_PORT, BACKEND_PORT = load_service_ports()
+FRONTEND_ORIGIN = f"http://127.0.0.1:{FRONTEND_PORT}"
+BACKEND_ORIGIN = f"http://127.0.0.1:{BACKEND_PORT}"
+
 
 def invoke(argv, cwd=ROOT, env=None):
     result = subprocess.run(argv, cwd=str(cwd), env=env, check=False)
@@ -101,8 +119,8 @@ def environment(settings, preview=False):
         "RATELIMIT_STORAGE_URI": "redis://127.0.0.1:56379/0",
         "CELERY_BROKER_URL": "redis://127.0.0.1:56379/1",
         "CELERY_RESULT_BACKEND": "redis://127.0.0.1:56379/2",
-        "CORS_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
-        "PUBLIC_APP_URL": "http://localhost:5173",
+        "CORS_ORIGINS": f"http://localhost:{FRONTEND_PORT},http://127.0.0.1:{FRONTEND_PORT}",
+        "PUBLIC_APP_URL": f"http://localhost:{FRONTEND_PORT}",
         "PUBLIC_REGISTRATION_ENABLED": "false",
         "COOKIE_SECURE": "false",
         "MTN_MOMO_ENABLED": "false",
@@ -327,22 +345,22 @@ def port_open(port):
 
 def existing_kats_service(kind):
     """Recognize healthy KATS frontend/backend before spawning a duplicate."""
-    port = 5173 if kind == "frontend" else 8000
+    port = FRONTEND_PORT if kind == "frontend" else BACKEND_PORT
     if not port_open(port):
         return False
     try:
         if kind == "frontend":
-            with urllib.request.urlopen("http://127.0.0.1:5173/", timeout=3) as result:
+            with urllib.request.urlopen(f"{FRONTEND_ORIGIN}/", timeout=3) as result:
                 html = result.read(16384).decode("utf-8", errors="replace")
                 genuine = result.status == 200 and "<title>KATS" in html and "/src/main.jsx" in html
         else:
-            with urllib.request.urlopen("http://127.0.0.1:8000/readyz", timeout=3) as result:
+            with urllib.request.urlopen(f"{BACKEND_ORIGIN}/readyz", timeout=3) as result:
                 info = json.load(result)
                 genuine = (result.status == 200 and info.get("status") == "ready"
                            and bool(result.headers.get("X-Request-ID")))
             if genuine:
                 try:
-                    urllib.request.urlopen("http://127.0.0.1:8000/api/v1/auth/me", timeout=3)
+                    urllib.request.urlopen(f"{BACKEND_ORIGIN}/api/v1/auth/me", timeout=3)
                     genuine = False
                 except urllib.error.HTTPError as exc:
                     genuine = (exc.code in (401, 422) and
@@ -431,17 +449,17 @@ def stop_requested(started_at):
 def verify_http_bridge():
     """Prove browser -> Vite -> Flask -> SQL, not a Vite index.html fallback."""
     try:
-        with urllib.request.urlopen("http://127.0.0.1:5173/readyz", timeout=5) as response:
+        with urllib.request.urlopen(f"{FRONTEND_ORIGIN}/readyz", timeout=5) as response:
             payload = json.load(response)
             if (response.status != 200 or payload.get("status") != "ready"
                     or not response.headers.get("X-Request-ID")):
                 raise StartupError("Frontend /readyz is not Flask + database JSON.")
-        with urllib.request.urlopen("http://127.0.0.1:8000/readyz", timeout=5) as response:
+        with urllib.request.urlopen(f"{BACKEND_ORIGIN}/readyz", timeout=5) as response:
             payload = json.load(response)
             if response.status != 200 or payload.get("status") != "ready":
                 raise StartupError("Flask database readiness check failed.")
         try:
-            urllib.request.urlopen("http://127.0.0.1:5173/api/v1/auth/me", timeout=5)
+            urllib.request.urlopen(f"{FRONTEND_ORIGIN}/api/v1/auth/me", timeout=5)
         except urllib.error.HTTPError as exc:
             if exc.code not in (401, 422) or not exc.headers.get("X-Request-ID"):
                 raise StartupError("Proxied auth endpoint is not Flask-protected.") from exc
@@ -450,7 +468,7 @@ def verify_http_bridge():
     except (OSError, ValueError, KeyError) as exc:
         raise StartupError("Frontend / API / database connection check failed. "
                            "Start both services and inspect the Flask log.") from exc
-    print("[CONNECTED] React :5173 -> Flask :8000 -> SQL readiness, auth 401: PASS", flush=True)
+    print(f"[CONNECTED] React :{FRONTEND_PORT} -> Flask :{BACKEND_PORT} -> SQL readiness, auth 401: PASS", flush=True)
 
 def launch(mode):
     started_at = time.time()
@@ -485,12 +503,12 @@ def launch(mode):
             # Spawn Node directly instead of npm.cmd so Ctrl+Break is deliverable.
             vite = FRONT / "node_modules" / "vite" / "bin" / "vite.js"
             processes.append(start_service("React", [node, str(vite),
-                "--host", "127.0.0.1", "--port", "5173", "--strictPort"],
+                "--host", "127.0.0.1", "--port", str(FRONTEND_PORT), "--strictPort"],
                 cwd=FRONT, env=base, flags=flags))
         if run_back and not reuse_back:
             runtime["PYTHONUNBUFFERED"] = "1"
             processes.append(start_service("Flask", [str(python), "-m", "flask",
-                "--app", "wsgi", "run", "--host", "127.0.0.1", "--port", "8000",
+                "--app", "wsgi", "run", "--host", "127.0.0.1", "--port", str(BACKEND_PORT),
                 "--no-reload"], cwd=BACK, env=runtime, flags=flags))
             if mode in ("start", "backend-stack") and not preview:
                 STATE.mkdir(parents=True, exist_ok=True)
@@ -506,17 +524,17 @@ def launch(mode):
             for name, proc in processes:
                 if proc.poll() is not None:
                     raise StartupError(f"{name} exited early (exit {proc.returncode}).")
-            if ((not run_front or reachable("http://127.0.0.1:5173/"))
-                and (not run_back or reachable("http://127.0.0.1:8000/readyz"))):
+            if ((not run_front or reachable(f"{FRONTEND_ORIGIN}/"))
+                and (not run_back or reachable(f"{BACKEND_ORIGIN}/readyz"))):
                 break
             time.sleep(.5)
         else:
             raise StartupError("Service readiness timed out; inspect startup errors above.")
         ready = []
         if run_front:
-            ready.append("React http://127.0.0.1:5173" + (" (existing)" if reuse_front else " (started)"))
+            ready.append(f"React {FRONTEND_ORIGIN}" + (" (existing)" if reuse_front else " (started)"))
         if run_back:
-            ready.append("Flask http://127.0.0.1:8000" + (" (existing)" if reuse_back else (" (SQLite PREVIEW)" if preview else " (started)")))
+            ready.append(f"Flask {BACKEND_ORIGIN}" + (" (existing)" if reuse_back else (" (SQLite PREVIEW)" if preview else " (started)")))
         print("\n[READY] " + " | ".join(ready), flush=True)
         print("[READY] Ctrl+C or stop.bat requests graceful shutdown.", flush=True)
         if reuse_front or reuse_back:
@@ -534,8 +552,8 @@ def launch(mode):
             # last still triggers the same-origin API/SQL handshake, exactly
             # once per launcher and only after both endpoints answer.
             if (not connected
-                    and reachable("http://127.0.0.1:5173/")
-                    and reachable("http://127.0.0.1:8000/readyz")):
+                    and reachable(f"{FRONTEND_ORIGIN}/")
+                    and reachable(f"{BACKEND_ORIGIN}/readyz")):
                 verify_http_bridge()
                 connected = True
             time.sleep(.5)
@@ -592,8 +610,8 @@ def start_split():
     except OSError as exc:
         raise StartupError(f"Cannot open Windows Terminal split panes: {exc}") from exc
     print("[launch] Opened a Windows Terminal window with side-by-side panes:", flush=True)
-    print("         LEFT: Flask API (http://127.0.0.1:8000)", flush=True)
-    print("         RIGHT: React Vite (http://127.0.0.1:5173)", flush=True)
+    print(f"         LEFT: Flask API ({BACKEND_ORIGIN})", flush=True)
+    print(f"         RIGHT: React Vite ({FRONTEND_ORIGIN})", flush=True)
     print("         Stop each pane with Ctrl+C; stop.bat preserves local database volumes.", flush=True)
     print("[VS Code] For side-by-side INTEGRATED terminals instead, run task:", flush=True)
     print("          KATS: Native start (split in VS Code)", flush=True)
@@ -624,7 +642,7 @@ def main():
             # Don't shut down PostgreSQL while the API and workers are draining.
             deadline = time.monotonic() + 12
             while time.monotonic() < deadline:
-                if not reachable("http://127.0.0.1:8000/healthz"):
+                if not reachable(f"{BACKEND_ORIGIN}/healthz"):
                     break
                 time.sleep(0.4)
             if CONFIG.exists() and select_backend_mode() == "docker":

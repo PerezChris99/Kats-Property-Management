@@ -96,8 +96,8 @@ def test_auto_docker_selection_requires_running_daemon(monkeypatch):
 def test_parallel_start_detects_both_backends_without_start_order_assumption():
     source = (ROOT / "ops" / "run_windows.py").read_text(encoding="utf-8")
     assert 'connected = False' in source
-    assert 'and reachable("http://127.0.0.1:5173/")' in source
-    assert 'and reachable("http://127.0.0.1:8000/readyz")' in source
+    assert 'and reachable(f"{FRONTEND_ORIGIN}/")' in source
+    assert 'and reachable(f"{BACKEND_ORIGIN}/readyz")' in source
     assert 'verify_http_bridge()' in source
 
 
@@ -355,3 +355,29 @@ def test_fast_backend_launches_without_initialization(monkeypatch):
                         lambda name, *_a, **_kw: started.append(name) or (name, Proc()))
     native.launch("backend-stack")
     assert started == ["Flask checked", "Flask"]
+
+
+def test_dedicated_ports_match_shared_vite_config():
+    import json
+    expected = json.loads((ROOT / "ops" / "dev_ports.json").read_text(encoding="utf-8"))
+    assert expected == {"frontend": 5173, "backend": 8000}
+    assert native.FRONTEND_PORT == expected["frontend"]
+    assert native.BACKEND_PORT == expected["backend"]
+    assert native.FRONTEND_PORT != native.BACKEND_PORT
+    vite = (ROOT / "frontend" / "vite.config.js").read_text(encoding="utf-8")
+    assert "import ports from '../ops/dev_ports.json'" in vite
+    assert "port: frontendPort" in vite and "strictPort: true" in vite
+    assert "target: backend" in vite
+
+
+def test_dedicated_port_contract_fails_closed_on_duplicate_or_invalid_ports(monkeypatch, tmp_path):
+    directory = tmp_path / "ops"
+    directory.mkdir()
+    monkeypatch.setattr(native, "ROOT", tmp_path)
+    for content in ('{"frontend":8000,"backend":8000}',
+                    '{"frontend":"5173","backend":8000}',
+                    '{"frontend":1023,"backend":8000}',
+                    '{"frontend":5173,"backend":65536}'):
+        (directory / "dev_ports.json").write_text(content, encoding="utf-8")
+        with pytest.raises(native.StartupError, match="distinct ports"):
+            native.load_service_ports()
