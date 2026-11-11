@@ -1,6 +1,6 @@
 import { api } from './lib/api';
 import { WorkspaceNavigation } from './WorkspaceNavigation';
-import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 const ProrationPage = lazy(() => import('./ProrationPage').then(m => ({ default: m.ProrationPage })));
 const UtilitiesPage = lazy(() => import('./UtilitiesPage').then(m => ({ default: m.UtilitiesPage })));
 const PrivacyRequestsPage = lazy(() => import('./PrivacyRequestsPage'));
@@ -180,26 +180,34 @@ function ResourcePage({ resource, user }) {
     const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
     const [busy, setBusy] = useState(false);
     const [references, setReferences] = useState({});
+    const latestLoad = useRef(0);
     const canWrite = resource.writable?.includes(user.role) ?? false;
     const search = filter.trim().toLowerCase();
     const visibleRows = search ? rows.filter(row => Object.values(row).some(value => String(value ?? '').toLowerCase().includes(search))) : rows;
-    const load = useCallback(async () => {
+    const load = useCallback(async (signal) => {
+        const requestNumber = ++latestLoad.current;
         setLoading(true);
         setError('');
         try {
             const join = resource.path.includes('?') ? '&' : '?';
-            const payload = await api(resource.path + join + 'page=' + page + '&page_size=' + pageSize + '&include_total=0');
+            const payload = await api(resource.path + join + 'page=' + page + '&page_size=' + pageSize + '&include_total=0',
+                signal ? { signal } : {});
+            if (requestNumber !== latestLoad.current || signal?.aborted) return;
             setRows(payload.items || []);
             setTotal(typeof payload.total === 'number' ? payload.total : null);
-        }
-        catch (err) {
+        } catch (err) {
+            if (requestNumber !== latestLoad.current || signal?.aborted ||
+                (err instanceof DOMException && err.name === 'AbortError')) return;
             setError(err instanceof Error ? err.message : 'Could not load');
-        }
-        finally {
-            setLoading(false);
+        } finally {
+            if (requestNumber === latestLoad.current && !signal?.aborted) setLoading(false);
         }
     }, [resource.path, page, pageSize]);
-    useEffect(() => { void load(); }, [load]);
+    useEffect(() => {
+        const controller = new AbortController();
+        void load(controller.signal);
+        return () => { controller.abort(); latestLoad.current++; };
+    }, [load]);
     useEffect(() => { setPage(1); setFilter(''); }, [resource.path]);
     useEffect(() => {
         if (!editing)
@@ -328,7 +336,7 @@ function ResourcePage({ resource, user }) {
         }
     }
     return <section className="page"><div className="page-head"><div><span className="eyebrow">OPERATIONS</span><h1>{resource.title}</h1></div>{canWrite && <button className="button" onClick={() => setEditing(!editing)}>{editing ? 'Cancel' : 'Add ' + resource.title.toLowerCase()}</button>}</div>
-    {error && <p role="alert" className="error">{error}</p>}
+    {error && <div role="alert" className="error">{error} <button type="button" className="outline-button" onClick={() => { void load(); }}>Retry</button></div>}
     {editing && canWrite && <form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.filter(field => field.name !== 'idempotency_key').map(field => <label key={field.name}>{field.label}{field.options ? <select value={values[field.name] || ''} onChange={e => setValues({ ...values, [field.name]: e.target.value })} required={field.required}><option value="">Select</option>{field.options.map(option => <option key={option}>{option}</option>)}</select> : references[field.name]?.length ? <select value={values[field.name] || ''} onChange={e => setValues({ ...values, [field.name]: e.target.value })} required={field.required}><option value="">Select a record</option>{references[field.name].map(row => <option key={String(row.id)} value={String(row.id)}>{String(row.name || row.number || row.full_name || row.invoice_number || row.email || row.title || row.id)}</option>)}</select> : <input required={field.required} type={field.type || 'text'} min={field.type === 'number' ? (field.name === 'level' ? '-10' : '0') : undefined} value={values[field.name] || ''} onChange={e => setValues({ ...values, [field.name]: e.target.value })}/>}</label>)}</div><button className="button" disabled={busy}>{busy ? 'Saving…' : 'Save record'}</button></form>}
     {!loading && rows.length > 0 && <div className="record-toolbar">
       <label className="record-filter">Filter loaded records
