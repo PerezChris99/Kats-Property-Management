@@ -106,25 +106,66 @@ def assert_public_neon_demo_database():
             raise RuntimeError("Public synthetic demo cannot enable live payment/fiscal providers")
 
 
-def seed(public_demo=False) -> None:
+def assert_local_postgres_demo_database(app=None):
+    """Never seed a non-loopback, non-marker, real or ordinary development DB."""
+    from sqlalchemy import text
+    if (os.getenv("KATS_LOCAL_PG_DEMO")!="1" or os.getenv("KATS_SEED_DEMO")!="1"
+            or os.getenv("APP_ENV")!="development" or os.getenv("KATS_PREVIEW_MODE")=="1"
+            or not os.getenv("KATS_LOCAL_PG_INSTANCE")):
+        raise RuntimeError("Local PostgreSQL seeding requires explicit isolated development demo flags")
+    parsed=urlparse(os.getenv("DATABASE_URL","").replace(
+        "postgresql+psycopg://","postgresql://",1))
+    if (parsed.scheme!="postgresql" or parsed.hostname!="127.0.0.1"
+            or parsed.path!="/kats_demo" or parsed.username!="kats_demo_owner"
+            or parsed.port is None or str(parsed.port)!=os.getenv("KATS_LOCAL_PG_PORT")
+            or not parsed.password or parsed.query):
+        raise RuntimeError("Refusing PostgreSQL seed outside dedicated localhost kats_demo owner")
+    for provider in ("MTN_MOMO_ENABLED","AIRTEL_MONEY_ENABLED","EFRIS_ENABLED"):
+        if os.getenv(provider,"false").lower()=="true":
+            raise RuntimeError("Demo seed cannot enable live payment or fiscal providers")
+    if app is not None:
+        if (app.config.get("TESTING") or
+                app.config.get("SQLALCHEMY_DATABASE_URI")!=os.getenv("DATABASE_URL")):
+            raise RuntimeError("PostgreSQL seed application scope is not verified")
+        marker=db.session.execute(text(
+            "SELECT instance_id, signature FROM public.kats_demo_marker"
+        )).first()
+        if marker is None or tuple(marker)!=(
+                os.getenv("KATS_LOCAL_PG_INSTANCE"),"kats-local-postgres-demo-v1"):
+            raise RuntimeError("PostgreSQL marker mismatch; refusing seed")
+
+
+def seed(public_demo=False, local_pg_demo=False) -> None:
+    if public_demo and local_pg_demo:
+        raise RuntimeError("Only one demo database mode can be selected")
     if public_demo:
         assert_public_neon_demo_database()
+    elif local_pg_demo:
+        assert_local_postgres_demo_database()
     else:
         assert_preview_database()
     app = create_app()
     from app.document_rls import trusted_worker_scope
-    with app.app_context(), (trusted_worker_scope() if public_demo else nullcontext()):
-        if public_demo:
-            assert_public_neon_demo_database()
-            # Never modify a non-empty customer database through a demo
-            # setup script. A previous complete demo remains idempotent.
+    with app.app_context(), (trusted_worker_scope() if (public_demo or local_pg_demo) else nullcontext()):
+        if public_demo or local_pg_demo:
+            if public_demo:
+                assert_public_neon_demo_database()
+            else:
+                assert_local_postgres_demo_database(app)
+            # Reject existing customer/operational data. Repeated complete demo
+            # seeds are allowed and verified by verify_existing() below.
             from sqlalchemy import inspect
             if not inspect(db.engine).has_table("users"):
-                raise RuntimeError("Schema migrations must be completed before demonstration seeding")
+                raise RuntimeError("Schema migrations must be completed before seeding")
             occupied = db.session.query(User.id).filter(
                 ~User.email.like("%@demo.kats.invalid")).first()
             if occupied:
                 raise RuntimeError("Refusing seed: non-demo user already exists")
+            if not db.session.query(User.id).first() and (
+                db.session.query(Property.id).first() or
+                db.session.query(Invoice.id).first() or
+                db.session.query(Tenant.id).first()):
+                raise RuntimeError("Refusing seed: existing operational rows found")
         else:
             assert_preview_database(app)
         if verify_existing():
@@ -244,4 +285,7 @@ def seed(public_demo=False) -> None:
 
 
 if __name__ == "__main__":
-    seed()
+    import sys
+    seed(local_pg_demo=(len(sys.argv)==2 and sys.argv[1]=="--postgres")
+         ) if len(sys.argv)==1 or sys.argv[1:]==["--postgres"] else sys.exit(
+             "Unsupported seeding mode")

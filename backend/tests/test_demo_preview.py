@@ -169,5 +169,53 @@ def test_public_neon_demo_seeder_is_fully_opt_in_and_rejects_non_neon(monkeypatc
         seed.assert_public_neon_demo_database()
     monkeypatch.setenv("MTN_MOMO_ENABLED", "false")
     monkeypatch.setenv("KATS_PUBLIC_DEMO_PASSWORD", "weak")
-    with pytest.raises(RuntimeError, match="16\+ character"):
+    with pytest.raises(RuntimeError, match=r"16\+ character"):
         seed.assert_public_neon_demo_database()
+
+
+def test_local_postgres_demo_seed_refuses_wrong_database_and_production(monkeypatch):
+    import pytest
+    seed=load_seeder()
+    monkeypatch.setenv("KATS_LOCAL_PG_DEMO","1")
+    monkeypatch.setenv("KATS_LOCAL_PG_INSTANCE","a"*32)
+    monkeypatch.setenv("KATS_LOCAL_PG_PORT","5432")
+    monkeypatch.setenv("KATS_SEED_DEMO","1")
+    monkeypatch.setenv("APP_ENV","development")
+    monkeypatch.setenv("KATS_PREVIEW_MODE","0")
+    for uri in (
+        "postgresql+psycopg://kats_demo_owner:secret@example.com:5432/kats_demo",
+        "postgresql+psycopg://kats_demo_owner:secret@127.0.0.1:5432/actual_app",
+        "postgresql+psycopg://kats_demo_runtime:secret@127.0.0.1:5432/kats_demo",
+        "postgresql+psycopg://kats_demo_owner:secret@127.0.0.1:5432/kats_native",
+    ):
+        monkeypatch.setenv("DATABASE_URL",uri)
+        with pytest.raises(RuntimeError,match="dedicated localhost kats_demo"):
+            seed.assert_local_postgres_demo_database()
+    monkeypatch.setenv("DATABASE_URL",
+        "postgresql+psycopg://kats_demo_owner:secret@127.0.0.1:5432/kats_demo")
+    monkeypatch.setenv("APP_ENV","production")
+    with pytest.raises(RuntimeError,match="explicit isolated"):
+        seed.assert_local_postgres_demo_database()
+    monkeypatch.setenv("APP_ENV","development")
+    monkeypatch.setenv("EFRIS_ENABLED","true")
+    with pytest.raises(RuntimeError,match="cannot enable live"):
+        seed.assert_local_postgres_demo_database()
+
+
+def test_postgres_demo_http_shortcuts_reject_testing_and_external_db(monkeypatch):
+    from types import SimpleNamespace
+    from app import demo_preview
+    uri="postgresql+psycopg://kats_demo_runtime:secret@127.0.0.1:5432/kats_demo"
+    monkeypatch.setenv("DATABASE_URL",uri)
+    monkeypatch.setenv("APP_ENV","development")
+    monkeypatch.setenv("KATS_LOCAL_PG_DEMO","1")
+    monkeypatch.setenv("KATS_LOCAL_PG_INSTANCE","a"*32)
+    monkeypatch.setenv("KATS_LOCAL_PG_PORT","5432")
+    candidate=SimpleNamespace(config={"TESTING":True,"SQLALCHEMY_DATABASE_URI":uri})
+    assert not demo_preview.local_postgres_demo_enabled(candidate)
+    candidate.config["TESTING"]=False
+    monkeypatch.setenv("DATABASE_URL",uri.replace("127.0.0.1","ep-prod.neon.tech"))
+    assert not demo_preview.local_postgres_demo_enabled(candidate)
+    monkeypatch.setenv("DATABASE_URL",uri)
+    monkeypatch.setenv("APP_ENV","production")
+    assert not demo_preview.local_postgres_demo_enabled(candidate)

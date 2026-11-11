@@ -21,6 +21,18 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 
 The optional Flask/Vite Vercel Services configuration, publicly labelled synthetic sample-login sidebar and guarded Neon dataset seeder are documented in [Vercel + Neon deployment](docs/VERCEL_NEON_DEPLOYMENT.md). **Not live:** the connected Vercel account returned 403 on `katsproperty` project creation. Neon has been provisioned but not migrated or seeded; Redis/workers still require an approved production setup. Never expose real tenant credentials in a public demo.
 
+## Local PostgreSQL demo (Docker-free)
+
+Use an existing **localhost PostgreSQL 16/17+** installation and run
+`.\\ops\\local_pg_demo.bat setup` once, or select
+**KATS: PostgreSQL demo setup (31 accounts)** in VS Code.
+This provisions only a separate `kats_demo` database, applies real
+PostgreSQL migrations/RLS, seeds 1 landlord and 30 tenants, and verifies
+database rows and authenticated API sessions. Start with
+**KATS: PostgreSQL demo start (31 accounts)** and use the usual login page.
+No Docker is needed for this demo, although the complete isolated test suite
+continues to require Docker. See [Local PostgreSQL demo](docs/LOCAL_POSTGRES_DEMO.md).
+
 ## One-click local landlord and tenant demo
 
 From VS Code, run **KATS: Demo start (landlord + 30 tenants)**, then open `http://127.0.0.1:5173/login`. Click the landlord entry or any of 30 searchable synthetic tenant accounts to sign in instantly. The local-only preview seeds linked properties, leases, invoices and sample payments; production auth is unchanged. See [Demo preview instructions](docs/DEMO_PREVIEW.md).

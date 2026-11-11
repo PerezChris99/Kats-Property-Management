@@ -2,7 +2,7 @@
 # Avoid nested cmd.exe /c command strings through PowerShell's task shell.
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('start', 'frontend', 'backend-stack', 'backend', 'owner', 'stop', 'setup', 'doctor', 'test-all', 'test-frontend', 'test-frontend-unit', 'test-lint', 'test-build', 'test-backend', 'test-api', 'test-security', 'test-database', 'test-migrations', 'test-performance', 'test-e2e', 'test-smoke', 'test-config', 'test-coverage', 'test-load')]
+    [ValidateSet('start', 'frontend', 'backend-stack', 'backend', 'owner', 'stop', 'setup', 'doctor', 'test-all', 'test-frontend', 'test-frontend-unit', 'test-lint', 'test-build', 'test-backend', 'test-api', 'test-security', 'test-database', 'test-migrations', 'test-performance', 'test-e2e', 'test-smoke', 'test-config', 'test-coverage', 'test-load', 'pg-demo-setup', 'pg-demo-verify', 'pg-demo-serve')]
     [string]$Target
 )
 $ErrorActionPreference = 'Stop'
@@ -16,6 +16,9 @@ $Entrypoints = @{
     'backend' = @{ Script = 'start-backend.bat'; Args = @() }
     'owner' = @{ Script = 'create-owner.bat'; Args = @() }
     'stop' = @{ Script = 'stop.bat'; Args = @() }
+    'pg-demo-setup' = @{ Script = 'ops/local_pg_demo.bat'; Args = @('setup') }
+    'pg-demo-verify' = @{ Script = 'ops/local_pg_demo.bat'; Args = @('verify') }
+    'pg-demo-serve' = @{ Script = 'ops/local_pg_demo.bat'; Args = @('serve') }
     'test-all' = @{ Script = 'tests/test-all.bat'; Args = @() }
     'test-frontend' = @{ Script = 'tests/test-frontend.bat'; Args = @() }
     'test-frontend-unit' = @{ Script = 'tests/test-frontend-unit.bat'; Args = @() }

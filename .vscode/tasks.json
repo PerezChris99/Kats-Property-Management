@@ -2,6 +2,106 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "KATS: PostgreSQL demo start (31 accounts)",
+      "dependsOn": [
+        "KATS: PostgreSQL demo backend (no Docker)",
+        "KATS: Native frontend (BAT)"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "detail": "Start full PostgreSQL-backed demo in two VS Code terminal panes. First run PostgreSQL demo setup; no Docker required."
+    },
+    {
+      "label": "KATS: PostgreSQL demo backend (no Docker)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "pg-demo-serve"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "kats-dev-parallel",
+        "focus": false,
+        "clear": false
+      },
+      "problemMatcher": [
+        {
+          "owner": "kats-native",
+          "fileLocation": "relative",
+          "pattern": {
+            "regexp": "^\\[KATS-PROBLEM\\] (.+):(\\d+): (.+)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
+          },
+          "background": {
+            "activeOnStart": true,
+            "endsPattern": "^\\s*\\* Running on http://127\\.0\\.0\\.1:8000"
+          }
+        }
+      ],
+      "isBackground": true,
+      "detail": "Starts Flask against isolated local kats_demo database, using a non-owner PostgreSQL role; never starts Docker or SQLite."
+    },
+    {
+      "label": "KATS: PostgreSQL demo verify (counts, RLS and logins)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "pg-demo-verify"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "kats-postgres-demo"
+      },
+      "problemMatcher": [],
+      "detail": "Read-only: verify exact PostgreSQL marker, schema, 31 users, 60 invoices, forced RLS and real landlord/tenant API login."
+    },
+    {
+      "label": "KATS: PostgreSQL demo setup (31 accounts)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "pg-demo-setup"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "kats-postgres-demo"
+      },
+      "problemMatcher": [],
+      "detail": "One-time: create ONLY kats_demo in your installed localhost PostgreSQL using separately prompted local postgres admin password; migrate/seed/verify 31 synthetic users. No Docker."
+    },
+    {
       "label": "KATS: Demo start (landlord + 30 tenants)",
       "dependsOn": [
         "KATS: Demo backend (preview)",
