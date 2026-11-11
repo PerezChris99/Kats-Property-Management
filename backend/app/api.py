@@ -293,6 +293,9 @@ def demo_sign_in():
         # its explicit service scope, then issue an ordinary JWT session.
         from .document_rls import trusted_worker_scope
         with trusted_worker_scope():
+            db.session.execute(__import__("sqlalchemy").text(
+                "SELECT set_config('kats.actor_role','SERVICE',true)"
+            ))
             linked = db.session.query(Tenant.id).filter_by(user_id=user.id).first()
         if not linked:
             return fail("Demo tenant has no linked rental profile.", 404)
