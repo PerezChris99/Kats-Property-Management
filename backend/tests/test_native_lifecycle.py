@@ -329,6 +329,7 @@ def test_fast_start_launches_frontend_without_waiting_for_flask(monkeypatch):
 
 
 def test_fast_backend_launches_without_initialization(monkeypatch):
+    monkeypatch.setenv("KATS_SEED_DEMO", "1")
     started = []
     monkeypatch.setenv("KATS_FAST_START", "1")
     monkeypatch.setenv("KATS_DEV_BACKEND", "preview")
