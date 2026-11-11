@@ -297,6 +297,6 @@ def test_uganda_legal_context_and_media_attribution_are_available(page):
 def test_first_hero_image_is_preloaded_and_typography_is_editorial(page):
     page.goto(BASE + "/", wait_until="domcontentloaded")
     assert page.locator('link[rel="preload"][as="image"][fetchpriority="high"]').count() == 1
-    assert page.locator(".pm-hero-images .pm-slide").count() == 5
+    expect(page.locator(".pm-hero-images .pm-slide")).to_have_count(5)
     font = page.locator(".pm-hero h1").evaluate("el => getComputedStyle(el).fontFamily")
     assert "Newsreader" in font
