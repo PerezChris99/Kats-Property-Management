@@ -99,3 +99,55 @@ def test_parallel_start_detects_both_backends_without_start_order_assumption():
     assert 'and reachable("http://127.0.0.1:5173/")' in source
     assert 'and reachable("http://127.0.0.1:8000/readyz")' in source
     assert 'verify_http_bridge()' in source
+
+
+def test_frontend_start_skips_release_build_and_installed_packages(tmp_path, monkeypatch):
+    front=tmp_path/"frontend"
+    vite=front/"node_modules"/"vite"/"bin"/"vite.js"
+    vite.parent.mkdir(parents=True)
+    vite.write_text("/* mock */", encoding="utf-8")
+    (front/"package-lock.json").write_text("lock-v1", encoding="utf-8")
+    monkeypatch.setattr(native, "FRONT", front)
+    monkeypatch.setattr(native, "STATE", tmp_path/"state")
+    monkeypatch.setattr(native, "require", lambda name: name)
+    calls=[]
+    monkeypatch.setattr(native.subprocess, "run",
+                        lambda *args, **kw: SimpleNamespace(returncode=0, stdout="22"))
+    monkeypatch.setattr(native, "invoke",
+                        lambda argv, **kw: calls.append(argv))
+    native.frontend(build=False)
+    assert any("ci" in command for command in calls)
+    assert not any("build" in command for command in calls)
+    calls.clear()
+    native.frontend(build=False)
+    assert calls==[], "Repeated Vite startup must not reinstall or rebuild"
+    native.frontend(build=True)
+    assert any(command[-1]=="build" for command in calls)
+    calls.clear()
+    (front/"package-lock.json").write_text("lock-v2", encoding="utf-8")
+    native.frontend(build=False)
+    assert any("ci" in command for command in calls), "Changed lockfile must reinstall"
+
+
+def test_backend_start_skips_pip_if_existing_project_packages_are_healthy(tmp_path, monkeypatch):
+    venv=tmp_path/"venv"
+    exe=venv/"Scripts"/"python.exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_bytes(b"mock python executable")
+    back=tmp_path/"backend"
+    back.mkdir()
+    requirements=back/"requirements.txt"
+    requirements.write_text("Flask>=3.1,<4\\n", encoding="utf-8")
+    monkeypatch.setattr(native, "VENV", venv)
+    monkeypatch.setattr(native, "BACK", back)
+    monkeypatch.setattr(native, "STATE", tmp_path/"state")
+    calls=[]
+    monkeypatch.setattr(native, "invoke",lambda argv,**kw: calls.append(argv))
+    monkeypatch.setattr(native.subprocess,"run",
+                        lambda *_args, **_kw: SimpleNamespace(returncode=0))
+    native.backend()
+    native.backend()
+    assert not calls, "Existing healthy environments must not invoke pip"
+    requirements.write_text("Flask>=3.1,<4\\nredis>=5,<7\\n",encoding="utf-8")
+    native.backend()
+    assert any("install" in args for args in calls), "Changed requirements must invoke pip"

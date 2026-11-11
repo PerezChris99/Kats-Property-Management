@@ -260,3 +260,63 @@ jobs:
           } finally {
             Pop-Location
           }
+
+      # Actually start the Windows-native launcher with a real Vite/Flask
+      # process and SQLite database. Path-only dispatch tests cannot prove
+      # that the executable services start or that a browser can reach API.
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Windows native launch, live logs and safe shutdown smoke
+        shell: pwsh
+        env:
+          KATS_DEV_BACKEND: preview
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $repo = Join-Path $env:GITHUB_WORKSPACE 'Kats Property Management'
+          $out = Join-Path $env:RUNNER_TEMP 'kats-native-stdout.log'
+          $err = Join-Path $env:RUNNER_TEMP 'kats-native-stderr.log'
+          Push-Location $repo
+          try {
+            # Reuse tested Python dependencies from the preceding Windows
+            # coverage job; keep a real project .venv and install Vite.
+            & python -m venv --system-site-packages (Join-Path $repo '.venv')
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create project venv' }
+            & npm.cmd --prefix frontend ci --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot install frontend packages' }
+            & python -c "import pathlib,hashlib; p=pathlib.Path('frontend/package-lock.json'); s=pathlib.Path('.local'); s.mkdir(exist_ok=True); (s/'npm-lock.sha256').write_text(hashlib.sha256(p.read_bytes()).hexdigest())"
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create local npm dependency stamp' }
+            $python = (Get-Command python).Source
+            $proc = Start-Process -FilePath $python -ArgumentList @('ops/run_windows.py','start') -WorkingDirectory $repo -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
+            try {
+              $ready = $false
+              for ($i = 0; $i -lt 75; $i++) {
+                Start-Sleep -Seconds 1
+                if ($proc.HasExited) { throw "Native launcher exited early ($($proc.ExitCode))" }
+                try {
+                  $response = Invoke-RestMethod -Uri 'http://127.0.0.1:5173/readyz' -TimeoutSec 3
+                  if ($response.status -eq 'ready') { $ready = $true; break }
+                } catch {}
+              }
+              if (-not $ready) { throw 'React-to-Flask-to-SQL was never ready' }
+              & python ops/run_windows.py doctor
+              if ($LASTEXITCODE -ne 0) { throw 'Native HTTP/API/database doctor failed' }
+              if (-not (Test-Path (Join-Path $repo '.local/kats-preview.sqlite3'))) { throw 'SQLite preview database missing' }
+              Start-Sleep -Seconds 2
+              $log = Get-Content $out -Raw
+              if ($log -notmatch '\[React\]' -or $log -notmatch '\[Flask\]' -or $log -notmatch '\[CONNECTED\]') {
+                throw 'Launcher did not emit prefixed React, Flask and connected logs'
+              }
+              Write-Host '[PASS] Real native Windows React, Flask, SQLite and streaming logs.'
+            } finally {
+              & python ops/run_windows.py stop
+              if (-not $proc.WaitForExit(25000)) {
+                Write-Warning 'Launcher did not exit within graceful stop budget; collecting logs.'
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                throw 'Native launcher did not honor cooperative shutdown'
+              }
+              if (Test-Path $out) { Get-Content $out -Tail 90 }
+              if (Test-Path $err) { Get-Content $err -Tail 60 }
+            }
+          } finally {
+            Pop-Location
+          }

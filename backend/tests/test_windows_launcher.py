@@ -168,6 +168,18 @@ def test_vscode_uses_parallel_background_tasks_in_one_split_terminal_group():
         assert task["problemMatcher"][0]["background"]["activeOnStart"]
         assert task["problemMatcher"][0]["background"]["endsPattern"] == r"^\[READY\]"
     assert front["isBackground"] and back["isBackground"]
+    # VS Code rejects the former pattern {"regexp":"a^"}: it had no file,
+    # line or message groups and could prevent every dependent task starting.
+    import re
+    for task in (front, back):
+        matcher = task["problemMatcher"][0]
+        pattern = matcher["pattern"]
+        regex = re.compile(pattern["regexp"])
+        assert regex.groups >= 3
+        assert all(pattern[key] in range(1, regex.groups + 1)
+                   for key in ("file", "line", "message"))
+        assert matcher["background"]["activeOnStart"]
+        assert re.compile(matcher["background"]["endsPattern"]).search("[READY] React")
     assert front["presentation"]["group"]==back["presentation"]["group"]=="kats-native-split"
     assert front["presentation"]["panel"]==back["presentation"]["panel"]=="dedicated"
 
@@ -178,13 +190,13 @@ def test_vscode_command_palette_start_dev_entry_is_discoverable():
     aliases=[task for task in tasks if task.get("label")=="KATS: Start Dev (Frontend + Backend)"]
     assert len(aliases)==1
     alias=aliases[0]
-    assert alias["dependsOrder"]=="parallel"
-    assert alias["dependsOn"]==["KATS: Native frontend (BAT)","KATS: Native backend stack (BAT)"]
+    assert alias["type"]=="process"
+    assert alias["args"][-1]=="start"
+    assert alias["command"]=="powershell.exe"
     assert alias["problemMatcher"]==[]
-    assert all(task.get("label") in {t["label"] for t in tasks} for task in (
-        {"label":"KATS: Native frontend (BAT)"},{"label":"KATS: Native backend stack (BAT)"}
-    ))
-    assert alias["detail"].lower().find("side by side")!=-1
+    assert not alias.get("isBackground")
+    assert "dependsOn" not in alias
+    assert "Docker-free" in alias["detail"]
 
 
 def test_windows_vscode_tasks_use_argument_safe_process_invocation():
@@ -294,3 +306,19 @@ def test_preview_initializer_has_hardcoded_safe_path_and_env_guards():
     assert 'db.create_all()' in init
     assert 'db.drop_all()' not in init
     assert "dbfile.as_posix()" in init
+
+
+def test_native_tasks_hide_docker_only_commands_and_keep_valid_start_stop():
+    import json
+    tasks=json.loads((ROOT / ".vscode" / "tasks.json").read_text(encoding="utf-8"))["tasks"]
+    by_label={task["label"]:task for task in tasks}
+    assert len(by_label)==len(tasks), "Duplicate VS Code task labels"
+    for retired in ("KATS: Setup","KATS: Start app","KATS: Logs",
+                    "KATS: Full local acceptance"):
+        assert retired not in by_label, "Docker-only task is not a native startup"
+    assert by_label["KATS: Start Dev (Frontend + Backend)"]["args"][-1]=="start"
+    assert by_label["KATS: Stop (preserve database)"]["args"][-1]=="stop"
+    assert by_label["KATS: Native setup (database + build)"]["args"][-1]=="setup"
+    assert by_label["KATS: Verify frontend ↔ backend ↔ database"]["args"][-1]=="doctor"
+    script=(ROOT / "ops" / "vscode_task.ps1").read_text(encoding="utf-8")
+    assert "'start' = @{ Script = 'ops/launch.bat'; Args = @('start') }" in script
