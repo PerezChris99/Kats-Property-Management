@@ -266,3 +266,37 @@ def test_public_navigation_is_management_first(page):
     expect(page.locator(".pm-faq")).to_have_count(0)
     expect(page.locator(".pm-problem")).to_have_count(0)
     expect(page.locator(".pm-endcap")).to_have_count(1)
+
+
+def test_house_return_to_top_and_developer_attribution(page):
+    page.goto(BASE + "/", wait_until="domcontentloaded")
+    footer = page.locator("footer.pm-footer")
+    credit = footer.get_by_role("link", name="Developed by Kweezi Perez Christopher")
+    expect(credit).to_have_attribute("href", "https://kweeziperez.com")
+    expect(credit).to_have_attribute("target", "_blank")
+    assert footer.locator(".pm-credits").count() == 0
+    assert "Photo credits & license" not in footer.inner_text()
+    page.evaluate("window.scrollTo({top: 1200, behavior: 'instant'})")
+    home = page.get_by_role("button", name="Return to top")
+    expect(home).to_be_visible(timeout=6000)
+    home.click()
+    page.wait_for_function("window.scrollY < 30", timeout=8000)
+
+
+def test_uganda_legal_context_and_media_attribution_are_available(page):
+    page.goto(BASE + "/refund", wait_until="domcontentloaded")
+    expect(page.get_by_role("heading", name="Relevant statutory guidance")).to_be_visible()
+    expect(page.get_by_text("Security deposits", exact=True)).to_be_visible()
+    expect(page.get_by_role("link", name=re.compile("Landlord and Tenant Act, 2022"))).to_have_attribute("target", "_blank")
+    page.get_by_role("link", name="Image licenses").click()
+    expect(page).to_have_url(re.compile(r"/image-attributions$"))
+    expect(page.get_by_role("heading", name="Image sources & licenses")).to_be_visible()
+    assert page.get_by_role("link", name="Creative Commons Attribution-ShareAlike 4.0").count() == 5
+
+
+def test_first_hero_image_is_preloaded_and_typography_is_editorial(page):
+    page.goto(BASE + "/", wait_until="domcontentloaded")
+    assert page.locator('link[rel="preload"][as="image"][fetchpriority="high"]').count() == 1
+    expect(page.locator(".pm-hero-images .pm-slide")).to_have_count(5)
+    font = page.locator(".pm-hero h1").evaluate("el => getComputedStyle(el).fontFamily")
+    assert "Newsreader" in font

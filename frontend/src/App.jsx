@@ -32,7 +32,7 @@ const TenantStatementSelfPage = lazy(() => import('./Modules').then(m => ({ defa
 const ContactInboxPage = lazy(() => import('./Modules').then(m => ({ default: m.ContactInboxPage })));
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Building2, CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
-import { PublicShell, LandingPage, RequestAccessPage, LegalPage } from './site/Marketing';
+import { PublicShell, LandingPage, RequestAccessPage, LegalPage, ImageAttributionsPage } from './site/Marketing';
 import { PHOTOS } from './site/media';
 const RESOURCES = {
     properties: { title: 'Properties', path: 'properties', columns: ['name', 'address', 'district'], writable: ['OWNER', 'MANAGER', 'SUPER_ADMIN'],
@@ -494,6 +494,7 @@ export default function App() {
       <Route path="/how-it-works" element={<Navigate to="/#workflow" replace/>}/>
       <Route path="/about" element={<Navigate to="/#about" replace/>}/>
       <Route path="/request-access" element={<RequestAccessPage/>}/>
+      <Route path="/image-attributions" element={<ImageAttributionsPage/>}/>
       <Route path="/contact" element={<Navigate to="/request-access" replace/>}/>
       <Route path="/pricing" element={<Navigate to="/request-access" replace/>}/>
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace/> : <Login onSuccess={setUser}/>}/>

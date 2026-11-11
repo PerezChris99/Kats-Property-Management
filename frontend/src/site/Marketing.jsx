@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  ArrowRight, BookOpen, Building2, ChartNoAxesCombined, Check, CheckCircle2,
+  ArrowRight, BookOpen, Building2, ChartNoAxesCombined, Check, CheckCircle2, House,
   ChevronLeft, ChevronRight, CreditCard, FileCheck2, KeyRound,
   Menu, ShieldCheck, Users, Wallet, Wrench, X
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { PHOTOS, PHOTO_LICENSE } from './media';
-import { POLICY_LINKS, POLICY_PAGES } from './legal';
+import { POLICY_LINKS, POLICY_PAGES, UGANDA_POLICY_CONTEXT } from './legal';
 import './site.css';
 
 const PRINCIPLES = [
@@ -65,12 +65,32 @@ function PublicFooter() {
       <div><h3>Access</h3><Link to="/login">Sign in</Link><Link to="/request-access">Request access</Link><Link to="/forgot-password">Recover account</Link></div>
       <div className="pm-footer-legal"><h3>Legal & trust</h3>{POLICY_LINKS.map(([name, slug]) => <Link to={'/' + slug} key={slug}>{name}</Link>)}</div>
     </div>
-    <div className="pm-footer-base"><span>© {new Date().getFullYear()} KATS Property Management.</span><span>Ugandan residential photos · <a href={PHOTO_LICENSE} target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> · No customer endorsement implied.</span></div><details className="pm-credits"><summary>Photo credits & license</summary><ul>{PHOTOS.map(photo => <li key={photo.credit}><a href={photo.credit} target="_blank" rel="noopener noreferrer">{photo.author} — {photo.location}</a> · <a href={PHOTO_LICENSE} target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> · CSS cropped for layout</li>)}</ul></details>
+    <div className="pm-footer-base"><span>© {new Date().getFullYear()} KATS Property Management.</span><a className="pm-developer-link" href="https://kweeziperez.com" target="_blank" rel="noopener noreferrer">Developed by Kweezi Perez Christopher</a></div>
   </footer>;
 }
 
 export function PublicShell({ user, logout }) {
   const { pathname, hash } = useLocation();
+  const [showTop, setShowTop] = useState(false);
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        setShowTop(window.scrollY > 420);
+        frame = 0;
+      });
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { window.removeEventListener('scroll', onScroll); window.cancelAnimationFrame(frame); };
+  }, []);
+  function returnToTop() {
+    window.scrollTo({
+      top: 0,
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+    });
+  }
   useEffect(() => {
     document.title = pathname === '/' ? 'KATS · Property management workspace' : 'KATS Property Management · ' + (pathname.slice(1).replaceAll('-', ' ') || 'Home');
     const frame = window.requestAnimationFrame(() => {
@@ -81,7 +101,7 @@ export function PublicShell({ user, logout }) {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [pathname, hash]);
-  return <div className="kats-public"><a className="pm-skip" href="#pm-content">Skip to content</a><PublicHeader user={user} logout={logout}/><div id="pm-content"><Outlet/></div><PublicFooter/></div>;
+  return <div className="kats-public"><a className="pm-skip" href="#pm-content">Skip to content</a><PublicHeader user={user} logout={logout}/><div id="pm-content"><Outlet/></div><PublicFooter/><button className={'pm-back-top' + (showTop ? ' is-visible' : '')} type="button" onClick={returnToTop} aria-label="Return to top" title="Return to top" tabIndex={showTop ? 0 : -1} aria-hidden={showTop ? undefined : 'true'}><House size={22} strokeWidth={1.9} aria-hidden="true"/></button></div>;
 }
 
 function SectionTitle({ eyebrow, title, text, center = false }) {
@@ -107,16 +127,47 @@ function AccessCallout({ user }) {
 function HeroCarousel({ user }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [ready, setReady] = useState(() => new Set([0]));
   const heroRef = useRef(null);
   const { pathname } = useLocation();
   const raf = useRef(0);
   useEffect(() => {
+    // Prioritise the first image (also preloaded in HTML). Load other slides
+    // sequentially after decode so they cannot compete with the hero's LCP.
+    let alive = true;
+    let pending;
+    function prime(n) {
+      if (!alive || n >= PHOTOS.length) return;
+      const img = new Image();
+      pending = img;
+      img.decoding = 'async';
+      img.onload = () => {
+        if (!alive) return;
+        setReady(prev => new Set(prev).add(n));
+        prime(n + 1);
+      };
+      img.onerror = () => { if (alive) prime(n + 1); };
+      img.src = PHOTOS[n].url;
+    }
+    prime(0);
+    return () => {
+      alive = false;
+      if (pending) pending.onload = pending.onerror = null;
+    };
+  }, []);
+  useEffect(() => {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     if (reduceMotion.matches || paused) return undefined;
-    const advance = () => { if (!document.hidden) setIndex(n => (n + 1) % PHOTOS.length); };
-    const timer = window.setInterval(advance, 6500);
+    const advance = () => {
+      if (document.hidden) return;
+      setIndex(n => {
+        const next = (n + 1) % PHOTOS.length;
+        return ready.has(next) ? next : n;
+      });
+    };
+    const timer = window.setInterval(advance, 5200);
     return () => window.clearInterval(timer);
-  }, [paused, pathname]);
+  }, [paused, pathname, ready]);
   useEffect(() => {
     // Only the scenery moves. Copy and CTAs stay still for legibility.
     // One eased, passive RAF loop handles scroll and fine desktop pointer depth.
@@ -178,12 +229,12 @@ function HeroCarousel({ user }) {
       hero.style.removeProperty('--pm-parallax-y');
     };
   }, []);
-  function move(by) { setIndex(n => (n + by + PHOTOS.length) % PHOTOS.length); }
+  function move(by) { setIndex(n => { const next = (n + by + PHOTOS.length) % PHOTOS.length; return ready.has(next) ? next : n; }); }
   return <section ref={heroRef} className="pm-hero" aria-label="Property management introduction" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) setPaused(false); }}>
-    <div className="pm-hero-images" aria-hidden="true">{PHOTOS.map((item, n) => <div className={'pm-slide' + (n === index ? ' is-current' : '')} key={item.url} style={{ backgroundImage: 'url("' + item.url + '")' }}/>)}</div>
+    <div className="pm-hero-images" aria-hidden="true">{PHOTOS.map((item, n) => <div className={'pm-slide' + (n === index ? ' is-current' : '')} key={item.url} style={ready.has(n) ? { backgroundImage: 'url("' + item.url + '")' } : undefined}/>)}</div>
     <div className="pm-hero-shade"/>
     <div className="pm-hero-inner"><div className="pm-hero-copy"><span className="pm-kicker pm-kicker-light"><span className="pm-spark" /> BUILT FOR UGANDAN RENTALS</span><h1>Manage property. <em>Know the full picture.</em></h1><p>Manage units, leases, rent and repairs in one place.</p><div className="pm-hero-actions"><Link className="pm-cta pm-cta-yellow" to={user ? '/dashboard' : '/request-access'}>{user ? 'Open workspace' : 'Request access'} <ArrowRight size={18}/></Link><Link className="pm-cta pm-cta-ghost" to="/#workflow">How it works</Link></div><div className="pm-hero-points"><span><Check size={15}/> UGX rent records</span><span><Check size={15}/> Secure role access</span></div></div></div>
-    <div className="pm-carousel-bottom"><div className="pm-carousel-controls"><button onClick={() => move(-1)} aria-label="Previous residential photo"><ChevronLeft/></button><span className="pm-carousel-count">0{index + 1} / 0{PHOTOS.length}</span><button onClick={() => move(1)} aria-label="Next residential photo"><ChevronRight/></button></div><div className="pm-carousel-dots" aria-label="Choose a residential photo">{PHOTOS.map((p, n) => <button type="button" key={p.credit} aria-label={'Show photo ' + (n + 1)} aria-current={index === n ? 'true' : undefined} onClick={() => setIndex(n)} className={index === n ? 'is-current' : ''}/>)}</div><a className="pm-hero-credit" href={PHOTOS[index].credit} target="_blank" rel="noopener noreferrer">{PHOTOS[index].location} · {PHOTOS[index].author}</a></div>
+    <div className="pm-carousel-bottom"><div className="pm-carousel-controls"><button onClick={() => move(-1)} aria-label="Previous residential photo"><ChevronLeft/></button><span className="pm-carousel-count">0{index + 1} / 0{PHOTOS.length}</span><button onClick={() => move(1)} aria-label="Next residential photo"><ChevronRight/></button></div><div className="pm-carousel-dots" aria-label="Choose a residential photo">{PHOTOS.map((p, n) => <button type="button" key={p.credit} aria-label={'Show photo ' + (n + 1)} aria-current={index === n ? 'true' : undefined} onClick={() => { if (ready.has(n)) setIndex(n); }} disabled={!ready.has(n)} className={index === n ? 'is-current' : ''}/>)}</div><a className="pm-hero-credit" href={PHOTOS[index].credit} target="_blank" rel="noopener noreferrer">{PHOTOS[index].location} · {PHOTOS[index].author}</a></div>
   </section>;
 }
 
@@ -313,6 +364,7 @@ export function RequestAccessPage() {
 
 export function LegalPage({ slug }) {
   const policy=POLICY_PAGES[slug];
+  const lawContext=UGANDA_POLICY_CONTEXT[slug];
   const [published,setPublished]=useState(null);
   useEffect(()=>{
     let live=true;setPublished(null);
@@ -320,5 +372,25 @@ export function LegalPage({ slug }) {
     return ()=>{live=false;};
   },[slug]);
   if(!policy) return <main className="pm-section"><div className="pm-container"><h1>Page not found</h1><Link to="/">Return home</Link></div></main>;
-  return <main className="pm-main"><PageHero eyebrow="LEGAL & TRUST" title={published?.title || policy.title} text={published ? 'Operator-published policy · version '+published.version : policy.intro} photo={PHOTOS[3]}/><section className="pm-section pm-legal-section"><div className="pm-container pm-legal-layout"><aside><span className="pm-kicker">LEGAL LIBRARY</span><nav aria-label="Other legal pages">{POLICY_LINKS.map(([label,s])=><Link key={s} aria-current={slug===s?'page':undefined} to={'/'+s}>{label}</Link>)}</nav></aside><article className="pm-legal-body">{published ? <><span className="pm-policy-state"><CheckCircle2 size={19}/> Operator-published version {published.version}</span><div className="pm-legal-published">{published.content}</div></> : <><span className="pm-policy-draft"><BookOpen size={19}/> Informational draft — requires operator/legal review and publication</span><p className="pm-policy-intro">{policy.intro}</p>{policy.sections.map(([heading,body])=><section key={heading}><h2>{heading}</h2><p>{body}</p></section>)}<p className="pm-legal-note">This is an informational draft, not the approved terms for a specific deployment. The responsible operator must review and publish an accurate final version in the Legal admin workspace.</p></>}</article></div></section></main>;
+  return <main className="pm-main"><PageHero eyebrow="LEGAL & TRUST" title={published?.title || policy.title} text={published ? 'Operator-published policy · version '+published.version : policy.intro} photo={PHOTOS[3]}/><section className="pm-section pm-legal-section"><div className="pm-container pm-legal-layout"><aside><span className="pm-kicker">LEGAL LIBRARY</span><nav aria-label="Other legal pages">{POLICY_LINKS.map(([label,s])=><Link key={s} aria-current={slug===s?'page':undefined} to={'/'+s}>{label}</Link>)}<Link to="/image-attributions">Image licenses</Link></nav></aside><article className="pm-legal-body">{published ? <><span className="pm-policy-state"><CheckCircle2 size={19}/> Operator-published version {published.version}</span><div className="pm-legal-published">{published.content}</div></> : <><span className="pm-policy-draft"><BookOpen size={19}/> Informational draft — requires operator/legal review and publication</span><p className="pm-policy-intro">{policy.intro}</p>{policy.sections.map(([heading,body])=><section key={heading}><h2>{heading}</h2><p>{body}</p></section>)}<p className="pm-legal-note">This is an informational draft, not the approved terms for a specific deployment. The responsible operator must review and publish an accurate final version in the Legal admin workspace.</p></>}
+      {lawContext && <section className="pm-uganda-law" aria-label="Uganda statutory context">
+        <span className="pm-kicker">UGANDAN LEGAL FRAMEWORK</span>
+        <h2>Relevant statutory guidance</h2>
+        <p>{lawContext.summary}</p>
+        {lawContext.sections.map(([heading,body]) => <div className="pm-law-entry" key={heading}><h3>{heading}</h3><p>{body}</p></div>)}
+        <h3>Primary legislation and regulations</h3>
+        <ul className="pm-law-sources">{lawContext.sources.map(([label,url]) => <li key={url}><a href={url} target="_blank" rel="noopener noreferrer">{label} <ArrowRight size={14} aria-hidden="true"/></a></li>)}</ul>
+        <p className="pm-law-review-note">General information only; not legal advice or a binding tenancy agreement. An authorised Uganda-qualified adviser should review operator-specific policies and tenancy documentation before publication.</p>
+      </section>}</article></div></section></main>;
+}
+
+export function ImageAttributionsPage() {
+  return <main className="pm-main"><section className="pm-section pm-license-page">
+    <div className="pm-container"><span className="pm-kicker">MEDIA RIGHTS</span>
+      <h1>Image sources & licenses</h1>
+      <p>Photographs of Ugandan buildings are credited to their original Wikimedia Commons contributors. Responsive CSS cropping may alter the visible composition. These properties are not represented as KATS customers.</p>
+      <ul>{PHOTOS.map(photo => <li key={photo.credit}><a href={photo.credit} target="_blank" rel="noopener noreferrer">{photo.author} — {photo.location}</a> · <a href={PHOTO_LICENSE} target="_blank" rel="noopener noreferrer">Creative Commons Attribution-ShareAlike 4.0</a> · Cropped for display</li>)}</ul>
+      <Link to="/privacy" className="pm-text-link">Privacy and legal information <ArrowRight size={16}/></Link>
+    </div>
+  </section></main>;
 }
