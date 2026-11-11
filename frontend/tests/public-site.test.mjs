@@ -254,3 +254,36 @@ test('Uganda legal context names primary law and preserves operator publication 
   assert.ok(ui.includes('not legal advice'));
   assert.ok(read('src/App.jsx').includes('path="/image-attributions" element={<ImageAttributionsPage/>}'));
 });
+
+
+test('footer has a single semantic responsive grid, aligned navigation and preserved attribution', () => {
+  const ui = read('src/site/Marketing.jsx');
+  const css = read('src/site/redesign.css');
+  const footer = ui.slice(ui.indexOf('function PublicFooter()'), ui.indexOf('export function PublicShell('));
+  assert.ok(footer.includes('<nav className="pm-footer-links" aria-label="Footer navigation">'));
+  assert.ok(footer.includes('className="pm-footer-brand"'));
+  assert.ok(footer.includes('className="pm-footer-group pm-footer-legal"'));
+  assert.equal((footer.match(/className="pm-footer-group/g) || []).length, 3);
+  assert.ok(footer.includes('<Link to="/image-attributions">Image licenses</Link>'));
+  assert.ok(footer.includes('href="https://kweeziperez.com" target="_blank" rel="noopener noreferrer"'));
+  assert.equal(footer.includes('Photo credits & license'), false);
+  assert.ok(css.includes('.kats-public .pm-footer-body > .pm-footer-links'));
+  assert.ok(css.includes('grid-template-columns:repeat(3,minmax(0,1fr));'));
+  assert.ok(css.includes('grid-template-columns:repeat(2,minmax(0,1fr));'));
+  assert.ok(css.includes('grid-template-columns:minmax(0,1fr);'));
+  assert.ok(css.includes('@media (max-width:1100px)'));
+  assert.ok(css.includes('@media (max-width:700px)'));
+  assert.ok(css.includes('@media (max-width:360px)'));
+  assert.ok(css.includes('overflow-wrap:anywhere'));
+  assert.ok(css.includes('.pm-footer-base .pm-developer-link'));
+});
+
+test('narrow landscape and operational workspaces keep flexible content widths', () => {
+  const css = read('src/site/redesign.css');
+  const portal = read('src/styles.css');
+  assert.ok(css.includes('@media (max-height:480px) and (orientation:landscape)'));
+  assert.ok(css.includes('.portal .portal-content .page .data-table-wrap'));
+  assert.ok(css.includes('overflow-x:auto;'));
+  assert.ok(css.includes('overscroll-behavior-x:contain;'));
+  assert.ok(portal.includes('.mobile-nav'));
+});

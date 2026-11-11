@@ -288,7 +288,8 @@ def test_uganda_legal_context_and_media_attribution_are_available(page):
     expect(page.get_by_role("heading", name="Relevant statutory guidance")).to_be_visible()
     expect(page.get_by_text("Security deposits", exact=True)).to_be_visible()
     expect(page.get_by_role("link", name=re.compile("Landlord and Tenant Act, 2022"))).to_have_attribute("target", "_blank")
-    page.get_by_role("link", name="Image licenses").click()
+    page.get_by_role("navigation", name="Other legal pages").get_by_role(
+        "link", name="Image licenses").click()
     expect(page).to_have_url(re.compile(r"/image-attributions$"))
     expect(page.get_by_role("heading", name="Image sources & licenses")).to_be_visible()
     assert page.get_by_role("link", name="Creative Commons Attribution-ShareAlike 4.0").count() == 5
@@ -336,5 +337,162 @@ def test_seeded_demo_logins_open_real_role_scoped_workspace(browser, account, ro
             assert lease.status == 200
             assert lease.json()["lease"]["status"] == "ACTIVE"
             assert page.request.get(BASE + "/api/v1/properties").status == 403
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("width,height", [
+    (320, 720), (360, 780), (390, 844), (430, 932),
+    (540, 800), (700, 960), (701, 980), (768, 1024),
+    (834, 1112), (1024, 768), (1100, 800), (1101, 850),
+    (1280, 800), (1440, 900), (1920, 1080), (2560, 1440),
+    (568, 320),  # small landscape phone
+])
+def test_footer_is_balanced_and_accessible_across_screen_sizes(browser, width, height):
+    context = browser.new_context(viewport={"width": width, "height": height},
+                                  reduced_motion="reduce", device_scale_factor=1)
+    page = context.new_page()
+    try:
+        page.goto(BASE + "/", wait_until="domcontentloaded")
+        footer = page.locator("footer.pm-footer")
+        expect(footer).to_be_visible()
+        expect(footer.locator(".pm-footer-group")).to_have_count(3)
+        nav = footer.get_by_role("navigation", name="Footer navigation")
+        for heading in ("Overview", "Access", "Legal & trust"):
+            expect(nav.get_by_role("heading", name=heading)).to_be_visible()
+        expect(nav.get_by_role("link", name="Image licenses")).to_be_visible()
+        credit = footer.get_by_role("link", name="Developed by Kweezi Perez Christopher")
+        expect(credit).to_have_attribute("href", "https://kweeziperez.com")
+        expect(credit).to_have_attribute("target", "_blank")
+        metrics = page.evaluate("""() => {
+            const measure = q => {
+                const r=document.querySelector(q).getBoundingClientRect();
+                return {x:r.x,y:r.y,left:r.left,right:r.right,width:r.width,
+                        height:r.height,bottom:r.bottom};
+            };
+            const headings=[...document.querySelectorAll('.pm-footer-group h3')]
+                .map(el => el.getBoundingClientRect().top);
+            const width=document.documentElement.clientWidth;
+            const required=['.pm-footer-body','.pm-footer-brand',
+                '.pm-footer-links','.pm-footer-group','.pm-footer-base',
+                '.pm-developer-link'];
+            const outside=required.flatMap(selector =>
+                [...document.querySelectorAll(selector)].filter(el => {
+                    const rect=el.getBoundingClientRect();
+                    return rect.left < -2 || rect.right > width+2;
+                }).map(el => ({selector, text:el.textContent.slice(0,30)})));
+            const links=[...document.querySelectorAll('.pm-footer-links a')];
+            const clippedLinks=links.filter(el => {
+                const rect=el.getBoundingClientRect();
+                const parent=el.closest('.pm-footer-group').getBoundingClientRect();
+                return rect.right > parent.right+2 || rect.left < parent.left-2;
+            }).map(el => el.textContent.trim());
+            return {
+                width, scrollWidth:document.documentElement.scrollWidth,
+                body:measure('.pm-footer-body'), brand:measure('.pm-footer-brand'),
+                nav:measure('.pm-footer-links'), legal:measure('.pm-footer-legal'),
+                base:measure('.pm-footer-base'), copyright:measure('.pm-footer-base > span'),
+                credit:measure('.pm-developer-link'),
+                headings, outside, clippedLinks
+            };
+        }""")
+        assert metrics["scrollWidth"] <= metrics["width"]+2, metrics
+        assert not metrics["outside"], metrics
+        assert not metrics["clippedLinks"], metrics
+        assert metrics["nav"]["left"] >= metrics["body"]["left"] - 2, metrics
+        assert metrics["nav"]["right"] <= metrics["body"]["right"] + 2, metrics
+        # Keep the Overview and Access heading baseline precisely aligned,
+        # rather than letting different text lengths shift columns.
+        assert abs(metrics["headings"][0] - metrics["headings"][1]) <= 3, metrics
+        if width > 700:
+            assert abs(metrics["headings"][1] - metrics["headings"][2]) <= 3, metrics
+        else:
+            assert metrics["legal"]["y"] > metrics["headings"][0], metrics
+            assert abs(metrics["credit"]["left"]-metrics["copyright"]["left"]) <= 3, metrics
+        if width > 1100:
+            assert abs(metrics["brand"]["y"]-metrics["nav"]["y"]) <= 2, metrics
+        assert metrics["credit"]["bottom"] <= metrics["base"]["bottom"]+2, metrics
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("route", ["/", "/request-access", "/login", "/privacy", "/image-attributions"])
+@pytest.mark.parametrize("viewport", [
+    {"width": 320, "height": 700},
+    {"width": 430, "height": 932},
+    {"width": 834, "height": 1112},
+    {"width": 1920, "height": 1080},
+])
+def test_responsive_public_routes_keep_content_and_footer_inside_viewport(browser, route, viewport):
+    context = browser.new_context(viewport=viewport, reduced_motion="reduce")
+    page = context.new_page()
+    try:
+        page.goto(BASE + route, wait_until="domcontentloaded")
+        expect(page.locator("main")).to_be_visible()
+        expect(page.locator(".pm-footer-links")).to_be_visible()
+        result = page.evaluate("""() => {
+            const width=document.documentElement.clientWidth;
+            const selectors=['.pm-header-inner','.pm-container','.pm-hero-copy',
+                '.pm-feature-card','.pm-request-layout','.pm-contact-form',
+                '.pm-page-hero-inner','.pm-legal-layout','.pm-legal-body',
+                '.pm-login-layout','.pm-login-card','.pm-public-demo-pane',
+                '.pm-footer-body','.pm-footer-base'];
+            const escaped=selectors.flatMap(selector =>
+                [...document.querySelectorAll(selector)].filter(el => {
+                    const r=el.getBoundingClientRect();
+                    const style=getComputedStyle(el);
+                    return style.display !== 'none' && r.width > 0 &&
+                        (r.left < -2 || r.right > width+2);
+                }).map(el => selector));
+            return {width,scrollWidth:document.documentElement.scrollWidth,escaped};
+        }""")
+        assert result["scrollWidth"] <= result["width"]+2, (route,viewport,result)
+        assert not result["escaped"], (route,viewport,result)
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("width,height", [
+    (320, 720), (390, 844), (768, 1024), (1024, 768), (1440, 900),
+])
+@pytest.mark.parametrize("role", ["OWNER", "TENANT"])
+def test_real_role_workspaces_fit_narrow_and_wide_screens(browser, width, height, role):
+    """Exercise actual logged-in UI with disposable demo rows, when available."""
+    context = browser.new_context(viewport={"width": width, "height": height},
+                                  reduced_motion="reduce", device_scale_factor=1)
+    page = context.new_page()
+    try:
+        page.goto(BASE + "/login", wait_until="domcontentloaded")
+        result = page.request.get(BASE + "/api/v1/auth/demo-accounts")
+        if result.status != 200 or not result.json().get("enabled"):
+            pytest.skip("Only exercises real authenticated screens with isolated demo seeding")
+        if role == "OWNER":
+            page.locator(".pm-demo-owner").click()
+        else:
+            page.locator(".pm-demo-search").fill("Sarah Namusoke")
+            page.locator(".pm-demo-tenant-list button").first.click()
+        expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
+        for route in ("/dashboard", "/invoices", "/maintenance"):
+            page.goto(BASE + route, wait_until="domcontentloaded")
+            expect(page.locator("main.portal-content")).to_be_visible()
+            result = page.evaluate("""() => {
+                const width=document.documentElement.clientWidth;
+                const selectors=['.portal','.portal-main','.portal-content',
+                    '.portal-content .page','.page-head','.record-toolbar',
+                    '.pagination-controls','.module-card','.stat',
+                    '.data-table-wrap','.mobile-nav'];
+                const escaped=selectors.flatMap(selector =>
+                    [...document.querySelectorAll(selector)].filter(el => {
+                        const rect=el.getBoundingClientRect();
+                        const style=getComputedStyle(el);
+                        return style.display !== 'none' && rect.width > 0 &&
+                            (rect.left < -2 || rect.right > width+2);
+                    }).map(el => selector));
+                return {width,scrollWidth:document.documentElement.scrollWidth,escaped};
+            }""")
+            assert result["scrollWidth"] <= result["width"]+2, (role,route,width,result)
+            assert not result["escaped"], (role,route,width,result)
+            if width <= 800:
+                expect(page.locator(".mobile-nav")).to_be_visible()
     finally:
         context.close()
