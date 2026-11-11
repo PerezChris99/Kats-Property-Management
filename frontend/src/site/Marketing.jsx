@@ -58,7 +58,28 @@ function PublicHeader({ user, logout }) {
 }
 
 function PublicFooter() {
-  return <footer className="pm-footer" aria-label="KATS footer">
+  const [nearViewport, setNearViewport] = useState(false);
+  const footerRef = useRef(null);
+  useEffect(() => {
+    const node = footerRef.current;
+    if (!node) return undefined;
+    if (typeof IntersectionObserver === 'undefined') {
+      setNearViewport(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        setNearViewport(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '280px 0px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  return <footer ref={footerRef}
+    className={'pm-footer' + (nearViewport ? ' has-photo' : '')}
+    style={nearViewport ? { '--pm-footer-photo': 'url("' + PHOTOS[4].url + '")' } : undefined}
+    aria-label="KATS footer">
     <div className="pm-footer-body">
       <div className="pm-footer-brand">
         <Brand compact/>
@@ -352,11 +373,11 @@ export function RequestAccessPage() {
       setError(reason instanceof Error ? reason.message : 'Request could not be submitted.');
     } finally { setBusy(false); }
   }
-  return <main className="pm-main"><PageHero eyebrow="REQUEST ACCESS" title="Get access to KATS." text="Request an account for an existing property operation. An administrator reviews every request." photo={PHOTOS[2]}/>
+  return <main className="pm-main pm-request-page">
     <section className="pm-section pm-request-section" aria-labelledby="pm-request-heading"><div className="pm-container pm-request-layout">
       <div className="pm-contact-form">
         <div className="pm-request-form-head"><span className="pm-form-index">01 / REQUEST</span><span className="pm-request-security"><ShieldCheck size={15} aria-hidden="true"/> Reviewed by an administrator</span></div>
-        <div className="pm-section-title"><span className="pm-kicker">YOUR DETAILS</span><h2 id="pm-request-heading">Request your workspace.</h2><p>Share a few details. We’ll route your request for review.</p></div>
+        <div className="pm-section-title"><span className="pm-kicker">REQUEST ACCESS</span><h1 id="pm-request-heading">Request your workspace.</h1><p>Share a few details. An administrator reviews your request before any account is created.</p></div>
         {success && <p role="status" className="pm-form-success"><CheckCircle2 size={20}/>{success}</p>}
         {error && <p role="alert" className="error">{error}</p>}
         <form onSubmit={submit}>
@@ -372,6 +393,7 @@ export function RequestAccessPage() {
           <input className="pm-honeypot" aria-hidden="true" tabIndex={-1} autoComplete="off" name="website" value={values.website} onChange={e => change('website', e.target.value)}/>
           <div className="pm-form-submit"><button className="pm-cta pm-cta-yellow" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Submit request'} <ArrowRight size={17}/></button><small>Submitting does not create an account.</small></div>
         </form>
+        <p className="pm-request-mobile-note"><ShieldCheck size={17} aria-hidden="true"/> Every request is reviewed. Approved accounts receive an invitation to sign in.</p>
       </div>
       <aside className="pm-request-guide" aria-label="Access review process"><span className="pm-form-index">02 / REVIEW</span>
         <div className="pm-guide-mark" aria-hidden="true"><ShieldCheck size={29} strokeWidth={1.5}/></div>
