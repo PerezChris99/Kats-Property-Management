@@ -58,14 +58,37 @@ function PublicHeader({ user, logout }) {
 }
 
 function PublicFooter() {
-  return <footer className="pm-footer">
+  return <footer className="pm-footer" aria-label="KATS footer">
     <div className="pm-footer-body">
-      <div className="pm-footer-brand"><Brand compact/><p>A clear view of your properties, rent and maintenance.</p></div>
-      <div><h3>Overview</h3><Link to="/">Home</Link><Link to="/#capabilities">What KATS does</Link><Link to="/#workflow">How it works</Link><Link to="/#about">About KATS</Link></div>
-      <div><h3>Access</h3><Link to="/login">Sign in</Link><Link to="/request-access">Request access</Link><Link to="/forgot-password">Recover account</Link></div>
-      <div className="pm-footer-legal"><h3>Legal & trust</h3>{POLICY_LINKS.map(([name, slug]) => <Link to={'/' + slug} key={slug}>{name}</Link>)}</div>
+      <div className="pm-footer-brand">
+        <Brand compact/>
+        <p>A clear view of your properties, rent and maintenance.</p>
+      </div>
+      <nav className="pm-footer-links" aria-label="Footer navigation">
+        <div className="pm-footer-group">
+          <h3>Overview</h3>
+          <Link to="/">Home</Link>
+          <Link to="/#capabilities">What KATS does</Link>
+          <Link to="/#workflow">How it works</Link>
+          <Link to="/#about">About KATS</Link>
+        </div>
+        <div className="pm-footer-group">
+          <h3>Access</h3>
+          <Link to="/login">Sign in</Link>
+          <Link to="/request-access">Request access</Link>
+          <Link to="/forgot-password">Recover account</Link>
+        </div>
+        <div className="pm-footer-group pm-footer-legal">
+          <h3>Legal &amp; trust</h3>
+          {POLICY_LINKS.map(([name, slug]) => <Link to={'/' + slug} key={slug}>{name}</Link>)}
+          <Link to="/image-attributions">Image licenses</Link>
+        </div>
+      </nav>
     </div>
-    <div className="pm-footer-base"><span>© {new Date().getFullYear()} KATS Property Management.</span><a className="pm-developer-link" href="https://kweeziperez.com" target="_blank" rel="noopener noreferrer">Developed by Kweezi Perez Christopher</a></div>
+    <div className="pm-footer-base">
+      <span>© {new Date().getFullYear()} KATS Property Management.</span>
+      <a className="pm-developer-link" href="https://kweeziperez.com" target="_blank" rel="noopener noreferrer">Developed by Kweezi Perez Christopher</a>
+    </div>
   </footer>;
 }
 
