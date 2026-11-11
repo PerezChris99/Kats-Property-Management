@@ -13,7 +13,11 @@ test('preview account picker uses real server-issued sessions, not client passwo
   assert.ok(ui.includes('signInDemo(\'landlord\')'));
   assert.ok(ui.includes('signInDemo(account.key)'));
   assert.ok(ui.includes('role="group" aria-label="Sign in as a demo tenant"'));
-  assert.equal(ui.includes('DEMO_PASSWORD'), false);
+  // Local preview signs in via server-issued sessions, never bundled reusable
+  // credentials. The separate public synthetic demo is explicitly opt-in.
+  assert.ok(ui.includes("api('auth/demo-sign-in'"));
+  assert.ok(ui.includes("import.meta.env.VITE_KATS_PUBLIC_DEMO === 'true'"));
+  assert.equal(ui.includes('password: "LocalDemoSecret"'), false);
 });
 
 test('demo endpoints have strict preview and loopback safety gates', () => {
