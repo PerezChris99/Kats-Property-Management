@@ -241,6 +241,9 @@ function ResourcePage({ resource, user }) {
             if (value || field.required)
                 body[field.name] = field.type === 'number' ? Number(value) : value;
         }
+        // An interrupted mobile response must not create a second work order
+        // when the operator presses Save again: reuse the same key until success.
+        if (resource.path === 'maintenance') body.idempotency_key = idempotencyKey;
         try {
             await api(resource.path === 'payments' ? 'payments/manual' : resource.path, { method: 'POST', body: JSON.stringify(body) });
             setEditing(false);
