@@ -35,14 +35,17 @@ def begin_document_scope():
     if not get_jwt_identity():
         return
     user=current_user()  # Verifies is_active and server-side session version.
-    tenant_id=""
-    if user.role=="TENANT":
-        tenant_id=db.session.query(Tenant.id).filter_by(user_id=user.id).scalar() or ""
-    scope={"role":user.role,"user_id":user.id,"tenant_id":tenant_id}
+    # The tenants table itself is RLS-protected. Establish a provisional
+    # authenticated identity before resolving the linked tenant profile, then
+    # replace its empty tenant id with the verified database mapping.
+    scope={"role":user.role,"user_id":user.id,"tenant_id":""}
     token=_SCOPE.set(scope)
     g.kats_rls_token=token
-    # An earlier User lookup already started this DB transaction.
     db.session.execute(_CONTEXT_SQL,scope)
+    if user.role=="TENANT":
+        scope["tenant_id"]=db.session.query(Tenant.id).filter_by(
+            user_id=user.id).scalar() or ""
+        db.session.execute(_CONTEXT_SQL,scope)
 
 def clear_document_scope(_error=None):
     token=getattr(g,"kats_rls_token",None)
