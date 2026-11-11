@@ -1624,6 +1624,9 @@ body,.kats-public,.portal,.auth-layout {
   }
 }
 @media(max-width:760px) {
+  /* Mobile headers have a 70–71px measured height, not the 76px desktop
+     value: keep the footer fully below the first viewport. */
+  .kats-public .pm-request-page {min-height:calc(100svh - 70px);}
   .kats-public .pm-login-layout:has(.pm-local-demo-pane) {
     grid-template-columns:minmax(0,1fr);
     max-width:650px;
