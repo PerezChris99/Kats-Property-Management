@@ -151,6 +151,9 @@ jobs:
           export DATABASE_URL="sqlite:///$PWD/.local/kats-preview.sqlite3"
           python ops/init_preview.py
           (cd backend && python -m flask --app wsgi seed-permissions)
+          # Synthetic, ignored SQLite data only: exercise actual OWNER/TENANT
+          # workspaces at narrow and wide viewports; never use customer records.
+          python ops/seed_demo_preview.py
           (cd backend && python -m flask --app wsgi run --no-reload --host 127.0.0.1 --port 8000) > /tmp/kats-api.log 2>&1 &
           API_PID=$!
           (cd frontend && npm run dev -- --host 127.0.0.1 --strictPort) > /tmp/kats-vite.log 2>&1 &
