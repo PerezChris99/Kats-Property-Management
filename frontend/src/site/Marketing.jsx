@@ -9,7 +9,6 @@ import { api } from '../lib/api';
 import { PHOTOS, PHOTO_LICENSE } from './media';
 import { POLICY_LINKS, POLICY_PAGES } from './legal';
 import './site.css';
-import './redesign.css';
 
 const PRINCIPLES = [
   { icon: Building2, title: 'Owners', detail: 'Portfolio visibility.' },
