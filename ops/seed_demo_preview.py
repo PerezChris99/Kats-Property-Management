@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from contextlib import nullcontext
+from urllib.parse import urlparse
 from secrets import token_urlsafe
 from sys import path as sys_path
 
@@ -81,17 +83,58 @@ def month_end(d: date) -> date:
     return (d.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
 
 
-def seed() -> None:
-    assert_preview_database()
+def assert_public_neon_demo_database():
+    """A deliberately explicit, one-off seed against a dedicated empty Neon DB.
+
+    Seeding operates in staging context; production runtime must use a
+    separately provisioned non-owner, non-BYPASSRLS database role.
+    """
+    if os.getenv("KATS_PUBLIC_DEMO_SEED") != "1" or os.getenv("APP_ENV") != "staging":
+        raise RuntimeError("External synthetic dataset requires staging context and explicit KATS_PUBLIC_DEMO_SEED=1")
+    parsed = urlparse(os.getenv("DATABASE_URL", ""))
+    if (parsed.scheme not in ("postgresql", "postgresql+psycopg") or
+        not parsed.hostname or not parsed.hostname.endswith(".neon.tech") or
+        parsed.path != "/katsproperty" or not parsed.username or
+        not parsed.password):
+        raise RuntimeError("Refusing to seed any database other than the dedicated katsproperty Neon PostgreSQL database")
+    password = os.getenv("KATS_PUBLIC_DEMO_PASSWORD", "")
+    if (len(password) < 16 or password.startswith("REPLACE") or
+        password.startswith("development")):
+        raise RuntimeError("A distinct 16+ character public demonstration password is required")
+    for provider in ("MTN_MOMO_ENABLED", "AIRTEL_MONEY_ENABLED", "EFRIS_ENABLED"):
+        if os.getenv(provider, "false").lower() == "true":
+            raise RuntimeError("Public synthetic demo cannot enable live payment/fiscal providers")
+
+
+def seed(public_demo=False) -> None:
+    if public_demo:
+        assert_public_neon_demo_database()
+    else:
+        assert_preview_database()
     app = create_app()
-    with app.app_context():
-        assert_preview_database(app)
+    from app.document_rls import trusted_worker_scope
+    with app.app_context(), (trusted_worker_scope() if public_demo else nullcontext()):
+        if public_demo:
+            assert_public_neon_demo_database()
+            # Never modify a non-empty customer database through a demo
+            # setup script. A previous complete demo remains idempotent.
+            from sqlalchemy import inspect
+            if not inspect(db.engine).has_table("users"):
+                raise RuntimeError("Schema migrations must be completed before demonstration seeding")
+            occupied = db.session.query(User.id).filter(
+                ~User.email.like("%@demo.kats.invalid")).first()
+            if occupied:
+                raise RuntimeError("Refusing seed: non-demo user already exists")
+        else:
+            assert_preview_database(app)
         if verify_existing():
             print("[DEMO] Existing landlord and 30 linked tenants verified; no changes.", flush=True)
             return
         # Realistic fiction, not real people, telephone numbers, addresses or payments.
         hasher = PasswordHasher()
-        preview_password_hash = hasher.hash(token_urlsafe(32))
+        preview_password_hash = hasher.hash(
+            os.environ["KATS_PUBLIC_DEMO_PASSWORD"] if public_demo else token_urlsafe(32)
+        )
         landlord = User(full_name="Grace Namatovu (Demo Landlord)",
                         email=LANDLORD_EMAIL,
                         password_hash=preview_password_hash, role="OWNER")
