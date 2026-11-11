@@ -3,13 +3,29 @@
   "tasks": [
     {
       "label": "KATS: Start Dev (Frontend + Backend)",
-      "detail": "React + Flask in side by side VS Code terminals; Celery/PostgreSQL with Docker, SQLite preview without Docker.",
-      "dependsOn": [
-        "KATS: Native frontend (BAT)",
-        "KATS: Native backend stack (BAT)"
+      "detail": "Single reliable VS Code terminal with live [React] and [Flask] logs. Docker-free SQLite preview supported; no build/pip install on repeat starts.",
+      "problemMatcher": [],
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "start"
       ],
-      "dependsOrder": "parallel",
-      "problemMatcher": []
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true,
+        "clear": false,
+        "showReuseMessage": false
+      }
     },
     {
       "label": "KATS: Native setup (database + build)",
@@ -60,176 +76,27 @@
       "detail": "Check live React/Vite proxy ↔ Flask ↔ SQL and anonymous API access. Run after starting both services."
     },
     {
-      "label": "KATS: Setup",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/ops/dev.ps1",
-        "-Action",
-        "setup"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      }
-    },
-    {
-      "label": "KATS: Start app",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/ops/dev.ps1",
-        "-Action",
-        "start"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      }
-    },
-    {
-      "label": "KATS: Test frontend + API + backend + PostgreSQL",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/ops/dev.ps1",
-        "-Action",
-        "test"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      }
-    },
-    {
-      "label": "KATS: Browser E2E (Chromium)",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/ops/dev.ps1",
-        "-Action",
-        "browser"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      }
-    },
-    {
-      "label": "KATS: Isolated six-role browser E2E",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/ops/dev.ps1",
-        "-Action",
-        "browser-full"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      }
-    },
-    {
-      "label": "KATS: Full local acceptance",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/ops/dev.ps1",
-        "-Action",
-        "all"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      }
-    },
-    {
-      "label": "KATS: Create first owner",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/ops/dev.ps1",
-        "-Action",
-        "owner"
-      ],
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "new"
-      }
-    },
-    {
-      "label": "KATS: Logs",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/ops/dev.ps1",
-        "-Action",
-        "logs"
-      ],
-      "isBackground": true,
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "new"
-      }
-    },
-    {
       "label": "KATS: Stop (preserve database)",
-      "type": "shell",
-      "command": "powershell",
+      "type": "process",
+      "command": "powershell.exe",
       "args": [
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}/ops/dev.ps1",
-        "-Action",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
         "stop"
       ],
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
-        "panel": "dedicated"
-      }
+        "panel": "new"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "detail": "Request safe shutdown of the native frontend/backend and preserve preview data/volumes."
     },
     {
       "label": "KATS: Native start (split in VS Code)",
@@ -256,8 +123,12 @@
       "problemMatcher": [
         {
           "owner": "kats-native",
+          "fileLocation": "relative",
           "pattern": {
-            "regexp": "a^"
+            "regexp": "^\\[KATS-PROBLEM\\] (.+):(\\d+): (.+)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
           },
           "background": {
             "activeOnStart": true,
@@ -294,8 +165,12 @@
       "problemMatcher": [
         {
           "owner": "kats-native",
+          "fileLocation": "relative",
           "pattern": {
-            "regexp": "a^"
+            "regexp": "^\\[KATS-PROBLEM\\] (.+):(\\d+): (.+)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
           },
           "background": {
             "activeOnStart": true,

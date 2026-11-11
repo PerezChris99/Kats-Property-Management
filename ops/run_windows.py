@@ -178,7 +178,8 @@ def prepare_backend(settings, python, mode):
            cwd=BACK, env=runtime)
     return runtime
 
-def frontend():
+def frontend(*, build=False):
+    """Install Node dependencies only if needed. Vite does not need a build."""
     node, npm = require("node"), require("npm.cmd")
     major = subprocess.run([node, "-p", "process.versions.node.split('.')[0]"],
                            capture_output=True, text=True, check=False)
@@ -188,35 +189,71 @@ def frontend():
     lock = FRONT / "package-lock.json"
     stamp = STATE / "npm-lock.sha256"
     digest = hashlib.sha256(lock.read_bytes()).hexdigest()
-    if (not (FRONT / "node_modules").is_dir()
-        or not stamp.exists() or stamp.read_text(encoding="utf-8") != digest):
-        print("[frontend] Installing npm packages...", flush=True)
+    vite = FRONT / "node_modules" / "vite" / "bin" / "vite.js"
+    if (not vite.is_file() or not stamp.exists()
+        or stamp.read_text(encoding="utf-8") != digest):
+        print("[frontend] Installing changed or missing Node packages (first setup only)...", flush=True)
         invoke([npm, "ci", "--no-audit", "--no-fund"], cwd=FRONT)
         stamp.write_text(digest, encoding="utf-8")
-    print("[frontend] Verifying JSX, linting, testing and building React...", flush=True)
-    invoke([npm, "run", "build"], cwd=FRONT)
+    else:
+        print("[frontend] Dependencies already installed; skipping npm ci.", flush=True)
+    if build:
+        print("[frontend] Running full JSX, lint, unit tests and release build...", flush=True)
+        invoke([npm, "run", "build"], cwd=FRONT)
+    else:
+        print("[frontend] Starting Vite directly, without a full rebuild.", flush=True)
     return npm
 
+
 def backend():
+    """Prepare Python once; never run pip install repeatedly on every launch."""
     if sys.version_info < (3, 12):
         raise StartupError("Python 3.12+ is required.")
     python = VENV / "Scripts" / "python.exe"
     active = bool(os.environ.get("VIRTUAL_ENV") and
                   os.path.normcase(os.path.abspath(os.environ["VIRTUAL_ENV"]))
                   == os.path.normcase(str(VENV.resolve())))
-    if not python.is_file():
-        print("[backend] Creating .venv...", flush=True)
+    created = not python.is_file()
+    if created:
+        print("[backend] Creating isolated project .venv...", flush=True)
         invoke([sys.executable, "-m", "venv", str(VENV)])
     probe = subprocess.run([str(python), "-c",
                             "import sys; assert sys.version_info >= (3,12)"],
                            capture_output=True, check=False)
     if probe.returncode:
-        raise StartupError("Existing project .venv uses unsupported Python; recreate it.")
-    print("[backend] " + ("Project .venv already active." if active
-                          else "Activating project .venv for backend processes."), flush=True)
-    print("[backend] Installing required pip packages...", flush=True)
-    invoke([str(python), "-m", "pip", "install", "-r", str(BACK / "requirements.txt")])
+        raise StartupError("Existing .venv uses unsupported Python; recreate it after backing up any local settings.")
+    print("[backend] " + ("Project .venv active." if active
+                          else "Using isolated project .venv."), flush=True)
+    STATE.mkdir(parents=True, exist_ok=True)
+    requirements = BACK / "requirements.txt"
+    stamp = STATE / "pip-requirements.sha256"
+    digest = hashlib.sha256(requirements.read_bytes()).hexdigest()
+    needs_install = (created or (stamp.exists()
+                     and stamp.read_text(encoding="utf-8") != digest))
+    if not needs_install and not stamp.exists():
+        # Backward compatibility for existing environments installed by the
+        # old launcher. Never silently trust an empty/corrupted venv.
+        modules = ("flask", "flask_sqlalchemy", "flask_migrate",
+                   "flask_jwt_extended", "flask_cors", "flask_limiter",
+                   "argon2", "psycopg", "redis", "celery", "boto3", "httpx",
+                   "reportlab", "xlsxwriter", "cryptography")
+        check = subprocess.run(
+            [str(python), "-c",
+             "import importlib.util,sys; sys.exit(not all("
+             "importlib.util.find_spec(m) for m in " + repr(modules) + "))"],
+            capture_output=True, check=False)
+        deps = subprocess.run([str(python), "-m", "pip", "check"],
+                              capture_output=True, check=False)
+        needs_install = check.returncode != 0 or deps.returncode != 0
+    if needs_install:
+        print("[backend] Installing changed or missing Python dependencies...", flush=True)
+        invoke([str(python), "-m", "pip", "install", "-r", str(requirements)])
+    else:
+        print("[backend] Dependencies already installed; skipping pip install.", flush=True)
+    if needs_install or not stamp.exists():
+        stamp.write_text(digest, encoding="utf-8")
     return python
+
 
 def venv_environment(base):
     result = base.copy()
@@ -334,7 +371,7 @@ def launch(mode):
         check_port(5173)
     if run_back:
         check_port(8000)
-    npm = frontend() if run_front else None
+    npm = frontend(build=False) if run_front else None
     python = backend() if run_back else None
     runtime = prepare_backend(settings, python, backend_mode) if run_back else base
     if stop_requested(started_at):
@@ -470,7 +507,7 @@ def main():
             start_split()
         elif action == "setup":
             settings = config()
-            frontend()
+            frontend(build=True)
             python = backend()
             mode = select_backend_mode()
             prepare_backend(settings, python, mode)

@@ -17,6 +17,15 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 
 ---
 
+## Fast, single-command native development
+
+In VS Code choose **Tasks: Run Task → KATS: Start Dev (Frontend + Backend)**.
+The launcher runs the frontend and backend in one integrated terminal,
+with live prefixed logs. It does **not** rebuild React or reinstall packages
+on every startup. The initial setup task is separate; Docker-free SQLite
+preview is available. See [native troubleshooting](docs/NATIVE_DEVELOPMENT.md)
+for the connection test and graceful stop.
+
 ## 1. Core capabilities
 
 | Area | Implemented |

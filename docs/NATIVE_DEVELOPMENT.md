@@ -8,15 +8,17 @@ Access requests are reviewed by an OWNER/SUPER_ADMIN, not registrations.
 ## First-time setup, without Docker
 
 1. Open the repository in VS Code. Ensure Python 3.12+ and Node 22+ are on PATH.
-2. **Tasks: Run Task → KATS: Native setup (database + build)**. It creates
+2. **Once per checkout or after requirements change:** **Tasks: Run Task → KATS: Native setup (database + build)**. It creates
    an ignored local secrets file, installs Python/Node dependencies, builds
    the React app, creates the isolated local SQLite schema and seeds role
    permissions. It never overwrites an existing database or production .env.
-3. **Tasks: Run Task → KATS: Start Dev (Frontend + Backend)**. React/Vite and
-   Flask run in two separate VS Code integrated terminal panes.
-   The launcher streams `[React]` and `[Flask]` stdout/stderr live, in
-   addition to the setup/build output. On full Docker mode, `[Celery worker]`
-   and `[Celery beat]` logs also appear in the backend pane.
+3. **Tasks: Run Task → KATS: Start Dev (Frontend + Backend)**.
+   This starts both applications **in one reliable VS Code integrated
+   terminal**. Live output is labeled `[React]` and `[Flask]` for clarity.
+   It **does not run a full Vite release build or repeat pip/npm installation**
+   when requirements have not changed. For two separate terminal panes, use
+   `KATS: Native start (split in VS Code)` (the task matchers are valid).
+   In full PostgreSQL mode, worker/Beat output is also labeled and visible.
 4. **Tasks: Run Task → KATS: Verify frontend ↔ backend ↔ database**.
    The check requires JSON `status=ready` and Flask's `X-Request-ID` from
    `http://127.0.0.1:5173/readyz`, then confirms the direct Flask SQL
@@ -30,6 +32,32 @@ Local settings and the SQLite database stay in ignored `.env.native` and
 production**: SQLite does not enforce PostgreSQL RLS and background Celery
 scheduling/payment-provider integrations are inactive. Financial workflows
 must not be considered operationally accepted in preview mode.
+
+## If VS Code reports "task errors" or startup takes minutes
+
+Previous KATS task definitions used an invalid VS Code problem matcher
+(`regexp: "a^"` with no file/line/message captures), and older startup
+tasks silently required Docker even when using the preview. Both defects
+are corrected. The **default Start Dev task is a foreground process**, not
+a background task depending on invalid watchers. It keeps running to
+display live logs.
+
+1. After pulling the updated source, run **Developer: Reload Window**
+   in VS Code to discard old task definitions.
+2. Open the **repository root folder**, not just `frontend` or `backend`.
+3. Start the app using the task **KATS: Start Dev (Frontend + Backend)**.
+   If dependencies were already installed, it starts Vite and Flask directly.
+   If they are missing, only those dependencies are installed.
+4. Look for `[READY]` and `[CONNECTED]`. If they do not appear, copy the
+   **first** `[ERROR]` line and its preceding diagnostic from the terminal.
+5. Run `KATS: Verify frontend ↔ backend ↔ database` only after both servers
+   have started; this check is not a substitute for launching the app.
+
+Use `KATS: Native setup (database + build)` only initially or to explicitly
+run the build/tests. **A full setup may legitimately take several minutes**
+on a first install, but it no longer runs on every ordinary startup.
+Legacy Docker-only setup/launch/log tasks were removed from the VS Code
+task picker to prevent misleading errors when Docker is absent.
 
 ## Full local infrastructure
 
@@ -45,14 +73,14 @@ its own disposable PostgreSQL and browser runtime.
 
 ## Graceful shutdown, logs and recovery
 
-- In each integrated run pane, **Ctrl+C** requests a Windows
+- In the running integrated terminal, **Ctrl+C** requests a Windows
   `CTRL_BREAK_EVENT` for the launcher-managed Node/Python process groups.
   A bounded wait allows normal exit; forced termination is a last resort.
 - **KATS: Native stop dependencies (BAT)** or `stop.bat` asks all native
   launchers to exit via an ignored local stop marker before stopping native
   Docker services. Volumes and the isolated SQLite database are retained.
   Avoid using Task Manager unless normal shutdown fails.
-- Browser/API logs are printed live in the corresponding VS Code terminal.
+- Browser/API logs are printed live in the main VS Code terminal, prefixed with service names.
   There is **no automatic persistent log of sensitive request paths or
   credentials**. Do not paste tenant tokens or secrets into bug reports.
 - A stale stop marker is ignored by new runs because each launcher compares
