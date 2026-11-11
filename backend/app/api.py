@@ -225,7 +225,7 @@ def demo_accounts():
 
 
 @api.post("/auth/demo-sign-in")
-@limiter.limit("10 per minute")
+@limiter.limit("60 per minute")
 def demo_sign_in():
     from .demo_preview import demo_http_allowed
     if not demo_http_allowed():
