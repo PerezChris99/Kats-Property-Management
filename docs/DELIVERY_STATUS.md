@@ -1,13 +1,13 @@
 # Kats Property Management — truthful implementation and acceptance register
 
-**Updated:** November 10, 2026. Code is built around Flask/React/PostgreSQL and a single Ugandan property business. Implementation is reviewed against supplied blueprints, but **neither production deployment nor 100% correctness has been certified**.
+**Updated:** November 11, 2026. Code is built around Flask/React/PostgreSQL and a single Ugandan property business. Implementation is reviewed against supplied blueprints, but **neither production deployment nor 100% correctness has been certified**.
 
 | Scope | Implementation in source | Validation and remaining dependency |
 |---|---|---|
-| Foundation | Docker development stack, Flask/React, SQLAlchemy/PostgreSQL schema through 0015, Redis/Celery workers, PWA | Actual HostWares TLS deployment, backup restore and external observability |
+| Foundation | Docker development stack, Flask/React, SQLAlchemy/PostgreSQL migrations through 0027, Redis/Celery workers, PWA | Actual HostWares TLS deployment, backup restore and external observability |
 | Accounts/security | Argon2id, short-lived JWT/CSRF, one-time refresh rotation/revocation; hashed invitation/reset tokens, 30-minute recovery, SMTP TLS sender | Approved public domain, transactional SMTP credentials/deliverability, real auth/security UAT |
 | Roles | Server role ceilings, stored grant matrix, seed-permissions CLI, owner/superadmin permission editor | Whole-endpoint object-level penetration matrix and policy/tenant ownership verification |
-| Property portfolio | Properties, buildings, floors, room placement, bounded search, auditable editing of listing/property metadata; backward-compatible legacy rooms | Owner-reviewed actual portfolio records, comprehensive archival/merge policies and multi-device UAT |
+| Property portfolio | Properties, buildings, floors, room placement, bounded search, indexed history pagination, auditable editing of listing/property metadata; backward-compatible legacy rooms | Owner-reviewed actual portfolio records, comprehensive archival/merge policies and multi-device UAT |
 | Tenant onboarding | Owner invitations instead of emailed passwords, tenant user linking, scoped tenant account, private documents | Active mail provider, verified account ownership, actual legacy data import |
 | Leases and inspection | Lease creation, renewals, default 60-day rent increase notice records, ≤10% annual increase policy, optional deposit up to one month, scoped inspections | Contract exception review, legal service proof, signed tenancy agreements, real owner/tenant acceptance |
 | Rent billing | Monthly idempotent full-month invoicing in 100-lease batches, nonoverlapping rent lines, credit notes, proration and corrected tenant balances | Advanced advance-rent allocations, approved terms, fiscal settlement and real accountant UAT |
@@ -21,7 +21,7 @@
 | Documents | Tenant-scoped presigned S3-compatible private files, signed immutable object versions, MIME magic and ClamAV fail-closed scan before download | Real private S3 versioning and ClamAV, independent scanner tests, retention/legal approval |
 | Messages | In-app alerts and scheduled reminders, resilient record model | SMS/email provider handoff and verified delivery, template/privacy consent |
 | Admin/marketing | Role permissions, TOTP opt-in MFA, encrypted authenticator secrets, personal-data access/correction/erasure triage, versioned legal pages, demo inquiry inbox | MFA enrollment/recovery and privacy-registration procedures, approved wording, provider oversight |
-| Testing | Current Python tests, frontend JavaScript lint and API regression tests, React JSX production build, PostgreSQL 16 migration round-trip, PostgreSQL concurrency and audit-trigger tests | Comprehensive external E2E, security/load tests, mobile/iOS/Android devices and genuine UAT |
+| Testing | Current Python tests, frontend JavaScript lint and API regression tests, React JSX production build, PostgreSQL 16 migration round-trip through 0027, restricted-role document/tenancy RLS checks, PostgreSQL concurrency and audit-trigger tests | Comprehensive external E2E, security/load tests, mobile/iOS/Android devices and genuine UAT |
 | Release | JSX-only frontend; Caddy HTTPS/isolated production Compose + separate managed PostgreSQL/Redis packaging, CI syntax validation | Not deployed; DNS, mail, storage, backups, fiscal/payment integrations and production acceptance remain |
 
 | Utility management | Water/electricity meters, integer consumption snapshots, caretaker readings, independent invoice approval and tenant-scoped visibility | Meter photo evidence, tariffs/contract review, shared-utility policies, field UAT |
