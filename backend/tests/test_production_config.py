@@ -3,7 +3,7 @@ from app.config import validate_production_config
 
 def configure(monkeypatch):
     monkeypatch.setenv("APP_ENV","production")
-    monkeypatch.setenv("DATABASE_URL","postgresql+psycopg://kats@localhost/kats")
+    monkeypatch.setenv("DATABASE_URL","postgresql+psycopg://kats:secret@localhost/kats?sslmode=verify-full")
     monkeypatch.setenv("SECRET_KEY","production-app-secret-a"*3)
     monkeypatch.setenv("JWT_SECRET_KEY","production-jwt-secret-b"*3)
     monkeypatch.setenv("REDIS_URL","redis://localhost:6379/0")
@@ -42,3 +42,31 @@ def test_production_rejects_disabled_rate_limiting(monkeypatch):
     monkeypatch.setenv("RATELIMIT_ENABLED", "false")
     with pytest.raises(RuntimeError, match="cannot disable API rate limiting"):
         validate_production_config()
+
+
+def test_production_rejects_insecure_postgres_connection_and_secret_reuse(monkeypatch):
+    configure(monkeypatch)
+    for uri in (
+        "postgresql+psycopg://kats:secret@localhost/kats",
+        "postgresql+psycopg://kats:secret@localhost/kats?sslmode=require",
+        "postgresql+psycopg://kats@localhost/kats?sslmode=verify-full",
+    ):
+        monkeypatch.setenv("DATABASE_URL", uri)
+        with pytest.raises(RuntimeError, match="PostgreSQL"):
+            validate_production_config()
+    configure(monkeypatch)
+    monkeypatch.setenv("JWT_SECRET_KEY", "production-app-secret-a" * 3)
+    with pytest.raises(RuntimeError, match="independently"):
+        validate_production_config()
+
+
+def test_production_rejects_database_connection_overcommit(monkeypatch):
+    configure(monkeypatch)
+    monkeypatch.setenv("DB_POOL_SIZE", "30")
+    monkeypatch.setenv("DB_MAX_OVERFLOW", "15")
+    monkeypatch.setenv("DB_CONNECTION_BUDGET", "80")
+    with pytest.raises(RuntimeError, match="connection budget"):
+        validate_production_config()
+    monkeypatch.setenv("DB_POOL_SIZE", "5")
+    monkeypatch.setenv("DB_MAX_OVERFLOW", "2")
+    validate_production_config()
