@@ -142,6 +142,24 @@ def create_app(test_config=None):
     app.register_blueprint(dispute_api, url_prefix="/api/v1")
     from .maintenance_plans import maintenance_plan_api
     app.register_blueprint(maintenance_plan_api, url_prefix="/api/v1")
+    from .document_rls import begin_document_scope, clear_document_scope
+
+    @app.before_request
+    def establish_database_actor_scope():
+        # JWT claims are verified against server-side session_version, and
+        # PostgreSQL SET LOCAL is transaction-bound. Public routes are excluded
+        # so stale browser cookies never block a fresh sign-in.
+        if not request.path.startswith("/api/"):
+            return
+        if request.path.startswith("/api/v1/public/") or request.path in (
+            "/api/v1/auth/login", "/api/v1/auth/register",
+            "/api/v1/auth/recover", "/api/v1/auth/complete-token",
+            "/api/v1/auth/demo-accounts", "/api/v1/auth/demo-sign-in",
+        ):
+            return
+        begin_document_scope()
+
+    app.teardown_request(clear_document_scope)
     from .cli import register_commands
     register_commands(app)
     return app
