@@ -39,6 +39,32 @@ async function refreshAccess() {
     }
     return refreshing;
 }
+// Transient mobile-network faults are retried only for safe reads. Writes,
+// payments and account actions are NEVER blindly replayed: doing so can
+// duplicate side effects when the first response was lost.
+function networkAvailable() {
+    return typeof navigator === 'undefined' || navigator.onLine !== false;
+}
+function retryPause(ms, signal) {
+    return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(signal.reason || new DOMException('Request aborted', 'AbortError'));
+            return;
+        }
+        const finish = () => {
+            signal?.removeEventListener('abort', aborted);
+            resolve();
+        };
+        const timer = setTimeout(finish, ms);
+        function aborted() {
+            clearTimeout(timer);
+            signal?.removeEventListener('abort', aborted);
+            reject(signal.reason || new DOMException('Request aborted', 'AbortError'));
+        }
+        signal?.addEventListener('abort', aborted, { once: true });
+    });
+}
+
 async function performApi(path, options, method) {
     const perform = () => {
         const headers = new Headers(options.headers);
@@ -58,28 +84,43 @@ async function performApi(path, options, method) {
         });
     };
     let response;
-    try {
-        response = await perform();
-        if (response.status === 401 &&
-            !['auth/login', 'auth/refresh', 'auth/recover', 'auth/complete-token'].includes(path)) {
-            if (await refreshAccess()) {
-                response = await perform();
+    const attempts = method === 'GET' ? 3 : 1;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+        try {
+            if (options.signal?.aborted)
+                throw options.signal.reason || new DOMException('Request aborted', 'AbortError');
+            response = await perform();
+            if (response.status === 401 &&
+                !['auth/login', 'auth/refresh', 'auth/recover', 'auth/complete-token'].includes(path)) {
+                if (await refreshAccess()) {
+                    response = await perform();
+                } else {
+                    inflight.clear();
+                    window.dispatchEvent(new Event('kats:session-expired'));
+                }
             }
-            else {
-                inflight.clear();
-                window.dispatchEvent(new Event('kats:session-expired'));
+        } catch (reason) {
+            if (reason instanceof DOMException && reason.name === 'AbortError')
+                throw reason;
+            if (attempt + 1 < attempts && networkAvailable() && !options.signal?.aborted) {
+                await retryPause(180 * (2 ** attempt), options.signal);
+                continue;
             }
+            if (!networkAvailable()) {
+                throw new Error('You are offline. Reconnect and retry the request.');
+            }
+            if (reason instanceof DOMException && reason.name === 'TimeoutError')
+                throw new Error('Request timed out. Check your connection and retry.');
+            throw new Error('Unable to connect. Check your network and try again.');
         }
-    }
-    catch (reason) {
-        if (reason instanceof DOMException && reason.name === 'AbortError') {
-            // A deliberately cancelled page request is not a network outage.
-            throw reason;
+        // Service unavailable / gateway timeout may be temporary, but do not
+        // retry 401/403/409/429 or any financial/other mutation.
+        if (attempt + 1 < attempts && [502, 503, 504].includes(response.status)
+            && networkAvailable() && !options.signal?.aborted) {
+            await retryPause(180 * (2 ** attempt), options.signal);
+            continue;
         }
-        if (reason instanceof DOMException && reason.name === 'TimeoutError') {
-            throw new Error('Request timed out. Check your connection and retry.');
-        }
-        throw new Error('Unable to connect. Check your network and try again.');
+        break;
     }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
