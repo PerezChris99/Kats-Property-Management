@@ -305,13 +305,36 @@ def ready_backend(mode):
             "Project Python .venv missing. Run 'KATS: Native setup (database + build)' "
             "once before starting."
         )
-    probe = subprocess.run(
-        [str(python), "-c", "import flask, flask_sqlalchemy, flask_jwt_extended"],
-        capture_output=True, text=True, check=False, timeout=8
+    # A cold Windows/Python startup can take longer than eight seconds.
+    # Fast-start only needs to verify package presence; importing Flask and
+    # extensions here needlessly repeats heavyweight imports before Flask boots.
+    modules = ("flask", "flask_sqlalchemy", "flask_jwt_extended")
+    check = (
+        "import importlib.util,sys; "
+        "sys.exit(0 if all(importlib.util.find_spec(m) is not None "
+        "for m in " + repr(modules) + ") else 1)"
     )
+    try:
+        probe = subprocess.run(
+            [str(python), "-c", check],
+            capture_output=True, text=True, check=False, timeout=30,
+            env=venv_environment(os.environ)
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise StartupError(
+            "Python .venv dependency check exceeded 30 seconds. "
+            "Check antivirus scanning, Python startup hooks and the .venv; "
+            "then rerun the Native setup task if necessary."
+        ) from exc
+    except OSError as exc:
+        raise StartupError(
+            "Cannot start Python from the project .venv. "
+            "Repair the virtual environment using the Native setup task."
+        ) from exc
     if probe.returncode:
         raise StartupError(
-            "Flask dependencies missing from .venv. Run the Native setup task once."
+            "Flask dependencies are missing or Python cannot inspect the .venv "
+            "packages. Run the Native setup task once."
         )
     if mode == "preview" and not (STATE / "kats-preview.sqlite3").is_file():
         raise StartupError(
