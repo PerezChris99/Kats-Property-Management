@@ -229,7 +229,7 @@ def main():
             marker(values,RUNTIME)
             if action=="verify":verify(values)
             if action=="serve":
-                print("[READY] Starting dedicated local PostgreSQL demo on 127.0.0.1:8000")
+                print("[postgres-demo] Starting Flask on 127.0.0.1:8000")
                 result=subprocess.run([sys.executable,"-m","flask","--app","wsgi",
                                        "run","--no-reload","--host","127.0.0.1","--port","8000"],
                                       cwd=ROOT/"backend",env=environ(values,RUNTIME))
