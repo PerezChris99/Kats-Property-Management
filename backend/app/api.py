@@ -154,17 +154,18 @@ def list_page(model, query):
                 not isinstance(cursor_text, str) or
                 not 1 <= len(cursor_text) <= 512):
             abort(400, description="Invalid cursor pagination request")
-        try:
-            item = history_cursor_codec().loads(cursor_text, max_age=3600)
-            if (not isinstance(item, dict) or item.get("path") != request.path or
-                    item.get("subject") != get_jwt_identity() or
-                    item.get("size") != size or not isinstance(item.get("id"), str)):
-                raise ValueError()
-            stamp = datetime.fromisoformat(item["created"])
-        except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
-            abort(400, description="Cursor invalid or expired")
-        query = query.filter(or_(model.created_at < stamp,
-                                 and_(model.created_at == stamp, model.id < item["id"])))
+        if cursor_text != "start":
+            try:
+                item = history_cursor_codec().loads(cursor_text, max_age=3600)
+                if (not isinstance(item, dict) or item.get("path") != request.path or
+                        item.get("subject") != get_jwt_identity() or
+                        item.get("size") != size or not isinstance(item.get("id"), str)):
+                    raise ValueError()
+                stamp = datetime.fromisoformat(item["created"])
+            except (BadSignature, SignatureExpired, ValueError, KeyError, TypeError):
+                abort(400, description="Cursor invalid or expired")
+            query = query.filter(or_(model.created_at < stamp,
+                                     and_(model.created_at == stamp, model.id < item["id"])))
         query = query.order_by(None).order_by(model.created_at.desc(), model.id.desc())
         rows = query.limit(size + 1).all()
         selected = rows[:size]
