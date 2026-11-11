@@ -466,6 +466,9 @@ def test_real_role_workspaces_fit_narrow_and_wide_screens(browser, width, height
         result = page.request.get(BASE + "/api/v1/auth/demo-accounts")
         if result.status != 200 or not result.json().get("enabled"):
             pytest.skip("Only exercises real authenticated screens with isolated demo seeding")
+        # React fetches the account list after mount. Do not race that
+        # request with an immediate click under shared CI API load.
+        expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=15000)
         if role == "OWNER":
             page.locator(".pm-demo-owner").click()
         else:
