@@ -127,3 +127,33 @@ def test_http_caching_only_applies_to_public_anonymous_read(client):
     private = client.get("/api/v1/auth/me")
     assert private.status_code == 401
     assert private.headers["Cache-Control"] == "no-store"
+
+
+def test_notification_cursor_returns_next_page_only_for_authenticated_owner(app):
+    from datetime import datetime, timezone
+    from urllib.parse import quote
+    from app.extra_models import Notification
+    user = create_user("notif-cursor@kats.test", "TENANT")
+    other_user = create_user("notif-cursor-other@kats.test", "TENANT")
+    fixed = datetime(2026, 11, 11, 11, 0, tzinfo=timezone.utc)
+    for n in range(4):
+        db.session.add(Notification(user_id=user.id, channel="IN_APP",
+            kind="TEST", title=f"Notice {n}", body="Private update",
+            status="PENDING", dedupe_key=f"notif-cursor-{n}", created_at=fixed))
+    db.session.commit()
+    client=auth_client(app,user)
+    first=client.get("/api/v1/notifications?cursor=start&page_size=2")
+    assert first.status_code == 200, first.json
+    assert len(first.json["items"]) == 2
+    assert first.json["next_cursor"] is not None
+    second=client.get("/api/v1/notifications?cursor=" +
+                      quote(first.json["next_cursor"]) + "&page_size=2")
+    assert second.status_code == 200
+    assert len(second.json["items"]) == 2
+    assert second.json["next_cursor"] is None
+    ids=[r["id"] for page in (first,second) for r in page.json["items"]]
+    assert len(ids)==len(set(ids))==4
+    other=auth_client(app,other_user)
+    assert other.get("/api/v1/notifications?cursor=" +
+        quote(first.json["next_cursor"]) + "&page_size=2").status_code==400
+    assert other.get("/api/v1/notifications?cursor=start&page_size=2").json["items"]==[]
