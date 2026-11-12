@@ -680,6 +680,11 @@ def launch(mode):
         else:
             frontend(build=False)
     python = (ready_backend(backend_mode) if quick else backend()) if (run_back and not reuse_back) else None
+    if run_back and not reuse_back and backend_mode == "pgdemo":
+        # The prepared mode is pinned; never silently attach to an ordinary
+        # PostgreSQL instance or switch to SQLite if localhost PG disappears.
+        invoke([str(python), str(ROOT / "ops" / "local_postgres_demo.py"), "check"],
+               env=venv_environment(os.environ))
     runtime = ((venv_environment(pg_demo_environment(settings))
                 if backend_mode == "pgdemo" else
                 venv_environment(environment(settings, preview=preview))
