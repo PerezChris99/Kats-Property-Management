@@ -5,7 +5,7 @@ export const COMPACT_GROUPS = [
     { title: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard, pages: ['dashboard'] },
     { title: 'Portfolio', label: 'Portfolio', icon: Building2, pages: ['properties','buildings','floors','rooms','room-placement','portfolio-editor'] },
     { title: 'Tenancies', label: 'Tenancies', icon: Users, pages: ['tenants','leases','renewals','inspections','deposits','disputes'] },
-    { title: 'Finance', label: 'Finance', icon: Wallet, pages: ['invoices','proration','payments','mobile-money','receipts','statements','efris','expenses','expense-approvals'] },
+    { title: 'Finance', label: 'Finance', icon: Wallet, pages: ['invoices','proration','payments','mobile-money','receipts','statements','efris','expenses','expense-approvals','finance-health'] },
     { title: 'Operations', label: 'Operations', icon: Wrench, pages: ['maintenance','preventive-maintenance','work-orders','utilities','assignments'] },
     { title: 'Insights', label: 'Reports & files', icon: ChartColumnIncreasing, pages: ['reports','trends','documents','notifications','inquiries'] },
     { title: 'Administration', label: 'Administration', icon: ShieldCheck, pages: ['users','invitations','permissions','legal','audit','settings','privacy-requests','security'] }
@@ -66,6 +66,7 @@ const PAGE_META = {
     receipts: { label: 'Receipts', icon: ReceiptText },
     statements: { label: 'Statements', icon: FileText },
     efris: { label: 'EFRIS', icon: FileCheck2 },
+    'finance-health': { label: 'Reconciliation', icon: ClipboardCheck },
     expenses: { label: 'Expenses', icon: Wallet },
     'expense-approvals': { label: 'Expense review', icon: ClipboardCheck },
     maintenance: { label: 'Maintenance', icon: Wrench },
