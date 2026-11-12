@@ -471,3 +471,11 @@ No live payment provider or URA EFRIS connection is represented as verified.
 ## Local VS Code development and test acceptance
 
 Use the [VS Code local test and acceptance guide](docs/LOCAL_VSCODE_TESTING.md) for one-command Docker startup, isolated PostgreSQL integration tests, disposable six-role browser E2E, safe owner bootstrap and detailed role-based test instructions. In a VS Code PowerShell terminal: ` .\ops\dev.ps1 -Action all `. This does **not** certify live-provider or business go-live acceptance.
+
+## Nationwide engineering modernization
+
+The ongoing scoped-search, finance-control and organization-registry work is tracked in
+[docs/NATIONWIDE_MODERNIZATION.md](docs/NATIONWIDE_MODERNIZATION.md).
+The organization registry is **not** proof of an isolated multi-organization SaaS;
+verified external payments, fiscal integrations, production rollout and legal acceptance
+remain controlled release gates. Consult [docs/GO_LIVE_CHECKLIST.md](docs/GO_LIVE_CHECKLIST.md).
