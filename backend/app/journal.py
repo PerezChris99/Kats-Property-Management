@@ -15,6 +15,11 @@ def post_receipt_journal(payment, *, reverse=False):
     """
     if payment.amount_ugx <= 0:
         raise ValueError("Cannot post non-positive payment")
+    # Legacy receipts predate this journal; never manufacture a negative
+    # accounting entry without a corresponding historical positive posting.
+    if reverse and not db.session.query(JournalEvent.id).filter_by(
+            event_key="receipt:" + payment.id).first():
+        return False
     kind = "REVERSAL" if reverse else "RECEIPT"
     key = kind.lower() + ":" + payment.id
     if db.session.query(JournalEvent.id).filter_by(event_key=key).first():
