@@ -40,6 +40,30 @@ def check_schema_and_role(connection, heads):
         raise RuntimeError("Document and tenancy/finance tables must have FORCE RLS policies")
 
 
+
+def check_privileged_mfa(connection):
+    """Fail release approval if active financial/administrative operators lack MFA.
+
+    The release gate never changes user accounts or logs their identifiers.
+    Enrollment happens through the existing secure MFA setup workflow.
+    """
+    from sqlalchemy import text
+    owner_count = connection.execute(text(
+        "SELECT count(*) FROM users WHERE is_active = TRUE AND role = 'OWNER'"
+    )).scalar_one()
+    if owner_count < 1:
+        raise RuntimeError("At least one active owner account is required for production")
+    unprotected = connection.execute(text(
+        "SELECT count(*) FROM users WHERE is_active = TRUE "
+        "AND role IN ('OWNER','SUPER_ADMIN','MANAGER','ACCOUNTANT') "
+        "AND (mfa_enabled IS NOT TRUE OR mfa_secret_encrypted IS NULL "
+        "OR length(mfa_secret_encrypted) < 16)"
+    )).scalar_one()
+    if unprotected:
+        raise RuntimeError("Active privileged accounts must enroll MFA before release")
+
+
+
 def main():
     if os.getenv("APP_ENV") != "production":
         print("[BLOCKED] Preflight is for APP_ENV=production only.", file=sys.stderr)
@@ -68,6 +92,7 @@ def main():
             with db.engine.connect() as conn:
                 conn.execute(text("SELECT 1")).scalar_one()
                 check_schema_and_role(conn, heads)
+                check_privileged_mfa(conn)
         with Redis.from_url(os.environ["REDIS_URL"], socket_connect_timeout=4,
                             socket_timeout=4) as redis:
             if not redis.ping():
@@ -78,9 +103,9 @@ def main():
               "). Check private service logs.", file=sys.stderr)
         return 3
     print("[PASS] Production settings, schema revision, restricted DB role, "
-          "document/tenancy/finance RLS and Redis connectivity.")
+          "document/tenancy/finance RLS, privileged MFA and Redis connectivity.")
     print("[NOT APPROVED] Operator must still sign off on TLS, MFA, backup/restore, "
-          "tenancy workflow, providers, security and legal acceptance.")
+          "tenancy workflow, providers, external security and legal acceptance.")
     return 0
 
 
