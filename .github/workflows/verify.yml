@@ -14,7 +14,7 @@ jobs:
   # ONE-TIME dependency lock regeneration for the Recharts migration.
   # Remove this job and the perez push trigger after package-lock is committed.
   lockfile-regenerate:
-    if: github.event_name == 'push' && github.ref_name == 'perez'
+    if: (github.event_name == 'pull_request' && github.head_ref == 'perez') || (github.event_name == 'push' && github.ref_name == 'perez')
     permissions:
       contents: write
     runs-on: ubuntu-latest
