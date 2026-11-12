@@ -24,6 +24,10 @@ def main():
         assert response.status_code==200,(response.status_code,response.json)
         assert response.json["user"]["role"]=="OWNER"
         assert owner.get("/api/v1/dashboard",headers=host).status_code==200
+        for chart in ("occupancy","collections-by-property","monthly",
+                      "tenant-overlap","property-scores"):
+            resp=owner.get("/api/v1/analytics/landlord/"+chart,headers=host)
+            assert resp.status_code==200,(chart,resp.status_code,resp.json)
         tenant=app.test_client()
         response=tenant.post("/api/v1/auth/demo-sign-in",
             json={"account":"tenant-01"},headers={"Host":"127.0.0.1:8000"},
@@ -33,6 +37,12 @@ def main():
         invoices=tenant.get("/api/v1/invoices",headers=host)
         assert invoices.status_code==200,(invoices.status_code,invoices.json)
         assert len(invoices.json["items"])==2
+        for chart in ("payment-status","applied-payments","balance-trend"):
+            resp=tenant.get("/api/v1/analytics/tenant/"+chart,headers=host)
+            assert resp.status_code==200,(chart,resp.status_code,resp.json)
+            assert resp.json["points"],(chart,resp.json)
+        assert tenant.get("/api/v1/analytics/landlord/monthly",headers=host).status_code==403
+        assert owner.get("/api/v1/analytics/tenant/payment-status",headers=host).status_code==403
         assert tenant.get("/api/v1/properties",headers=host).status_code==403
     print("[PASS] PostgreSQL landlord/tenant cookie login, scoped invoices and RBAC",flush=True)
 
