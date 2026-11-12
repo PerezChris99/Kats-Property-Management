@@ -72,7 +72,7 @@ def test_wrong_existing_postgres_marker_does_not_fallback(monkeypatch,tmp_path):
 def test_never_attach_a_running_backend_to_unknown_database(monkeypatch,tmp_path):
     configured(monkeypatch,tmp_path,postgres=True)
     monkeypatch.setattr(launcher,"port_open",lambda port: port == launcher.BACKEND_PORT)
-    with pytest.raises(launcher.StartupError,match="already occupies"):
+    with pytest.raises(launcher.StartupError,match="already occupied"):
         launcher.dev_prepare()
 
 
