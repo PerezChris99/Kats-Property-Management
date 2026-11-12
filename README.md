@@ -472,10 +472,14 @@ No live payment provider or URA EFRIS connection is represented as verified.
 
 Use the [VS Code local test and acceptance guide](docs/LOCAL_VSCODE_TESTING.md) for one-command Docker startup, isolated PostgreSQL integration tests, disposable six-role browser E2E, safe owner bootstrap and detailed role-based test instructions. In a VS Code PowerShell terminal: ` .\ops\dev.ps1 -Action all `. This does **not** certify live-provider or business go-live acceptance.
 
-## Nationwide engineering modernization
+## Single-owner property management modernization
 
-The ongoing scoped-search, finance-control and organization-registry work is tracked in
-[docs/NATIONWIDE_MODERNIZATION.md](docs/NATIONWIDE_MODERNIZATION.md).
-The organization registry is **not** proof of an isolated multi-organization SaaS;
-verified external payments, fiscal integrations, production rollout and legal acceptance
-remain controlled release gates. Consult [docs/GO_LIVE_CHECKLIST.md](docs/GO_LIVE_CHECKLIST.md).
+KATS is a private **one-owner system**, not SaaS. One owner and their authorized
+staff manage properties across Uganda, with separate tenant/caretaker access.
+There is **no subscriber onboarding, subscription pricing, independent customer
+organization management or SaaS tier enforcement**. Historic organization
+registry tables remain dormant solely to preserve database migration compatibility.
+See [docs/NATIONWIDE_MODERNIZATION.md](docs/NATIONWIDE_MODERNIZATION.md)
+for the owner-focused implementation and verification register.
+Live financial providers, banking, fiscal integrations, production restoration,
+legal review and physical device acceptance remain release gates.
