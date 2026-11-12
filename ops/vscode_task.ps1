@@ -2,7 +2,7 @@
 # Avoid nested cmd.exe /c command strings through PowerShell's task shell.
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('start', 'frontend', 'backend-stack', 'backend', 'owner', 'stop', 'setup', 'doctor', 'test-all', 'test-frontend', 'test-frontend-unit', 'test-lint', 'test-build', 'test-backend', 'test-api', 'test-security', 'test-database', 'test-migrations', 'test-performance', 'test-e2e', 'test-smoke', 'test-config', 'test-coverage', 'test-load', 'pg-demo-setup', 'pg-demo-verify', 'pg-demo-serve', 'dev-prepare', 'dev-backend', 'dev-doctor')]
+    [ValidateSet('start', 'frontend', 'backend-stack', 'backend', 'owner', 'stop', 'setup', 'doctor', 'test-all', 'test-frontend', 'test-frontend-unit', 'test-lint', 'test-build', 'test-backend', 'test-api', 'test-security', 'test-database', 'test-migrations', 'test-performance', 'test-e2e', 'test-smoke', 'test-config', 'test-coverage', 'test-load', 'pg-demo-setup', 'pg-demo-verify', 'pg-demo-serve', 'dev-prepare', 'dev-backend', 'dev-frontend', 'dev-doctor')]
     [string]$Target
 )
 $ErrorActionPreference = 'Stop'
@@ -18,6 +18,7 @@ $Entrypoints = @{
     'stop' = @{ Script = 'stop.bat'; Args = @() }
     'dev-prepare' = @{ Script = 'ops/launch.bat'; Args = @('dev-prepare') }
     'dev-backend' = @{ Script = 'ops/launch.bat'; Args = @('dev-backend') }
+    'dev-frontend' = @{ Script = 'ops/launch.bat'; Args = @('dev-frontend') }
     'dev-doctor' = @{ Script = 'ops/launch.bat'; Args = @('dev-doctor') }
     'pg-demo-setup' = @{ Script = 'ops/local_pg_demo.bat'; Args = @('setup') }
     'pg-demo-verify' = @{ Script = 'ops/local_pg_demo.bat'; Args = @('verify') }
