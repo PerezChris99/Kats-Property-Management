@@ -70,7 +70,10 @@ def create_app(test_config=None):
         started = getattr(g, "kats_request_started", None)
         if started is not None and request.path.startswith("/api/"):
             duration_ms = round((time.perf_counter() - started) * 1000)
-            threshold_ms = max(100, min(60000, int(os.getenv("SLOW_API_MS", "1200"))))
+            try:
+                threshold_ms = max(100, min(60000, int(os.getenv("SLOW_API_MS", "1200"))))
+            except ValueError:
+                threshold_ms = 1200
             if duration_ms >= threshold_ms or response.status_code >= 500:
                 app.logger.warning(
                     "api_observation route=%s method=%s status=%d elapsed_ms=%d",
