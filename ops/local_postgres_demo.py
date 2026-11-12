@@ -237,7 +237,16 @@ def prepare():
         setup()
         return
     values=load()
-    marker(values,OWNER)
+    try:
+        marker(values,OWNER)
+    except (psycopg.OperationalError, psycopg.errors.UndefinedTable):
+        # A first-run password typo, interrupted bootstrap or an empty demo DB
+        # may leave only the locally generated .env.pg-demo. Re-enter the
+        # guarded bootstrap path, which refuses unrelated owners/tables/roles.
+        # Marker *mismatches* raise RuntimeError and MUST NOT be recovered.
+        print("[setup] Rechecking incomplete localhost demo bootstrap...",flush=True)
+        setup()
+        return
     marker(values,RUNTIME)
     run(values,OWNER,["-m","flask","--app","wsgi","db","upgrade"],ROOT/"backend")
     run(values,OWNER,["-m","flask","--app","wsgi","seed-permissions"],ROOT/"backend")
