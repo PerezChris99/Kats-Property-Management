@@ -85,3 +85,15 @@ Mark an engineering item **complete** only after implementation, automated tests
 ## Current owner-focused implementation
 
 The next tranche adds role-restricted rent arrears aging and paged unpaid invoices in Uganda local time. The report shows **invoice debt**, never verified cash or bank settlement. Keep that distinction visible on every chart and export.
+
+## Owner property equipment register (implementation tranche)
+
+A dedicated `property_assets` inventory now records equipment, optional unit association,
+condition and next service date. Owner/manager/superadmin can create and update assets
+with an audit reason; accountant access is read-only, and caretakers can only read
+assets explicitly associated with rooms assigned to them. Tenants cannot access
+this administrative register. These are **equipment facts**, not SLA promises or
+proof that a contractor has completed servicing.
+
+The register intentionally does not create contractor payments or purchase
+commitments; those require verified accounting and approval workflows.
