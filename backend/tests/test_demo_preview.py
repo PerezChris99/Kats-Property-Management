@@ -219,3 +219,24 @@ def test_postgres_demo_http_shortcuts_reject_testing_and_external_db(monkeypatch
     monkeypatch.setenv("DATABASE_URL",uri)
     monkeypatch.setenv("APP_ENV","production")
     assert not demo_preview.local_postgres_demo_enabled(candidate)
+
+
+def test_existing_demo_accounts_remain_selectable_after_one_tenant_is_inactivated(app, monkeypatch):
+    """Single seed is immutable; the selector reflects current live rows."""
+    seed = load_seeder()
+    monkeypatch.setattr(seed, "assert_preview_database", lambda *args: None)
+    monkeypatch.setattr(seed, "create_app", lambda: app)
+    seed.seed()
+    one = db.session.query(User).filter_by(email="tenant02@demo.kats.invalid").one()
+    one.is_active = False
+    db.session.commit()
+    monkeypatch.setattr("app.demo_preview.demo_http_allowed", lambda: True)
+    client = app.test_client()
+    response = client.get("/api/v1/auth/demo-accounts")
+    assert response.status_code == 200
+    assert response.json["enabled"]
+    assert len(response.json["accounts"]) == 30
+    assert all(item["key"] != "tenant-02" for item in response.json["accounts"])
+    assert response.json["accounts"][0]["key"] == "landlord"
+    # No seed is invoked by listing and the user remains inactive.
+    assert not db.session.query(User).filter_by(email="tenant02@demo.kats.invalid").one().is_active
