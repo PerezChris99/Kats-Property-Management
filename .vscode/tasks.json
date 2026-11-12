@@ -4,15 +4,14 @@
     {
       "label": "KATS: PostgreSQL demo start (31 accounts)",
       "dependsOn": [
-        "KATS: PostgreSQL demo backend (no Docker)",
-        "KATS: Native frontend (BAT)"
+        "KATS: Start Dev (Frontend + Backend)"
       ],
-      "dependsOrder": "parallel",
+      "dependsOrder": "sequence",
       "problemMatcher": [],
       "detail": "Start full PostgreSQL-backed demo in two VS Code terminal panes. First run PostgreSQL demo setup; no Docker required."
     },
     {
-      "label": "KATS: PostgreSQL demo backend (no Docker)",
+      "label": "KATS: Unified demo backend (PostgreSQL / SQLite fallback)",
       "type": "process",
       "command": "powershell.exe",
       "args": [
@@ -22,7 +21,7 @@
         "-File",
         "${workspaceFolder}\\ops\\vscode_task.ps1",
         "-Target",
-        "pg-demo-serve"
+        "dev-backend"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -78,7 +77,7 @@
       "detail": "Read-only: verify exact PostgreSQL marker, schema, 31 users, 60 invoices, forced RLS and real landlord/tenant API login."
     },
     {
-      "label": "KATS: PostgreSQL demo setup (31 accounts)",
+      "label": "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
       "type": "process",
       "command": "powershell.exe",
       "args": [
@@ -88,7 +87,7 @@
         "-File",
         "${workspaceFolder}\\ops\\vscode_task.ps1",
         "-Target",
-        "pg-demo-setup"
+        "dev-prepare"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -193,7 +192,15 @@
       "detail": "Starts TWO independent VS Code terminal panes simultaneously: LEFT Flask/backend and RIGHT React/Vite frontend. Setup/install/build is a separate task.",
       "problemMatcher": [],
       "dependsOn": [
-        "KATS: Native backend stack (BAT)",
+        "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
+        "KATS: Dev services (split in VS Code)"
+      ],
+      "dependsOrder": "sequence"
+    },
+    {
+      "label": "KATS: Dev services (split in VS Code)",
+      "dependsOn": [
+        "KATS: Unified demo backend (PostgreSQL / SQLite fallback)",
         "KATS: Native frontend (BAT)"
       ],
       "dependsOrder": "parallel"
@@ -233,7 +240,7 @@
         "-File",
         "${workspaceFolder}\\ops\\vscode_task.ps1",
         "-Target",
-        "doctor"
+        "dev-doctor"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
@@ -272,10 +279,9 @@
     {
       "label": "KATS: Native start (split in VS Code)",
       "dependsOn": [
-        "KATS: Native backend stack (BAT)",
-        "KATS: Native frontend (BAT)"
+        "KATS: Start Dev (Frontend + Backend)"
       ],
-      "dependsOrder": "parallel",
+      "dependsOrder": "sequence",
       "problemMatcher": [],
       "detail": "Alias of Start Dev: backend LEFT, frontend RIGHT, concurrent tasks."
     },
