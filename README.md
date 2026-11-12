@@ -21,11 +21,32 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 
 The optional Flask/Vite Vercel Services configuration, publicly labelled synthetic sample-login sidebar and guarded Neon dataset seeder are documented in [Vercel + Neon deployment](docs/VERCEL_NEON_DEPLOYMENT.md). **Not live:** the connected Vercel account returned 403 on `katsproperty` project creation. Neon has been provisioned but not migrated or seeded; Redis/workers still require an approved production setup. Never expose real tenant credentials in a public demo.
 
+## Launch the real local PostgreSQL demo in VS Code
+
+The default **Terminal → Run Task → KATS: Start Dev (Frontend + Backend)**
+is now the **one-step** development workflow. It builds/verifies React,
+prepares the dedicated localhost PostgreSQL `kats_demo` database, applies
+migrations and permissions, seeds **1 landlord OWNER + 30 tenant accounts**,
+then opens Flask (left) and React/Vite (right) in VS Code integrated panes.
+The 31 demo logins are selectable from the local login page.
+
+On first use, PostgreSQL may request the existing local administrator
+password to create the isolated database and restricted runtime roles;
+the admin password is not saved. The task will **clearly label SQLite
+fallback** if PostgreSQL is not listening. Invalid PostgreSQL passwords,
+unexpected database ownership or broken migrations are errors, **not**
+reasons to silently use SQLite.
+
+App: http://127.0.0.1:5173 · Flask: http://127.0.0.1:8000.
+Use **KATS: Verify frontend ↔ backend ↔ database** to check connectivity and
+all 31 synthetic logins, and **KATS: Stop (preserve database)** when done.
+See [Native VS Code start guide](docs/NATIVE_DEVELOPMENT.md).
+
 ## Compact authenticated workspaces and live analytics
 
 Landlord and tenant dashboards share a 14px design-token system, responsive
-12-column layouts and a lazily loaded single SVG chart toolkit. Eight
-authenticated Flask analytics endpoints aggregate current PostgreSQL data,
+12-column layouts and lazily loaded **Recharts** charts. The authenticated
+Flask analytics endpoints aggregate PostgreSQL data,
 including occupancy, collection trends, exact tenant-overlap counts, property
 scores, and tenant-only payment/balance histories. Every chart has loading,
 empty, error and retry states. Functional render-error boundaries and a
