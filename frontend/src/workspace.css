@@ -382,3 +382,42 @@
   .portal .kats-report-toolbar {align-items:stretch;}
   .portal .kats-report-toolbar .kats-report-year {max-width:100%;}
 }
+
+
+/* Recharts only: fixed measurable frames + width-aware ResponsiveContainer.
+ * Exact values stay available in adjacent native tables, even on narrow phones. */
+.portal .kats-recharts-frame {
+  height:var(--chart-height);
+  width:100%;
+  min-width:0;
+  overflow:hidden;
+  position:relative;
+}
+.portal .kats-recharts-frame .recharts-responsive-container {
+  min-width:0;
+  min-height:var(--chart-height);
+}
+.portal .kats-recharts-frame .recharts-wrapper,
+.portal .kats-recharts-frame svg.recharts-surface {
+  max-width:100%;
+  max-height:none;
+  display:block;
+}
+.portal .kats-recharts-frame .recharts-legend-wrapper {
+  color:#214056;
+  font-size:var(--font-size-xs);
+}
+.portal .kats-recharts-frame :is(.recharts-cartesian-axis-tick,.recharts-polar-angle-axis-tick) {
+  font-size:var(--font-size-xs);
+}
+.portal .kats-donut-frame {max-width:340px;}
+.portal .kats-upset-layout {min-width:0;display:grid;gap:var(--space-3);}
+.portal .kats-upset-table {width:100%;font-size:var(--font-size-sm);}
+.portal .kats-upset-table caption {text-align:left;font-weight:var(--weight-semibold);padding:var(--space-2);}
+.portal .kats-upset-table th {white-space:normal;}
+.portal .kats-recharts-frame .recharts-tooltip-wrapper {z-index:3;}
+@media (max-width:640px) {
+  .portal .kats-donut-frame {max-width:100%;}
+  .portal .kats-recharts-frame {height:var(--chart-height);}
+  .portal .kats-upset-table {min-width:370px;}
+}
