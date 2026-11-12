@@ -195,6 +195,7 @@ def pg_demo_environment(settings):
     """Execute ONLY as the isolated non-superuser PostgreSQL demo runtime role."""
     values = read_pg_demo_config()
     out = environment(settings, preview=True)  # memory-only workers, no provider keys
+    out.pop("KATS_PG_ADMIN_PASSWORD", None)
     out.update({
         "APP_ENV": "development",
         "KATS_PREVIEW_MODE": "0",
