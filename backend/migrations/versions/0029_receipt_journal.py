@@ -38,7 +38,7 @@ def upgrade():
         # flushes when an event exists before its two journal lines.
         op.execute("""
         CREATE FUNCTION kats_validate_journal_event() RETURNS trigger
-        LANGUAGE plpgsql AS $
+        LANGUAGE plpgsql AS $kats_journal$
         DECLARE target_id text;
         DECLARE entries integer;
         DECLARE total_debit bigint;
@@ -50,11 +50,11 @@ def upgrade():
             INTO entries, total_debit, total_credit
             FROM journal_lines WHERE event_id = target_id;
           IF entries <> 2 OR total_debit <> total_credit OR total_debit <= 0 THEN
-            RAISE EXCEPTION 'Unbalanced journal event %', target_id;
+            RAISE EXCEPTION USING MESSAGE = 'Unbalanced journal event ' || target_id;
           END IF;
           RETURN NEW;
         END;
-        $;
+        $kats_journal$;
         """)
         for table in ("journal_events","journal_lines"):
             op.execute(
