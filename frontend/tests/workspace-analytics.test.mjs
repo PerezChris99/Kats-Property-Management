@@ -62,3 +62,28 @@ test('router has functional error recovery and an actual 404 route',()=>{
   assert.ok(app.includes('<Route path="*" element={<NotFoundPage/>}/>'));
   assert.equal(route.includes('class RouteFailure'),false);
 });
+
+
+test('lazy module selectors match actual export kinds (including utilities)',()=>{
+  const app=read('src/App.jsx');
+  const modules=[
+    ['UtilitiesPage','default'],
+    ['PrivacyRequestsPage','default'],
+    ['DisputesPage','default'],
+    ['PreventiveMaintenancePage','default'],
+    ['ProrationPage','named'],
+    ['AnnualTrendsPage','named'],
+    ['PortfolioEditPage','named'],
+    ['ExpenseApprovalsPage','named']
+  ];
+  for (const [component,kind] of modules) {
+    const source=read('src/'+component+'.jsx');
+    if(kind==='default') {
+      assert.ok(source.includes('export default function '+component),component);
+      assert.ok(app.includes("lazy(() => import('./"+component+"'))"),component);
+    } else {
+      assert.ok(source.includes('export function '+component),component);
+      assert.ok(app.includes("lazy(() => import('./"+component+"').then(m => ({ default: m."+component+" })))"),component);
+    }
+  }
+});
