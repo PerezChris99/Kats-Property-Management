@@ -3,6 +3,7 @@ import { WorkspaceNavigation, WorkspaceSectionTabs } from './WorkspaceNavigation
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 const LandlordAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.LandlordAnalytics})));
 const TenantAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.TenantAnalytics})));
+const WorkspaceSearchPage = lazy(() => import('./WorkspaceSearchPage'));
 const FinanceHealthPage = lazy(() => import('./FinanceHealthPage'));
 const ProrationPage = lazy(() => import('./ProrationPage').then(m => ({ default: m.ProrationPage })));
 const UtilitiesPage = lazy(() => import('./UtilitiesPage'));
@@ -221,7 +222,8 @@ function ResourcePage({ resource, user }) {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(25);
     const [total, setTotal] = useState(null);
-    const [filter, setFilter] = useState('');
+    const location = useLocation();
+    const [filter, setFilter] = useState(() => new URLSearchParams(location.search).get('q') || '');
     const [serverFilter, setServerFilter] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -269,7 +271,7 @@ function ResourcePage({ resource, user }) {
         void load(controller.signal);
         return () => { controller.abort(); };
     }, [load]);
-    useEffect(() => { setPage(1); setFilter(''); setServerFilter(''); }, [resource.path]);
+    useEffect(() => { setPage(1); setFilter(new URLSearchParams(location.search).get('q') || ''); setServerFilter(''); }, [resource.path, location.search]);
     useEffect(() => {
         if (!editing)
             return;
@@ -568,7 +570,7 @@ function Portal({ user, logout, systemReady }) {
           <span>Workspace <span aria-hidden="true">/</span> {pageTitle}</span>
           <strong>{pageTitle}</strong>
         </div>
-        <div className="portal-header-tools"><span className={'portal-system-state ' + (systemReady === true ? 'is-connected' : systemReady === false ? 'is-disconnected' : '')} role="status"><span className="portal-status-dot" aria-hidden="true"/>{systemReady === null ? 'Checking API' : systemReady ? 'System connected' : 'API unavailable'}</span><div className="portal-identity" title={user.full_name}>
+        <div className="portal-header-tools"><Link className="outline-button small" to="/search">Find records</Link><span className={'portal-system-state ' + (systemReady === true ? 'is-connected' : systemReady === false ? 'is-disconnected' : '')} role="status"><span className="portal-status-dot" aria-hidden="true"/>{systemReady === null ? 'Checking API' : systemReady ? 'System connected' : 'API unavailable'}</span><div className="portal-identity" title={user.full_name}>
           <span className="identity-avatar" aria-hidden="true">{user.full_name.trim().charAt(0).toUpperCase()}</span>
           <span><strong>{user.full_name}</strong><small>{user.role.replaceAll('_', ' ')}</small></span>
         </div></div>
@@ -599,7 +601,7 @@ function Portal({ user, logout, systemReady }) {
                                                             page === 'renewals' && nav.includes(page) ? <RenewalsPage role={user.role}/> : page === 'deposits' && nav.includes(page) ? <DepositsPage user={user}/> :
                                                                 page === 'work-orders' && nav.includes(page) ? <WorkOrdersPage user={user}/> :
                                                                     page === 'settings' && nav.includes(page) ? <SettingsAdminPage /> : page === 'security' && nav.includes(page) ? <SecurityPage onSignedOut={logout}/> :
-                                                                        page === 'finance-health' && nav.includes(page) ? <FinanceHealthPage /> : page === 'reports' && canOperate ? <ReportsPage /> : page === 'dashboard' ? (canOperate ? <Dashboard user={user}/> : user.role === 'TENANT' ? <TenantHome /> : user.role === 'CARETAKER' ? <CaretakerHome /> : <div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>) : viewResource && nav.includes(page) ? <ResourcePage resource={viewResource} user={user}/> : <div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</Suspense></main>
+                                                                        page === 'search' ? <WorkspaceSearchPage /> : page === 'finance-health' && nav.includes(page) ? <FinanceHealthPage /> : page === 'reports' && canOperate ? <ReportsPage /> : page === 'dashboard' ? (canOperate ? <Dashboard user={user}/> : user.role === 'TENANT' ? <TenantHome /> : user.role === 'CARETAKER' ? <CaretakerHome /> : <div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>) : viewResource && nav.includes(page) ? <ResourcePage resource={viewResource} user={user}/> : <div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</Suspense></main>
       <div className="portal-footnote"><span>© {new Date().getFullYear()} KATS Property Management</span><nav aria-label="Workspace legal and support"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/data-protection">Data protection</Link><Link to="/request-access">Request access</Link></nav></div>
     </div>
   </div>;
@@ -667,7 +669,7 @@ export default function App() {
         <Route key={slug} path={'/'+slug} element={<LegalPage slug={slug}/>}/>
       )}
     </Route>
-    {['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'expenses', 'expense-approvals', 'reports', 'trends', 'finance-health', 'statements', 'receipts', 'users', 'invitations', 'permissions', 'assignments', 'notifications', 'inspections', 'renewals', 'deposits', 'work-orders', 'settings', 'mobile-money', 'efris', 'documents', 'legal', 'audit', 'inquiries', 'privacy-requests', 'disputes', 'preventive-maintenance', 'security', 'more'].map(path => <Route key={path} path={'/' + path} element={user ? <Portal user={user} logout={logout} systemReady={systemReady}/> : <Navigate to="/login" replace/>}/>)}
+    {['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'expenses', 'expense-approvals', 'reports', 'trends', 'finance-health', 'search', 'statements', 'receipts', 'users', 'invitations', 'permissions', 'assignments', 'notifications', 'inspections', 'renewals', 'deposits', 'work-orders', 'settings', 'mobile-money', 'efris', 'documents', 'legal', 'audit', 'inquiries', 'privacy-requests', 'disputes', 'preventive-maintenance', 'security', 'more'].map(path => <Route key={path} path={'/' + path} element={user ? <Portal user={user} logout={logout} systemReady={systemReady}/> : <Navigate to="/login" replace/>}/>)}
     {['dashboard', 'payments', 'invoices', 'receipts', 'maintenance', 'lease', 'profile'].map(path => <Route key={'tenant-' + path} path={'/tenant/' + path} element={<Navigate to={path === 'lease' ? '/dashboard' : path === 'profile' ? '/security' : '/' + path} replace/>}/>)}
     {['dashboard', 'rooms', 'maintenance', 'inspections', 'payments', 'profile'].map(path => <Route key={'caretaker-' + path} path={'/caretaker/' + path} element={<Navigate to={path === 'profile' ? '/security' : '/' + path} replace/>}/>)}
     {['users', 'roles', 'permissions', 'integrations', 'efris', 'payments', 'audit-logs', 'legal-pages', 'system-settings'].map(path => <Route key={'admin-' + path} path={'/admin/' + path} element={<Navigate to={path === 'audit-logs' ? '/audit' : path === 'legal-pages' ? '/legal' : path === 'system-settings' ? '/security' :
