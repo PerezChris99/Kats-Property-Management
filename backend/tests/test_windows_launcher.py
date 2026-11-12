@@ -185,7 +185,7 @@ def test_vscode_uses_parallel_background_tasks_in_one_split_terminal_group():
         assert task["args"][4].endswith("ops\\vscode_task.ps1")
         matcher=task["problemMatcher"][0]
         assert matcher["background"]["activeOnStart"]
-        assert matcher["background"]["endsPattern"]==r"^\\[READY\\]"
+        assert matcher["background"]["endsPattern"]==r"^\[READY\]"
         regex=re.compile(matcher["pattern"]["regexp"])
         assert regex.groups>=3
         assert all(matcher["pattern"][key] in range(1,regex.groups+1)
