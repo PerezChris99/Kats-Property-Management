@@ -288,3 +288,48 @@
   border-radius:var(--radius-sm);display:flex;align-items:center;gap:8px;flex-wrap:wrap;
 }
 .portal .kats-workspace-read-alert button {margin-left:4px;}
+
+/* Compact workspace IA: no scrolling in the normal desktop sidebar.
+ * A search can reveal many original pages; search results remain scrollable
+ * to avoid hiding an otherwise accessible destination. */
+.portal .workspace-links { overflow-y:hidden; padding-block:4px; min-height:0; }
+.portal .workspace-links:has(.nav-group) { overflow-y:auto; }
+.portal .kats-nav-section { min-height:38px; padding:7px 10px; margin:1px 0; }
+.portal .kats-nav-section > span { flex:1; }
+.portal .kats-nav-section > svg:last-child { opacity:.65; }
+.portal .workspace-brand { padding-bottom:12px; }
+.portal .side-account { padding-block:9px; }
+.portal .nav-search { margin-block:9px; }
+.portal .side-utilities { padding-top:8px; }
+.portal .side-utilities :is(a,button) { min-height:34px; }
+.portal .kats-section-tabs {
+  width:min(100%,var(--content-max)); margin:0 auto;
+  padding:var(--space-4) var(--space-5) 0; min-width:0;
+}
+.portal .kats-section-tabs-heading { display:flex; align-items:baseline; gap:var(--space-3); margin-bottom:var(--space-2); }
+.portal .kats-section-tabs-heading span { font-weight:var(--weight-bold); font-size:var(--font-size-lg); color:#16364f; }
+.portal .kats-section-tabs-heading small { font-size:var(--font-size-xs); color:#526779; }
+.portal .kats-section-tabs-list {
+  display:flex; gap:var(--space-2); flex-wrap:wrap; align-items:center;
+  padding:0 0 var(--space-3); border-bottom:1px solid #d6e1e8;
+}
+.portal .kats-section-tab {
+  display:inline-flex; align-items:center; gap:var(--space-2);
+  font-size:var(--font-size-sm); font-weight:var(--weight-medium);
+  color:#355369; padding:7px 10px; min-height:32px;
+  border-radius:var(--radius-sm); border:1px solid transparent;
+  background:transparent; text-decoration:none;
+}
+.portal .kats-section-tab:hover,.portal .kats-section-tab:focus-visible { background:#eaf2f6; }
+.portal .kats-section-tab.is-active { border-color:#89bad1; background:#eaf5fa; color:#064f79; font-weight:var(--weight-semibold); }
+.portal .kats-tab-index {
+  width:17px; height:17px; flex:none; display:grid; place-items:center;
+  border-radius:3px; background:#d9e6ef; font-size:10px; font-variant-numeric:tabular-nums;
+}
+.portal .kats-section-tab.is-active .kats-tab-index { background:#1476a5; color:#fff; }
+@media(max-width:1280px) { .portal .kats-section-tabs { padding-inline:var(--space-4); } }
+@media(max-width:640px) {
+  .portal .kats-section-tabs { padding:var(--space-3) var(--space-3) 0; }
+  .portal .kats-section-tab { min-height:38px; }
+  .portal .kats-section-tabs-heading small { display:none; }
+}
