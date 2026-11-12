@@ -171,6 +171,8 @@ def create_app(test_config=None):
     app.register_blueprint(finance_health_api, url_prefix="/api/v1")
     from .workspace_search import workspace_search_api
     app.register_blueprint(workspace_search_api, url_prefix="/api/v1")
+    from .maintenance_insights import maintenance_insights_api
+    app.register_blueprint(maintenance_insights_api, url_prefix="/api/v1")
     from .portfolio_edit import portfolio_api
     app.register_blueprint(portfolio_api, url_prefix="/api/v1")
     from .report_exports import report_api
