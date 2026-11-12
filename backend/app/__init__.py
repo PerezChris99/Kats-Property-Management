@@ -4,7 +4,7 @@ import secrets
 import time
 from urllib.parse import urlparse
 from werkzeug.middleware.proxy_fix import ProxyFix
-from flask import Flask, jsonify, request, abort
+from flask import Flask, jsonify, request, abort, g
 from flask_cors import CORS
 from sqlalchemy import text
 from werkzeug.exceptions import HTTPException
@@ -46,6 +46,7 @@ def create_app(test_config=None):
 
     @app.before_request
     def validate_request():
+        g.kats_request_started = time.perf_counter()
         if not request.path.startswith("/api/"):
             return None
         if request.content_length and request.content_length > app.config["MAX_CONTENT_LENGTH"]:
@@ -64,6 +65,18 @@ def create_app(test_config=None):
 
     @app.after_request
     def security_headers(response):
+        # Log only slow or failed API requests, with route templates instead
+        # of personal identifiers, authorization headers or query strings.
+        started = getattr(g, "kats_request_started", None)
+        if started is not None and request.path.startswith("/api/"):
+            duration_ms = round((time.perf_counter() - started) * 1000)
+            threshold_ms = max(100, min(60000, int(os.getenv("SLOW_API_MS", "1200"))))
+            if duration_ms >= threshold_ms or response.status_code >= 500:
+                app.logger.warning(
+                    "api_observation route=%s method=%s status=%d elapsed_ms=%d",
+                    request.url_rule.rule if request.url_rule else "unmatched",
+                    request.method, response.status_code, duration_ms,
+                )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Frame-Options"] = "DENY"
