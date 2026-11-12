@@ -182,7 +182,15 @@ def verify(values):
             raise RuntimeError("Orphaned invoice found")
         if conn.execute("SELECT count(*) FROM tenants t LEFT JOIN users u ON u.id=t.user_id WHERE u.id IS NULL").fetchone()[0]:
             raise RuntimeError("Orphaned tenant found")
-        if conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]!="0027_maintenance_idempotency":
+        # Resolve the migration head dynamically; otherwise every new Alembic
+        # revision breaks an otherwise healthy local PostgreSQL demo.
+        from alembic.config import Config as AlembicConfig
+        from alembic.script import ScriptDirectory
+        config = AlembicConfig()
+        config.set_main_option("script_location", str(ROOT / "backend" / "migrations"))
+        expected_heads = set(ScriptDirectory.from_config(config).get_heads())
+        actual_heads = {row[0] for row in conn.execute("SELECT version_num FROM alembic_version")}
+        if not expected_heads or actual_heads != expected_heads:
             raise RuntimeError("PostgreSQL migrations are not at latest head")
         tables=("documents","tenants","leases","invoices","payments","maintenance_requests","notifications")
         rows=conn.execute("SELECT relname,relrowsecurity,relforcerowsecurity FROM pg_class WHERE relname=ANY(%s) AND relnamespace='public'::regnamespace",(list(tables),)).fetchall()
