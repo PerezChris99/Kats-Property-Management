@@ -93,7 +93,7 @@ export function LineChart({ points, unit='UGX', title='Monthly trend', secondary
       {points.map((point,i)=><g key={point.name}>
         <circle cx={x(i)} cy={y(point.value)} r="4.8" fill={PALETTE[0]} tabIndex="0"><title>{point.name}: {formatValue(point.value,unit)}</title></circle>
         {secondary && <circle cx={x(i)} cy={y(point.secondary)} r="4.1" fill={PALETTE[1]} tabIndex="0"><title>{point.name}: invoiced {formatValue(point.secondary,unit)}</title></circle>}
-        <text x={x(i)} y={h-15} textAnchor="middle" className="kats-chart-axis">{point.name.slice(2)}</text>
+        <text x={x(i)} y={h-15} textAnchor="middle" className="kats-chart-axis">{/^\\d{4}-\\d{2}$/.test(point.name) ? point.name.slice(2) : point.name}</text>
       </g>)}
     </svg>
     {secondary && <div className="kats-chart-line-key"><span>● Verified collections</span><span>◆ Net invoiced</span></div>}
