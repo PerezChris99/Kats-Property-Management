@@ -21,33 +21,27 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 
 The optional Flask/Vite Vercel Services configuration, publicly labelled synthetic sample-login sidebar and guarded Neon dataset seeder are documented in [Vercel + Neon deployment](docs/VERCEL_NEON_DEPLOYMENT.md). **Not live:** the connected Vercel account returned 403 on `katsproperty` project creation. Neon has been provisioned but not migrated or seeded; Redis/workers still require an approved production setup. Never expose real tenant credentials in a public demo.
 
-## Launch the real local PostgreSQL demo in VS Code
+## Windows / VS Code: fast daily development
 
-The default **Terminal → Run Task → KATS: Start Dev (Frontend + Backend)**
-is now the **one-step** development workflow. On the first run, it
-builds/verifies React, creates the dedicated localhost PostgreSQL `kats_demo`,
-applies migrations and permissions, and seeds **1 landlord OWNER + 30 tenants
-exactly once**. Subsequent launches simply reuse the existing PostgreSQL
-database, preserving all rent/tenant edits and skipping repeat migrations,
-seeding and unnecessary builds. Flask starts in the left VS Code integrated
-pane and React/Vite starts in the right.
+After the PostgreSQL demo was seeded once, select
+**Terminal → Run Task → KATS: Start Dev (Frontend + Backend)**.
 
-The local login page automatically retries the Flask demo-account endpoint:
-once Flask becomes ready the original seeded sign-ins appear without requiring
-a manual page refresh. If Flask fails, an explicit local status and retry
-button explain the missing demo selector.
+Both integrated terminal panes appear **immediately**: Flask in the left pane,
+React/Vite in the right. React waits inside its visible pane for Flask SQL
+readiness before opening port 5173. No daily npm build, database migrations,
+permission seed, demo seed or password changes occur. All existing
+`kats_demo` property, tenant and payment data is preserved.
 
-On first use, PostgreSQL may request the existing local administrator
-password to create the isolated database and restricted runtime roles;
-the admin password is not saved. The task will **clearly label SQLite
-fallback** if PostgreSQL is not listening. Invalid PostgreSQL passwords,
-unexpected database ownership or broken migrations are errors, **not**
-reasons to silently use SQLite.
+For a **brand-new checkout only**, run the separate task
+**KATS: Setup demo once + Start Dev**. It creates the isolated localhost
+PostgreSQL `kats_demo`, seeds **1 OWNER + 30 TENANT** fictional logins
+exactly once and then opens both service terminals. First setup may request
+the PostgreSQL administrator password. SQLite is only an explicit/first-run
+fallback, never silently substituted for an established PostgreSQL database.
 
 App: http://127.0.0.1:5173 · Flask: http://127.0.0.1:8000.
-Use **KATS: Verify frontend ↔ backend ↔ database** to check connectivity and
-all 31 synthetic logins, and **KATS: Stop (preserve database)** when done.
-See [Native VS Code start guide](docs/NATIVE_DEVELOPMENT.md).
+Stop using `./stop.bat` or the VS Code Stop task (database preserved).
+See [Windows native developer guide](docs/NATIVE_DEVELOPMENT.md).
 
 ## Compact authenticated workspaces and live analytics
 
