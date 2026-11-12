@@ -757,3 +757,22 @@ def test_recharts_touch_device_emulation(browser, device, role, expected):
         assert not failures, f"Touch emulation console/page errors on {device['name']}: {failures}"
     finally:
         context.close()
+
+
+def test_local_demo_logins_reappear_after_transient_flask_connection_failure(page):
+    """A temporary Vite->Flask outage cannot hide already seeded logins forever."""
+    attempts = {"count": 0}
+
+    def demo_request(route):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            route.abort("failed")
+        else:
+            route.continue_()
+
+    page.route("**/api/v1/auth/demo-accounts", demo_request)
+    page.goto(BASE + "/login", wait_until="domcontentloaded")
+    expect(page.locator(".pm-demo-status-pane")).to_be_visible(timeout=7000)
+    expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=18000)
+    assert attempts["count"] >= 2
+    expect(page.locator(".pm-demo-status-pane")).to_have_count(0)
