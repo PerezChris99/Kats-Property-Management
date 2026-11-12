@@ -594,3 +594,89 @@ def test_small_landscape_keeps_complete_form_reachable_without_hidden_inputs(bro
             assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth + 2")
     finally:
         context.close()
+
+
+@pytest.mark.parametrize("role,expected", [
+    ("OWNER",5),("TENANT",3),
+])
+@pytest.mark.parametrize("width,height",[(390,844),(640,900),(768,1024),(1024,768),(1280,800)])
+def test_live_account_analytics_render_without_blanks(browser,role,expected,width,height):
+    context=browser.new_context(viewport={"width":width,"height":height},
+                                reduced_motion="reduce")
+    page=context.new_page()
+    try:
+        page.goto(BASE+"/login",wait_until="domcontentloaded")
+        response=page.request.get(BASE+"/api/v1/auth/demo-accounts")
+        if response.status!=200 or not response.json().get("enabled"):
+            pytest.skip("Requires fully seeded loopback demo")
+        if width<=760:
+            page.locator(".pm-demo-disclosure > summary").click()
+        expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=15000)
+        if role=="OWNER":
+            page.locator(".pm-demo-owner").click()
+        else:
+            page.locator(".pm-demo-search").fill("Sarah Namusoke")
+            page.locator(".pm-demo-tenant-list button").first.click()
+        expect(page).to_have_url(re.compile(r"/dashboard$"),timeout=15000)
+        cards=page.locator(".kats-chart-card")
+        expect(cards).to_have_count(expected,timeout=15000)
+        expect(page.locator(".kats-chart-skeleton")).to_have_count(0,timeout=20000)
+        assert page.locator(".kats-fatal-page").count()==0
+        assert page.locator(".kats-chart-feedback[role='alert']").count()==0
+        assert page.locator(".kats-chart-svg, .kats-chart-donut, .kats-chart-venn, .kats-chart-radar").count() >=expected
+        metrics=page.evaluate("""() => ({
+          client:document.documentElement.clientWidth,
+          scroll:document.documentElement.scrollWidth,
+          chartWidths:[...document.querySelectorAll('.kats-chart-card')]
+             .map(el=>({left:el.getBoundingClientRect().left,right:el.getBoundingClientRect().right}))
+        })""")
+        assert metrics["scroll"]<=metrics["client"]+2,metrics
+        assert all(0<=r["left"] and r["right"]<=width+2 for r in metrics["chartWidths"]),metrics
+    finally:
+        context.close()
+
+
+def test_unrecognized_route_shows_visible_404_instead_of_blank_or_redirect(page):
+    page.goto(BASE+"/this-route-does-not-exist",wait_until="domcontentloaded")
+    expect(page.get_by_role("heading",name="This page doesn’t exist.")).to_be_visible()
+    expect(page.get_by_role("link",name="Homepage")).to_be_visible()
+
+
+@pytest.mark.parametrize("role,routes", [
+    ("OWNER",["dashboard","properties","buildings","floors","rooms",
+        "room-placement","portfolio-editor","tenants","leases","proration",
+        "invoices","payments","utilities","maintenance","preventive-maintenance",
+        "disputes","expenses","expense-approvals","reports","trends",
+        "statements","receipts","mobile-money","efris","inspections",
+        "renewals","deposits","work-orders","documents","notifications",
+        "privacy-requests","security","settings","users","invitations",
+        "permissions","legal","audit","inquiries","assignments"]),
+    ("TENANT",["dashboard","invoices","payments","utilities","statements",
+        "receipts","deposits","maintenance","disputes","inspections",
+        "documents","mobile-money","notifications","privacy-requests","security"]),
+])
+def test_each_account_route_shows_visible_content(browser,role,routes):
+    context=browser.new_context(viewport={"width":1280,"height":850},
+                                reduced_motion="reduce")
+    page=context.new_page()
+    try:
+        page.goto(BASE+"/login",wait_until="domcontentloaded")
+        response=page.request.get(BASE+"/api/v1/auth/demo-accounts")
+        if response.status!=200 or not response.json().get("enabled"):
+            pytest.skip("Requires fully seeded loopback demo")
+        expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=15000)
+        if role=="OWNER":
+            page.locator(".pm-demo-owner").click()
+        else:
+            page.locator(".pm-demo-search").fill("Sarah Namusoke")
+            page.locator(".pm-demo-tenant-list button").first.click()
+        expect(page).to_have_url(re.compile(r"/dashboard$"),timeout=15000)
+        for route in routes:
+            page.goto(BASE+"/"+route,wait_until="domcontentloaded")
+            main=page.locator("main.portal-content")
+            expect(main).to_be_visible(timeout=15000)
+            expect(main.locator(".page")).to_be_visible(timeout=15000)
+            assert len(main.inner_text().strip())>=5,(role,route)
+            assert page.locator(".kats-fatal-page").count()==0,(role,route)
+    finally:
+        context.close()
