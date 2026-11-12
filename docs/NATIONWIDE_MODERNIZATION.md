@@ -163,3 +163,14 @@ These are not cosmetic tasks and cannot honestly be marked complete by adding do
   bank statements, payment allocations, owner payables, historical migration
   and financial period locks. No approved full double-entry GL or signed
   financial statement may be claimed before those workflows and evidence exist.
+
+## Single-business property-mapping consistency (migration 0030)
+
+The legacy organization registry now maps newly inserted PostgreSQL properties
+through an AFTER INSERT trigger, in the same transaction that creates the
+property. This addresses drift when the application creates new properties
+after migration 0028's initial backfill. The trigger is explicitly **interim,
+single-business only** and must be replaced by authenticated organization
+ownership when genuine independent organizations are enabled. It is not an
+authorization boundary; full multi-organization tenancy remains pending.
+Local SQLite convenience fixtures do not certify this PostgreSQL trigger.
