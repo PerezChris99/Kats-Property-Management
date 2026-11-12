@@ -364,9 +364,10 @@ def dev_frontend():
     os.environ["KATS_FAST_START"] = "1"
     print("[React] VS Code terminal ready. Waiting for Flask /readyz before Vite...", flush=True)
     started = time.monotonic()
+    started_wall = time.time()
     next_log = started + 10
     while not reachable(f"{BACKEND_ORIGIN}/readyz"):
-        if stop_requested(time.time()):
+        if stop_requested(started_wall):
             raise StartupError("Stop was requested while waiting for Flask.")
         now = time.monotonic()
         if now - started >= 150:
@@ -560,6 +561,12 @@ def ready_backend(mode):
             "Project Python .venv missing. Run 'KATS: Native setup (database + build)' "
             "once before starting."
         )
+    if mode == "pgdemo":
+        # One-time setup already validated the venv. Launch Flask directly;
+        # its own visible [boot]/[ERROR] logs expose missing packages quickly.
+        print("[Flask] Reusing installed PostgreSQL demo environment; no pip, "
+              "migrations or seed checks.", flush=True)
+        return python
     # A cold Windows/Python startup can take longer than eight seconds.
     # Fast-start only needs to verify package presence; importing Flask and
     # extensions here needlessly repeats heavyweight imports before Flask boots.
