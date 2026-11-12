@@ -696,3 +696,61 @@ def test_each_account_route_shows_visible_content(browser,role,routes):
             assert page.locator(".kats-fatal-page").count()==0,(role,route)
     finally:
         context.close()
+
+
+@pytest.mark.parametrize("device", [
+    {"name": "Android-small", "width": 360, "height": 780, "dpr": 3},
+    {"name": "Android-large", "width": 412, "height": 915, "dpr": 2.6},
+    {"name": "iPhone-viewport", "width": 390, "height": 844, "dpr": 3},
+    {"name": "tablet", "width": 768, "height": 1024, "dpr": 2},
+])
+@pytest.mark.parametrize("role,expected", [("OWNER", 5), ("TENANT", 4)])
+def test_recharts_touch_device_emulation(browser, device, role, expected):
+    """Automated Chromium touch emulation is NOT physical Android/iOS UAT."""
+    context = browser.new_context(
+        viewport={"width": device["width"], "height": device["height"]},
+        device_scale_factor=device["dpr"], is_mobile=True, has_touch=True,
+        reduced_motion="reduce",
+    )
+    page = context.new_page()
+    failures = []
+    page.on("pageerror", lambda error: failures.append(str(error)))
+    page.on("console", lambda message: failures.append(message.text)
+            if message.type == "error" else None)
+    try:
+        page.goto(BASE + "/login", wait_until="domcontentloaded")
+        response = page.request.get(BASE + "/api/v1/auth/demo-accounts")
+        if response.status != 200 or not response.json().get("enabled"):
+            pytest.skip("Requires disposable local seeded accounts")
+        disclosure = page.locator(".pm-demo-disclosure > summary")
+        if disclosure.count() and not page.locator(".pm-demo-owner").is_visible():
+            disclosure.click()
+        expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=15000)
+        if role == "OWNER":
+            page.locator(".pm-demo-owner").click()
+        else:
+            page.locator(".pm-demo-search").fill("Sarah Namusoke")
+            page.locator(".pm-demo-tenant-list button").first.click()
+        expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
+        charts = page.locator(".kats-chart-card")
+        expect(charts).to_have_count(expected, timeout=15000)
+        expect(page.locator(".kats-chart-skeleton")).to_have_count(0, timeout=20000)
+        expect(page.locator(".kats-chart-feedback[role='alert']")).to_have_count(0)
+        rendered = page.locator(".recharts-responsive-container, .kats-chart-zero")
+        assert rendered.count() >= expected, (
+            f"Missing Recharts surfaces/declared empty states: {device['name']} {role}"
+        )
+        dimensions = page.evaluate("""() => ({
+            viewport:document.documentElement.clientWidth,
+            page:document.documentElement.scrollWidth,
+            charts:[...document.querySelectorAll('.kats-chart-card')]
+              .map(el=>({left:el.getBoundingClientRect().left,
+                        right:el.getBoundingClientRect().right,
+                        height:el.getBoundingClientRect().height}))
+        })""")
+        assert dimensions["page"] <= dimensions["viewport"] + 2, dimensions
+        assert all(0 <= item["left"] and item["right"] <= dimensions["viewport"] + 2
+                   and item["height"] > 60 for item in dimensions["charts"]), dimensions
+        assert not failures, f"Touch emulation console/page errors on {device['name']}: {failures}"
+    finally:
+        context.close()
