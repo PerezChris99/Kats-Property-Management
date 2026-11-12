@@ -144,3 +144,22 @@ These are not cosmetic tasks and cannot honestly be marked complete by adding do
   staging run are saved and reviewed.
 - Source changes do NOT constitute a deployed monitor, incident policy, legal
   certification or a completed contractor work-order workflow.
+
+## Finance journal implementation tranche (2026-11-12)
+
+- Alembic `0029_receipt_journal` introduces journal events and exactly two
+  signed, positive-side debit/credit lines. PostgreSQL uses append-only
+  triggers and a deferred constraint trigger that verifies balance at COMMIT,
+  including cases where events and lines are flushed separately.
+- Manual payment approval and independently verified provider settlement post
+  `DR CASH_CLEARING / CR RENT_RECEIVABLE` atomically with the source payment
+  and legacy ledger event. Accounting payment reversal posts the opposite
+  journal, but only if the original payment was journaled. This avoids
+  inventing a negative historical cash position for pre-journal payments.
+- A restricted, read-only `/api/v1/finance/journal-control` endpoint reports
+  account debits/credits and counts historical receipts not journaled. Owner
+  and accountant UI explicitly identifies this as a receipt-event bridge.
+- **Not complete:** invoice accrual posting, expenses, deposit liabilities,
+  bank statements, payment allocations, owner payables, historical migration
+  and financial period locks. No approved full double-entry GL or signed
+  financial statement may be claimed before those workflows and evidence exist.

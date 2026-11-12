@@ -145,6 +145,7 @@ def create_app(test_config=None):
     from . import maintenance_plan_models  # noqa: F401
     from . import account_models  # noqa: F401
     from . import organization_models  # noqa: F401
+    from . import journal_models  # noqa: F401
     from .api import api
     app.register_blueprint(api, url_prefix="/api/v1")
     from .mfa import mfa_api
@@ -169,6 +170,8 @@ def create_app(test_config=None):
     app.register_blueprint(workspace_analytics_api, url_prefix="/api/v1")
     from .finance_health import finance_health_api
     app.register_blueprint(finance_health_api, url_prefix="/api/v1")
+    from .journal_api import journal_api
+    app.register_blueprint(journal_api, url_prefix="/api/v1")
     from .workspace_search import workspace_search_api
     app.register_blueprint(workspace_search_api, url_prefix="/api/v1")
     from .maintenance_insights import maintenance_insights_api
