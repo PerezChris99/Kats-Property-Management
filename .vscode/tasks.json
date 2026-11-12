@@ -191,7 +191,7 @@
     },
     {
       "label": "KATS: Start Dev (Frontend + Backend)",
-      "detail": "Single task: reuse (or first initialize) 31 local PostgreSQL demo accounts, start Flask until SQL-ready, then Vite in right split pane. No daily seeding or rebuild.",
+      "detail": "Single task: initialize 31 PostgreSQL demo users only once, reuse them on daily runs; start Flask LEFT until SQL-ready, then Vite RIGHT. Both remain in split VS Code panes.",
       "problemMatcher": [],
       "dependsOn": [
         "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
