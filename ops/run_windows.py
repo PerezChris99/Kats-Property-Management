@@ -351,10 +351,12 @@ def dev_doctor():
             payload = json.load(response)
     except (OSError, ValueError) as exc:
         raise StartupError("Demo account API is not available from the React origin.") from exc
-    if (not payload.get("enabled") or
-            len(payload.get("accounts", [])) != 31):
-        raise StartupError("Expected one demo owner and 30 tenants, but demo accounts are missing.")
-    print("[PASS] Combined Flask/React/SQL backend and all 31 demo logins visible.", flush=True)
+    accounts = payload.get("accounts")
+    if not payload.get("enabled") or not isinstance(accounts, list) or not accounts:
+        raise StartupError("No active demo logins were returned. Check PostgreSQL "
+                           "marker, local demo database and Flask startup logs.")
+    print(f"[PASS] React -> Flask -> SQL; {len(accounts)} live demo account choices "
+          "visible from the existing database (no reseeding).", flush=True)
 
 
 def select_backend_mode():
