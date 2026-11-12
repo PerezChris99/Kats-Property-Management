@@ -128,3 +128,24 @@ render-error boundary without adding class components.
 No placeholders or untrusted client-supplied account IDs are used in
 production analytics responses. This version implements a **single-company
 property manager**; multi-organization scoping is a separate architecture.
+
+## Compact account navigation (landlord and tenant)
+
+The left sidebar now contains primary destinations rather than every individual
+route. The landlord/staff view groups routes under Dashboard, Portfolio,
+Tenancies, Finance, Operations, Reports & files, and Administration. The tenant
+view groups them under Dashboard, Rent & payments, Property care,
+Records & updates, and My account.
+
+Every group opens an existing, permission-checked URL. The content area exposes
+numbered subpage tabs for the remaining authorized pages in that group; each
+tab preserves its old canonical URL, API fetch, existing forms, permissions,
+and browser history. Deep links and bookmarks therefore remain valid.
+The sidebar has no vertical scrollbar in its normal desktop state. Filtering by
+navigation search intentionally allows a scrollable result list when many
+direct page matches are returned. Small screens retain the mobile drawer.
+
+Regression coverage: `frontend/tests/workspace-navigation.test.mjs`.
+For browser acceptance, inspect at desktop widths and short viewport heights,
+including 1024×768 and 1280×720, and verify that each visible sidebar group
+reaches every corresponding tab and that no page is lost due to RBAC.
