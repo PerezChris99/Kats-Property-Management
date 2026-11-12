@@ -230,6 +230,7 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }) {
           <input ref={drawerSearch} type="search" placeholder="Search pages" aria-label="Search all workspace pages" value={query} onChange={event => setQuery(event.target.value)}/>
         </div>
         <nav className="drawer-links" aria-label="All workspace sections">
+          <Link className="nav-item" to="/search" onClick={() => setDrawerOpen(false)}><Search size={17} aria-hidden="true"/>Find records</Link>
           {menuItems(() => setDrawerOpen(false))}
         </nav>
         <div className="drawer-footer">
