@@ -136,7 +136,7 @@ def landlord_property_scores(_user):
         total,occupied = rooms.get(pid,(0,0))
         applied,billed = rents.get(pid,(0,0))
         ticket_total,open_count = jobs.get(pid,(0,0))
-        points.append({"name":name,
+        points.append({"id":pid, "name":name,
                        "occupancy":round(100*occupied/total) if total else 0,
                        "collection":round(100*applied/billed) if billed else 0,
                        "maintenance":round(100*(ticket_total-open_count)/ticket_total) if ticket_total else 0,
@@ -197,3 +197,47 @@ def tenant_balance_trend(user):
     return jsonify(points=[{"name":_month(month), "value":int(value)} for month,value in rows],
                    unit="UGX",
                    method="Cumulative outstanding balance from net rent invoices by billing period, calculated with a SQL window function.")
+
+
+@workspace_analytics_api.get("/analytics/landlord/portfolio")
+@roles(*STAFF)
+def landlord_portfolio(_user):
+    """Single-owner unit counts by property, grouped in SQL."""
+    grouped = (db.session.query(
+        Property.id, Property.name, Property.district,
+        func.count(Room.id),
+        func.coalesce(func.sum(case((Room.status == "OCCUPIED", 1), else_=0)), 0),
+        func.coalesce(func.sum(case((Room.status == "VACANT", 1), else_=0)), 0),
+    ).outerjoin(Room, (Room.property_id == Property.id) &
+                (Room.status != "ARCHIVED"))
+        .group_by(Property.id, Property.name, Property.district)
+        .order_by(Property.name, Property.id).all())
+    points = [{"id": pid, "name": name, "district": district,
+               "value": int(total), "occupied": int(occupied),
+               "vacant": int(vacant)}
+              for pid, name, district, total, occupied, vacant in grouped]
+    return jsonify(points=points, unit="rooms",
+                   method=("One owner's non-archived units grouped by property. "
+                           "Occupied and vacant are recorded room states; "
+                           "other room states are included in total units."))
+
+
+@workspace_analytics_api.get("/analytics/tenant/payment-history")
+@roles("TENANT")
+def tenant_payment_history(user):
+    """Actual verified settlement months, not rent invoice billing months."""
+    tenant_id = _tenant_id(user)
+    if not tenant_id:
+        return jsonify(points=[], unit="UGX")
+    month = _bucket(Payment.settled_at)
+    rows = (db.session.query(month, func.sum(Payment.amount_ugx))
+            .join(Invoice, Invoice.id == Payment.invoice_id)
+            .filter(Invoice.tenant_id == tenant_id,
+                    Payment.status == "RECONCILED",
+                    Payment.reversed_at.is_(None),
+                    Payment.settled_at.isnot(None))
+            .group_by(month).order_by(month).all())
+    return jsonify(points=[{"name": _month(period), "value": int(value)}
+                           for period, value in rows], unit="UGX",
+                   method=("Verified unreversed receipts by actual settlement month. "
+                           "Legacy payments without a verified settlement date are excluded."))

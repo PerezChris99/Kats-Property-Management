@@ -487,27 +487,58 @@ function ReportsPage() {
     const [month, setMonth] = useState('');
     const [summary, setSummary] = useState(null);
     const [arrears, setArrears] = useState(null);
-    const [error, setError] = useState('');
+    const [summaryError, setSummaryError] = useState('');
+    const [arrearsError, setArrearsError] = useState('');
+    const [summaryLoading, setSummaryLoading] = useState(true);
+    const [arrearsLoading, setArrearsLoading] = useState(true);
+    const [revision, setRevision] = useState(0);
     useEffect(() => {
-        setError('');
-        Promise.all([api('reports/summary' + (month ? '?month=' + month : '')), api('reports/arrears')])
-            .then(([a, b]) => { setSummary(a); setArrears(b); })
-            .catch(err => setError(err instanceof Error ? err.message : 'Could not load reports'));
-    }, [month]);
+        const controller = new AbortController();
+        setSummaryLoading(true);
+        setArrearsLoading(true);
+        setSummaryError('');
+        setArrearsError('');
+        setSummary(null);
+        setArrears(null);
+        api('reports/summary' + (month ? '?month=' + encodeURIComponent(month) : ''), {signal: controller.signal})
+            .then(result => { if (!controller.signal.aborted) setSummary(result); })
+            .catch(err => { if (!controller.signal.aborted) setSummaryError(err.message || 'Financial summary unavailable'); })
+            .finally(() => { if (!controller.signal.aborted) setSummaryLoading(false); });
+        api('reports/arrears', {signal: controller.signal})
+            .then(result => { if (!controller.signal.aborted) setArrears(result); })
+            .catch(err => { if (!controller.signal.aborted) setArrearsError(err.message || 'Arrears report unavailable'); })
+            .finally(() => { if (!controller.signal.aborted) setArrearsLoading(false); });
+        return () => controller.abort();
+    }, [month, revision]);
     return <section className="page"><span className="eyebrow">FINANCIAL OVERSIGHT</span><h1>Reports</h1>
     <p>Invoice-period reporting. Payments applied to an invoice are not necessarily cash received in the selected month.</p>
-    <label style={{ maxWidth: 280 }}>Invoice period <input type="month" value={month} onChange={e => setMonth(e.target.value)}/></label>
-    {error && <p className="error" role="alert">{error}</p>}
-    {summary ? <><div className="stat-grid">
+    <div className="kats-report-toolbar"><label className="kats-report-year">Invoice period
+      <input type="month" value={month} onChange={e => setMonth(e.target.value)}/></label>
+      <button type="button" className="outline-button" onClick={() => setRevision(n => n + 1)}>Refresh reports</button></div>
+    {summaryError && <div className="error" role="alert">Financial summary: {summaryError}
+      <button type="button" className="outline-button small" onClick={() => setRevision(n => n + 1)}>Retry</button></div>}
+    {summaryLoading && <p role="status" className="data-loading">Loading financial report…</p>}
+    {summary && <><div className="stat-grid">
       {[['Invoiced UGX', summary.billed_ugx], ['Applied to invoices UGX', summary.applied_to_invoices_ugx],
                 ['Outstanding UGX', summary.outstanding_on_invoices_ugx], ['Period expenses UGX', summary.expenses_in_period_ugx],
                 ['Occupied units', summary.occupied_units], ['Occupancy %', summary.occupancy_percent]].map(([label, value]) => <div key={label} className="stat"><small>{label}</small><strong>{typeof value === 'number' ? value.toLocaleString('en-UG') : value}</strong></div>)}
-    </div><p className="note">{String(summary.methodology)}</p></> : <p role="status">Loading financial report…</p>}
-    {arrears && <div className="quick"><h2>Overdue rent</h2><p>{arrears.overdue_invoices} overdue invoice(s) · UGX {arrears.total_ugx.toLocaleString('en-UG')}</p>
-      <div className="stat-grid">{Object.entries(arrears.ageing_ugx).map(([label, value]) => <div className="stat" key={label}><small>{label.replaceAll('_', ' ')}</small><strong>UGX {value.toLocaleString('en-UG')}</strong></div>)}</div></div>}
+    </div><p className="note">{String(summary.methodology)}</p></>}
+    {!summaryLoading && !summaryError && !summary && <p role="status" className="empty">No financial summary for the selected period.</p>}
+    <section aria-labelledby="kats-arrears-report-title" className="quick">
+      <h2 id="kats-arrears-report-title">Overdue rent</h2>
+      {arrearsLoading && <p role="status">Loading overdue rent…</p>}
+      {arrearsError && <div role="alert" className="error">{arrearsError}
+        <button type="button" className="outline-button small" onClick={() => setRevision(n => n + 1)}>Retry</button></div>}
+      {arrears && <><p>{arrears.overdue_invoices} overdue invoice(s) · UGX {Number(arrears.total_ugx || 0).toLocaleString('en-UG')}</p>
+        <div className="stat-grid">{Object.entries(arrears.ageing_ugx || {}).map(([label, value]) =>
+          <div className="stat" key={label}><small>{label.replaceAll('_', ' ')}</small>
+            <strong>UGX {Number(value || 0).toLocaleString('en-UG')}</strong></div>)}</div></>}
+      {!arrearsLoading && !arrearsError && !arrears && <p role="status">No overdue rent data available.</p>}
+    </section>
     <div className="quick"><h2>Exports</h2><a className="button" href="/api/v1/reports/export/invoices.csv">Download invoice CSV</a> <a className="button" href="/api/v1/reports/export/invoices.xlsx">Download invoice Excel</a> <Link to="/statements" className="button">Tenant statements</Link></div>
   </section>;
 }
+
 function TenantHome() {
     const [summary, setSummary] = useState(null);
     const [lease, setLease] = useState(null);

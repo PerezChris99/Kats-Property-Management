@@ -125,7 +125,7 @@ export function VennChart({ data }) {
 export function RadarChart({ points }) {
   const [selected,setSelected]=useState('');
   if (!points.length) return <p className="kats-chart-empty">No property metrics available yet.</p>;
-  const point=points.find(p=>p.name===selected)||points[0];
+  const point=points.find(p=>(p.id || p.name)===selected)||points[0];
   const axes=[['occupancy','Occupancy'],['collection','Collection'],['maintenance','Ticket resolution']];
   const polar=(n,r)=>[190+Math.sin(2*Math.PI*n/3)*r,135-Math.cos(2*Math.PI*n/3)*r];
   const coords=axes.map(([key],i)=>polar(i,Math.min(100,safe(point[key]))*.94));
@@ -143,8 +143,8 @@ export function RadarChart({ points }) {
       </circle>)}
     </svg>
     <div className="kats-radar-metrics">
-      <label>Property <select value={point.name} onChange={event=>setSelected(event.target.value)}>
-        {points.map(row=><option key={row.name} value={row.name}>{row.name}</option>)}
+      <label>Property <select value={point.id || point.name} onChange={event=>setSelected(event.target.value)}>
+        {points.map(row=><option key={row.id || row.name} value={row.id || row.name}>{row.name}</option>)}
       </select></label>
       {axes.map(([key,name])=><div key={key}><span>{name}</span><strong>{point[key]}%</strong></div>)}
       <small>Rates with no underlying observations are shown as 0%.</small>

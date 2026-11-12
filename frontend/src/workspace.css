@@ -348,3 +348,37 @@
  .portal .kats-search-results a {grid-template-columns:minmax(0,1fr);gap:var(--space-1);}
  .portal .portal-header-tools > a {display:none;}
 }
+
+
+/* 2026-11-12 account-wide refinement: one sizing system, no oversized glass
+   hero layers or duplicated dashboard card padding. Public pages unchanged. */
+.portal .portal-main {background:#f5f5f7;}
+.portal .page .stat::before {content:none;}
+.portal .page :is(.stat,.quick,.module-card,.resource-form,.data-table-wrap,.kats-chart-card) {
+  box-shadow:none;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+}
+.portal .page .page-head h1 {font-size:var(--font-size-2xl);}
+.portal .page .stat strong {font-size:var(--font-size-xl);}
+.portal .kats-metric-tile {display:grid;align-content:start;gap:var(--space-2);}
+.portal .kats-metric-desc {font-size:var(--font-size-xs);color:#50697e;}
+.portal .kats-portfolio-summary {display:grid;gap:var(--space-3);margin-bottom:var(--space-6);}
+.portal .kats-portfolio-summary .stat-grid {margin-block:0;}
+.portal .kats-report-toolbar {display:flex;flex-wrap:wrap;align-items:end;gap:var(--space-4);margin-bottom:var(--space-4);}
+.portal .kats-report-toolbar .kats-report-year {max-width:280px;margin:0;}
+.portal .kats-report-toolbar .outline-button {min-height:var(--control-height);}
+.portal .kats-chart-content {width:100%;min-width:0;}
+.portal :is(.kats-chart-svg,.kats-chart-venn,.kats-chart-radar) {display:block;width:100%;height:auto;max-width:100%;}
+.portal .page :is(a,button,input,select,textarea):focus-visible {outline:2px solid #0072b2;outline-offset:2px;}
+@media (max-width:1024px) {
+  .portal .kats-portfolio-summary .stat-grid > * {grid-column:span 6;}
+}
+@media (max-width:768px) {
+  .portal .kats-chart-grid > * {grid-column:span 12;}
+}
+@media (max-width:640px) {
+  .portal .kats-portfolio-summary .stat-grid > * {grid-column:span 12;}
+  .portal .kats-report-toolbar {align-items:stretch;}
+  .portal .kats-report-toolbar .kats-report-year {max-width:100%;}
+}

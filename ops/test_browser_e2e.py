@@ -119,6 +119,7 @@ STAFF_ROUTES = [
     "dashboard", "properties", "buildings", "floors", "rooms",
     "room-placement", "portfolio-editor", "tenants", "leases", "proration",
     "invoices", "payments", "utilities", "maintenance",
+    "maintenance-aging", "assets", "arrears", "finance-health", "journal-control",
     "preventive-maintenance", "disputes", "expenses", "expense-approvals",
     "reports", "trends", "statements", "receipts", "mobile-money",
     "efris", "inspections", "renewals", "deposits", "work-orders",
@@ -134,7 +135,7 @@ TENANT_ROUTES = [
 ]
 CARETAKER_ROUTES = [
     "dashboard", "rooms", "payments", "utilities", "maintenance",
-    "preventive-maintenance", "work-orders", "inspections", "documents",
+    "assets", "preventive-maintenance", "work-orders", "inspections", "documents",
     "notifications", "privacy-requests", "security", "receipts",
 ]
 
@@ -597,7 +598,7 @@ def test_small_landscape_keeps_complete_form_reachable_without_hidden_inputs(bro
 
 
 @pytest.mark.parametrize("role,expected", [
-    ("OWNER",5),("TENANT",3),
+    ("OWNER",5),("TENANT",4),
 ])
 @pytest.mark.parametrize("width,height",[(390,844),(640,900),(768,1024),(1024,768),(1280,800)])
 def test_live_account_analytics_render_without_blanks(browser,role,expected,width,height):
@@ -623,7 +624,13 @@ def test_live_account_analytics_render_without_blanks(browser,role,expected,widt
         expect(page.locator(".kats-chart-skeleton")).to_have_count(0,timeout=20000)
         assert page.locator(".kats-fatal-page").count()==0
         assert page.locator(".kats-chart-feedback[role='alert']").count()==0
-        assert page.locator(".kats-chart-svg, .kats-chart-donut, .kats-chart-venn, .kats-chart-radar").count() >=expected
+        # A new verified-settlement chart may correctly render an empty state
+        # when the disposable demo has no trusted settlement timestamps.
+        charts_or_empty = page.locator(
+            ".kats-chart-svg, .kats-chart-donut, .kats-chart-venn, .kats-chart-radar, "
+            ".kats-chart-zero"
+        )
+        assert charts_or_empty.count() >= expected
         metrics=page.evaluate("""() => ({
           client:document.documentElement.clientWidth,
           scroll:document.documentElement.scrollWidth,
@@ -645,7 +652,8 @@ def test_unrecognized_route_shows_visible_404_instead_of_blank_or_redirect(page)
 @pytest.mark.parametrize("role,routes", [
     ("OWNER",["dashboard","properties","buildings","floors","rooms",
         "room-placement","portfolio-editor","tenants","leases","proration",
-        "invoices","payments","utilities","maintenance","preventive-maintenance",
+        "invoices","payments","utilities","maintenance","maintenance-aging",
+        "assets","arrears","finance-health","journal-control","preventive-maintenance",
         "disputes","expenses","expense-approvals","reports","trends",
         "statements","receipts","mobile-money","efris","inspections",
         "renewals","deposits","work-orders","documents","notifications",
