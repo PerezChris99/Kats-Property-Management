@@ -130,3 +130,17 @@ Plan selection must be enforced server-side, not by hiding React links. No inven
 **External:** merchant/fiscal/bank onboarding, domain/TLS, storage/antivirus, managed services, live backups, security audit, legal compliance and customer acceptance.
 
 These are not cosmetic tasks and cannot honestly be marked complete by adding documentation or skeleton tables.
+
+## Operations and capacity tranche (PR following phase 1)
+
+- `GET /api/v1/operations/maintenance-aging` is read-only, restricted to staff,
+  and uses SQL GROUP BY/CASE to classify open work by recorded priority and
+  time since creation. It is an **age distribution, not a contractual SLA breach**.
+  Its companion route presents the live chart with retry/empty/error states.
+- `ops/load-workspace.js` provides k6 authenticated read-only staging load
+  for OWNER and TENANT roles. It fails closed unless an approved HTTPS
+  hostname containing staging/test and a disposable test-user cookie are supplied.
+  No synthetic performance claim is made until results from a controlled
+  staging run are saved and reviewed.
+- Source changes do NOT constitute a deployed monitor, incident policy, legal
+  certification or a completed contractor work-order workflow.
