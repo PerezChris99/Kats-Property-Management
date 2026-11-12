@@ -659,6 +659,8 @@ def test_each_account_route_shows_visible_content(browser,role,routes):
     context=browser.new_context(viewport={"width":1280,"height":850},
                                 reduced_motion="reduce")
     page=context.new_page()
+    exceptions=[]
+    page.on("pageerror",lambda error: exceptions.append(str(error)))
     try:
         page.goto(BASE+"/login",wait_until="domcontentloaded")
         response=page.request.get(BASE+"/api/v1/auth/demo-accounts")
@@ -675,7 +677,13 @@ def test_each_account_route_shows_visible_content(browser,role,routes):
             page.goto(BASE+"/"+route,wait_until="domcontentloaded")
             main=page.locator("main.portal-content")
             expect(main).to_be_visible(timeout=15000)
-            expect(main.locator(".page")).to_be_visible(timeout=15000)
+            try:
+                expect(main.locator(".page")).to_be_visible(timeout=6000)
+            except AssertionError as exc:
+                details=page.locator(".kats-fatal-page").all_inner_texts()
+                raise AssertionError(
+                    f"Blank account route {role}:{route}; errors={exceptions[-4:]}; fallback={details}"
+                ) from exc
             assert len(main.inner_text().strip())>=5,(role,route)
             assert page.locator(".kats-fatal-page").count()==0,(role,route)
     finally:
