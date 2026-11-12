@@ -227,11 +227,11 @@ def setup():
     print("[READY] Choose VS Code: KATS PostgreSQL demo start (31 accounts)")
 
 def prepare():
-    """Idempotent development launch preparation with no repeated admin prompt.
+    """Initialize a new synthetic PG demo ONCE; existing instances are read-only.
 
-    A configured PG demo must pass its database marker and runtime-role
-    checks. Fresh setup alone asks for localhost PostgreSQL admin credentials.
-    Existing demo accounts, passwords and business test changes are retained.
+    Never rerun migrations, permissions, seed or grants on ordinary startup.
+    An interrupted initial database creation may reenter the guarded
+    bootstrap, but unrelated databases and mismatched markers fail closed.
     """
     if not CONFIG.exists():
         setup()
@@ -240,29 +240,33 @@ def prepare():
     try:
         marker(values,OWNER)
     except (psycopg.OperationalError, psycopg.errors.UndefinedTable):
-        # A first-run password typo, interrupted bootstrap or an empty demo DB
-        # may leave only the locally generated .env.pg-demo. Re-enter the
-        # guarded bootstrap path, which refuses unrelated owners/tables/roles.
-        # Marker *mismatches* raise RuntimeError and MUST NOT be recovered.
-        print("[setup] Rechecking incomplete localhost demo bootstrap...",flush=True)
+        print("[setup] Incomplete localhost demo bootstrap; checking safe recovery...",flush=True)
         setup()
         return
     marker(values,RUNTIME)
+    print("[READY] Reusing existing kats_demo PostgreSQL; no migrations or seeding.",flush=True)
+
+
+def upgrade_schema():
+    """Explicit opt-in code upgrades; preserve ALL existing demo records."""
+    values=load()
+    marker(values,OWNER)
+    marker(values,RUNTIME)
     run(values,OWNER,["-m","flask","--app","wsgi","db","upgrade"],ROOT/"backend")
     run(values,OWNER,["-m","flask","--app","wsgi","seed-permissions"],ROOT/"backend")
-    run(values,OWNER,[str(ROOT/"ops"/"seed_demo_preview.py"),"--postgres"])
     grants(values)
     marker(values,RUNTIME)
-    print("[READY] Local PostgreSQL kats_demo: 1 owner + 30 tenant demo accounts; runtime role and RLS preserved.")
+    print("[READY] Local PostgreSQL schema and permissions upgraded; no demo seeding.",flush=True)
 
 
 def main():
     parser=argparse.ArgumentParser(description="Local PostgreSQL synthetic demo, never production")
-    parser.add_argument("action",choices=("setup","prepare","verify","check","serve"))
+    parser.add_argument("action",choices=("setup","prepare","upgrade","verify","check","serve"))
     action=parser.parse_args().action
     try:
         if action=="setup":setup()
         elif action=="prepare":prepare()
+        elif action=="upgrade":upgrade_schema()
         else:
             values=load()
             marker(values,RUNTIME)
