@@ -3,6 +3,8 @@ import { WorkspaceNavigation, WorkspaceSectionTabs } from './WorkspaceNavigation
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 const LandlordAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.LandlordAnalytics})));
 const TenantAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.TenantAnalytics})));
+const WorkspaceSearchPage = lazy(() => import('./WorkspaceSearchPage'));
+const FinanceHealthPage = lazy(() => import('./FinanceHealthPage'));
 const ProrationPage = lazy(() => import('./ProrationPage').then(m => ({ default: m.ProrationPage })));
 const UtilitiesPage = lazy(() => import('./UtilitiesPage'));
 const PrivacyRequestsPage = lazy(() => import('./PrivacyRequestsPage'));
@@ -220,7 +222,9 @@ function ResourcePage({ resource, user }) {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(25);
     const [total, setTotal] = useState(null);
-    const [filter, setFilter] = useState('');
+    const location = useLocation();
+    const [filter, setFilter] = useState(() => new URLSearchParams(location.search).get('q') || '');
+    const [serverFilter, setServerFilter] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [editing, setEditing] = useState(false);
@@ -230,15 +234,26 @@ function ResourcePage({ resource, user }) {
     const [references, setReferences] = useState({});
     const latestLoad = useRef(0);
     const canWrite = resource.writable?.includes(user.role) ?? false;
+    const searchable = new Set(['properties', 'buildings', 'floors', 'rooms', 'tenants',
+        'invoices', 'payments', 'maintenance', 'expenses']).has(resource.path);
     const search = filter.trim().toLowerCase();
-    const visibleRows = search ? rows.filter(row => Object.values(row).some(value => String(value ?? '').toLowerCase().includes(search))) : rows;
+    const visibleRows = searchable ? rows : search
+        ? rows.filter(row => Object.values(row).some(value => String(value ?? '').toLowerCase().includes(search))) : rows;
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setPage(1);
+            setServerFilter(filter.trim().length >= 2 ? filter.trim() : '');
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [filter]);
     const load = useCallback(async (signal) => {
         const requestNumber = ++latestLoad.current;
         setLoading(true);
         setError('');
         try {
             const join = resource.path.includes('?') ? '&' : '?';
-            const payload = await api(resource.path + join + 'page=' + page + '&page_size=' + pageSize + '&include_total=0',
+            const q = searchable && serverFilter ? '&q=' + encodeURIComponent(serverFilter) : '';
+            const payload = await api(resource.path + join + 'page=' + page + '&page_size=' + pageSize + '&include_total=0' + q,
                 signal ? { signal } : {});
             if (requestNumber !== latestLoad.current || signal?.aborted) return;
             setRows(payload.items || []);
@@ -250,13 +265,13 @@ function ResourcePage({ resource, user }) {
         } finally {
             if (requestNumber === latestLoad.current && !signal?.aborted) setLoading(false);
         }
-    }, [resource.path, page, pageSize]);
+    }, [resource.path, page, pageSize, searchable, serverFilter]);
     useEffect(() => {
         const controller = new AbortController();
         void load(controller.signal);
         return () => { controller.abort(); };
     }, [load]);
-    useEffect(() => { setPage(1); setFilter(''); }, [resource.path]);
+    useEffect(() => { setPage(1); setFilter(new URLSearchParams(location.search).get('q') || ''); setServerFilter(''); }, [resource.path, location.search]);
     useEffect(() => {
         if (!editing)
             return;
@@ -389,12 +404,12 @@ function ResourcePage({ resource, user }) {
     return <section className="page"><div className="page-head"><div><span className="eyebrow">OPERATIONS</span><h1>{resource.title}</h1></div>{canWrite && <button className="button" onClick={() => setEditing(!editing)}>{editing ? 'Cancel' : 'Add ' + resource.title.toLowerCase()}</button>}</div>
     {error && <div role="alert" className="error">{error} <button type="button" className="outline-button" onClick={() => { void load(); }}>Retry</button></div>}
     {editing && canWrite && <form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.filter(field => field.name !== 'idempotency_key').map(field => <label key={field.name}>{field.label}{field.options ? <select value={values[field.name] || ''} onChange={e => setValues({ ...values, [field.name]: e.target.value })} required={field.required}><option value="">Select</option>{field.options.map(option => <option key={option}>{option}</option>)}</select> : references[field.name]?.length ? <select value={values[field.name] || ''} onChange={e => setValues({ ...values, [field.name]: e.target.value })} required={field.required}><option value="">Select a record</option>{references[field.name].map(row => <option key={String(row.id)} value={String(row.id)}>{String(row.name || row.number || row.full_name || row.invoice_number || row.email || row.title || row.id)}</option>)}</select> : <input required={field.required} type={field.type || 'text'} min={field.type === 'number' ? (field.name === 'level' ? '-10' : '0') : undefined} value={values[field.name] || ''} onChange={e => setValues({ ...values, [field.name]: e.target.value })}/>}</label>)}</div><button className="button" disabled={busy}>{busy ? 'Saving…' : 'Save record'}</button></form>}
-    {!loading && rows.length > 0 && <div className="record-toolbar">
-      <label className="record-filter">Filter loaded records
-        <input type="search" placeholder="Search this table" value={filter} onChange={event => setFilter(event.target.value)}/></label>
-      <span aria-live="polite">{visibleRows.length} of {rows.length} loaded</span>
-    </div>}
-    {loading ? <p role="status" className="data-loading">Loading records…</p> : rows.length === 0 ? <div className="empty"><h2>No records yet</h2><p>Authorized records will appear here after they are created.</p></div> : visibleRows.length === 0 ? <div className="empty"><h2>No matching records</h2><p>Clear the filter to see the loaded records.</p><button type="button" className="outline-button" onClick={() => setFilter('')}>Clear filter</button></div> : <div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col => <th key={col}>{col.replaceAll('_', ' ')}</th>)}{resource.path === 'payments' && <th>Cash receipt</th>}{resource.path === 'payments' && canWrite && <th>Review</th>}{(resource.path === 'payments' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) || resource.path === 'invoices' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) || resource.path === 'caretaker/rooms' || resource.path === 'caretaker/assignments' || resource.path === 'admin/users') && <th>Actions</th>}</tr></thead><tbody>{visibleRows.map((item, i) => <tr key={String(item.id || i)}>{resource.columns.map(col => <td key={col}><DataCell column={col} value={item[col]}/></td>)}{resource.path === 'payments' && <td>{item.method === 'CASH' && ['PENDING_REVIEW','RECONCILED','REVERSED'].includes(item.status) ?
+    <div className="record-toolbar">
+      <label className="record-filter">{searchable ? 'Search all authorized records' : 'Filter loaded records'}
+        <input type="search" placeholder={searchable ? 'Search all records (2+ characters)' : 'Filter this page'} value={filter} onChange={event => setFilter(event.target.value)}/></label>
+      <span aria-live="polite">{searchable && serverFilter ? 'Database search' : 'Loaded records'}: {visibleRows.length} shown</span>
+    </div>
+    {loading ? <p role="status" className="data-loading">Loading records…</p> : rows.length === 0 ? <div className="empty"><h2>{serverFilter || search ? 'No matching records' : 'No records yet'}</h2><p>{serverFilter || search ? 'Try another search or clear the filter.' : 'Authorized records will appear here after they are created.'}</p>{(serverFilter || search) && <button type="button" className="outline-button" onClick={() => setFilter('')}>Clear search</button>}</div> : visibleRows.length === 0 ? <div className="empty"><h2>No matching records</h2><p>Clear the filter to see the loaded records.</p><button type="button" className="outline-button" onClick={() => setFilter('')}>Clear filter</button></div> : <div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col => <th key={col}>{col.replaceAll('_', ' ')}</th>)}{resource.path === 'payments' && <th>Cash receipt</th>}{resource.path === 'payments' && canWrite && <th>Review</th>}{(resource.path === 'payments' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) || resource.path === 'invoices' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) || resource.path === 'caretaker/rooms' || resource.path === 'caretaker/assignments' || resource.path === 'admin/users') && <th>Actions</th>}</tr></thead><tbody>{visibleRows.map((item, i) => <tr key={String(item.id || i)}>{resource.columns.map(col => <td key={col}><DataCell column={col} value={item[col]}/></td>)}{resource.path === 'payments' && <td>{item.method === 'CASH' && ['PENDING_REVIEW','RECONCILED','REVERSED'].includes(item.status) ?
         <a className="outline-button" href={'/api/v1/payments/' + encodeURIComponent(String(item.id)) + '/cash-acknowledgement.pdf'}>Written cash receipt</a> : '—'}</td>}{resource.path === 'payments' && canWrite && <td>{item.status === 'PENDING_REVIEW' ? <button className="outline-button" disabled={busy} onClick={() => approve(String(item.id))}>Approve*</button> : <span>—</span>}</td>}
     {resource.path === 'payments' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) && <td>{item.status === 'RECONCILED' ? <button className="outline-button" disabled={busy} onClick={() => financeAction('payments/' + String(item.id) + '/reverse')}>Reverse</button> : '—'}</td>}
     {resource.path === 'invoices' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) && <td>{item.status === 'ISSUED' && Number(item.paid_ugx) === 0 ? <button className="outline-button" disabled={busy} onClick={() => financeAction('invoices/' + String(item.id) + '/void')}>Void</button> : '—'}</td>}
@@ -493,12 +508,30 @@ function TenantHome() {
     const [summary, setSummary] = useState(null);
     const [lease, setLease] = useState(null);
     const [error, setError] = useState('');
-    useEffect(() => { Promise.all([api('tenant/dashboard'), api('tenant/lease')]).then(([s, l]) => { setSummary(s); setLease(l.lease); }).catch(err => setError(String(err))); }, []);
+    const [leaseError, setLeaseError] = useState('');
+    const [leaseLoading, setLeaseLoading] = useState(true);
+    const [reload, setReload] = useState(0);
+    useEffect(() => {
+        let active = true;
+        setError('');
+        setLeaseError('');
+        setLeaseLoading(true);
+        // Fetch these independently: an unavailable lease service must not
+        // suppress successful payment/balance information (or vice versa).
+        api('tenant/dashboard').then(result => {
+            if (active) setSummary(result);
+        }).catch(err => { if (active) setError(err.message || 'Could not load rent summary'); });
+        api('tenant/lease').then(result => {
+            if (active) setLease(result.lease || null);
+        }).catch(err => { if (active) setLeaseError(err.message || 'Could not load lease'); })
+            .finally(() => { if (active) setLeaseLoading(false); });
+        return () => { active = false; };
+    }, [reload]);
     return <section className="page"><span className="eyebrow">TENANT PORTAL</span><h1>My rental account</h1><p>Your current lease and recorded rent activity.</p>
     {error && <p role="alert" className="error">{error}</p>}
     {summary ? <div className="stat-grid"><div className="stat"><small>Invoiced</small><strong>UGX {summary.total_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Paid</small><strong>UGX {summary.paid_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Outstanding</small><strong>UGX {summary.outstanding_ugx.toLocaleString('en-UG')}</strong></div></div> : !error ? <p role="status">Loading rent summary…</p> : <p role="alert">Unable to load rental summary. Check the API and reload.</p>}
     <Suspense fallback={<p className="data-loading" role="status">Loading rental charts…</p>}><TenantAnalytics /></Suspense>
-    <div className="quick"><h2>My lease</h2>{lease ? <p><strong>{lease.property_name || 'Your property'}</strong> · Unit {lease.room_number || lease.room_id} · Monthly rent: UGX {Number(lease.rent_ugx).toLocaleString('en-UG')} · Lease ends: {lease.end_date}.</p> : <p>No active lease is currently linked to your account.</p>}<Link to="/invoices">Invoices</Link><Link to="/payments">Payments</Link><Link to="/maintenance">Maintenance</Link></div>
+    <div className="quick"><h2>My lease</h2>{leaseError && <p role="alert">{leaseError} <button type="button" className="outline-button small" onClick={() => setReload(n=>n+1)}>Retry</button></p>}{leaseLoading ? <p role="status">Loading lease…</p> : lease ? <p><strong>{lease.property_name || 'Your property'}</strong> · Unit {lease.room_number || lease.room_id} · Monthly rent: UGX {Number(lease.rent_ugx).toLocaleString('en-UG')} · Lease ends: {lease.end_date}.</p> : !leaseError ? <p>No active lease is currently linked to your account.</p> : null}<Link to="/invoices">Invoices</Link><Link to="/payments">Payments</Link><Link to="/maintenance">Maintenance</Link></div>
   </section>;
 }
 function CaretakerHome() {
@@ -519,7 +552,7 @@ function Portal({ user, logout, systemReady }) {
     const location = useLocation();
     const page = location.pathname.slice(1);
     const canOperate = roles.includes(user.role);
-    const nav = canOperate ? ['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'preventive-maintenance', 'disputes', 'expenses', 'expense-approvals', 'reports', 'trends', 'statements', 'receipts', 'mobile-money', 'efris', 'inspections', 'renewals', 'deposits', 'work-orders', 'documents', 'notifications', 'privacy-requests', 'security', ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' ? ['settings'] : []), ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' ? ['users', 'invitations', 'permissions', 'legal', 'audit', 'inquiries'] : []), ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' || user.role === 'MANAGER' ? ['assignments'] : [])] : user.role === 'CARETAKER' ? ['dashboard', 'rooms', 'payments', 'utilities', 'maintenance', 'preventive-maintenance', 'work-orders', 'inspections', 'documents', 'notifications', 'privacy-requests', 'security', 'receipts'] : ['dashboard', 'invoices', 'payments', 'utilities', 'statements', 'receipts', 'deposits', 'maintenance', 'disputes', 'inspections', 'documents', 'mobile-money', 'notifications', 'privacy-requests', 'security'];
+    const nav = canOperate ? ['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'preventive-maintenance', 'disputes', 'expenses', 'expense-approvals', 'reports', 'trends', ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' || user.role === 'ACCOUNTANT' ? ['finance-health'] : []), 'statements', 'receipts', 'mobile-money', 'efris', 'inspections', 'renewals', 'deposits', 'work-orders', 'documents', 'notifications', 'privacy-requests', 'security', ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' ? ['settings'] : []), ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' ? ['users', 'invitations', 'permissions', 'legal', 'audit', 'inquiries'] : []), ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' || user.role === 'MANAGER' ? ['assignments'] : [])] : user.role === 'CARETAKER' ? ['dashboard', 'rooms', 'payments', 'utilities', 'maintenance', 'preventive-maintenance', 'work-orders', 'inspections', 'documents', 'notifications', 'privacy-requests', 'security', 'receipts'] : ['dashboard', 'invoices', 'payments', 'utilities', 'statements', 'receipts', 'deposits', 'maintenance', 'disputes', 'inspections', 'documents', 'mobile-money', 'notifications', 'privacy-requests', 'security'];
     const viewResource = user.role === 'CARETAKER' ? CARETAKER_RESOURCES[page] : RESOURCES[page];
     const pageTitle = page.replaceAll('-', ' ').replace(/^./, c => c.toUpperCase());
     const [readFailed, setReadFailed] = useState(false);
@@ -537,7 +570,7 @@ function Portal({ user, logout, systemReady }) {
           <span>Workspace <span aria-hidden="true">/</span> {pageTitle}</span>
           <strong>{pageTitle}</strong>
         </div>
-        <div className="portal-header-tools"><span className={'portal-system-state ' + (systemReady === true ? 'is-connected' : systemReady === false ? 'is-disconnected' : '')} role="status"><span className="portal-status-dot" aria-hidden="true"/>{systemReady === null ? 'Checking API' : systemReady ? 'System connected' : 'API unavailable'}</span><div className="portal-identity" title={user.full_name}>
+        <div className="portal-header-tools"><Link className="outline-button small" to="/search">Find records</Link><span className={'portal-system-state ' + (systemReady === true ? 'is-connected' : systemReady === false ? 'is-disconnected' : '')} role="status"><span className="portal-status-dot" aria-hidden="true"/>{systemReady === null ? 'Checking API' : systemReady ? 'System connected' : 'API unavailable'}</span><div className="portal-identity" title={user.full_name}>
           <span className="identity-avatar" aria-hidden="true">{user.full_name.trim().charAt(0).toUpperCase()}</span>
           <span><strong>{user.full_name}</strong><small>{user.role.replaceAll('_', ' ')}</small></span>
         </div></div>
@@ -568,7 +601,7 @@ function Portal({ user, logout, systemReady }) {
                                                             page === 'renewals' && nav.includes(page) ? <RenewalsPage role={user.role}/> : page === 'deposits' && nav.includes(page) ? <DepositsPage user={user}/> :
                                                                 page === 'work-orders' && nav.includes(page) ? <WorkOrdersPage user={user}/> :
                                                                     page === 'settings' && nav.includes(page) ? <SettingsAdminPage /> : page === 'security' && nav.includes(page) ? <SecurityPage onSignedOut={logout}/> :
-                                                                        page === 'reports' && canOperate ? <ReportsPage /> : page === 'dashboard' ? (canOperate ? <Dashboard user={user}/> : user.role === 'TENANT' ? <TenantHome /> : user.role === 'CARETAKER' ? <CaretakerHome /> : <div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>) : viewResource && nav.includes(page) ? <ResourcePage resource={viewResource} user={user}/> : <div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</Suspense></main>
+                                                                        page === 'search' ? <WorkspaceSearchPage /> : page === 'finance-health' && nav.includes(page) ? <FinanceHealthPage /> : page === 'reports' && canOperate ? <ReportsPage /> : page === 'dashboard' ? (canOperate ? <Dashboard user={user}/> : user.role === 'TENANT' ? <TenantHome /> : user.role === 'CARETAKER' ? <CaretakerHome /> : <div className="page"><h1>Workspace</h1><p>Your role does not yet have an assigned operational portal.</p></div>) : viewResource && nav.includes(page) ? <ResourcePage resource={viewResource} user={user}/> : <div className="page"><h1>Access restricted</h1><p>This area is not available to your account.</p></div>}</Suspense></main>
       <div className="portal-footnote"><span>© {new Date().getFullYear()} KATS Property Management</span><nav aria-label="Workspace legal and support"><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/data-protection">Data protection</Link><Link to="/request-access">Request access</Link></nav></div>
     </div>
   </div>;
@@ -636,7 +669,7 @@ export default function App() {
         <Route key={slug} path={'/'+slug} element={<LegalPage slug={slug}/>}/>
       )}
     </Route>
-    {['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'expenses', 'expense-approvals', 'reports', 'trends', 'statements', 'receipts', 'users', 'invitations', 'permissions', 'assignments', 'notifications', 'inspections', 'renewals', 'deposits', 'work-orders', 'settings', 'mobile-money', 'efris', 'documents', 'legal', 'audit', 'inquiries', 'privacy-requests', 'disputes', 'preventive-maintenance', 'security', 'more'].map(path => <Route key={path} path={'/' + path} element={user ? <Portal user={user} logout={logout} systemReady={systemReady}/> : <Navigate to="/login" replace/>}/>)}
+    {['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'expenses', 'expense-approvals', 'reports', 'trends', 'finance-health', 'search', 'statements', 'receipts', 'users', 'invitations', 'permissions', 'assignments', 'notifications', 'inspections', 'renewals', 'deposits', 'work-orders', 'settings', 'mobile-money', 'efris', 'documents', 'legal', 'audit', 'inquiries', 'privacy-requests', 'disputes', 'preventive-maintenance', 'security', 'more'].map(path => <Route key={path} path={'/' + path} element={user ? <Portal user={user} logout={logout} systemReady={systemReady}/> : <Navigate to="/login" replace/>}/>)}
     {['dashboard', 'payments', 'invoices', 'receipts', 'maintenance', 'lease', 'profile'].map(path => <Route key={'tenant-' + path} path={'/tenant/' + path} element={<Navigate to={path === 'lease' ? '/dashboard' : path === 'profile' ? '/security' : '/' + path} replace/>}/>)}
     {['dashboard', 'rooms', 'maintenance', 'inspections', 'payments', 'profile'].map(path => <Route key={'caretaker-' + path} path={'/caretaker/' + path} element={<Navigate to={path === 'profile' ? '/security' : '/' + path} replace/>}/>)}
     {['users', 'roles', 'permissions', 'integrations', 'efris', 'payments', 'audit-logs', 'legal-pages', 'system-settings'].map(path => <Route key={'admin-' + path} path={'/admin/' + path} element={<Navigate to={path === 'audit-logs' ? '/audit' : path === 'legal-pages' ? '/legal' : path === 'system-settings' ? '/security' :

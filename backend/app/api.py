@@ -182,6 +182,24 @@ def list_page(model, query):
     count = request.args.get("include_total", "1") != "0"
     return query.paginate(page=page, per_page=size, error_out=False, count=count)
 
+def bounded_search(query, *columns, limit=100):
+    """Add a bounded, literal substring filter to an already authorized query.
+
+    Escape SQL wildcard characters so user input cannot change search
+    semantics. Always apply AFTER role/tenant scoping, never before it.
+    """
+    value = request.args.get("q", "")
+    if not isinstance(value, str) or len(value) > limit:
+        abort(400, description="Search term is too long")
+    value = value.strip()
+    if not value:
+        return query
+    if len(value) < 2:
+        abort(400, description="Search must contain at least two characters")
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return query.filter(or_(*[column.ilike("%" + escaped + "%", escape="\\") for column in columns]))
+
+
 @api.post("/auth/register")
 @limiter.limit("5 per hour")
 def register():
@@ -478,7 +496,8 @@ def change_room_status(user, room_id):
 @api.get("/tenants")
 @roles(*STAFF)
 def tenants(user):
-    results = list_page(Tenant, db.session.query(Tenant).order_by(Tenant.full_name))
+    query = bounded_search(db.session.query(Tenant), Tenant.full_name, Tenant.phone, Tenant.email)
+    results = list_page(Tenant, query.order_by(Tenant.full_name, Tenant.id))
     return jsonify(items=[serialize(t, "id", "full_name", "phone", "email") for t in results.items], total=results.total)
 
 @api.post("/tenants")
@@ -504,7 +523,13 @@ def add_tenant(user):
 @api.get("/leases")
 @roles(*STAFF)
 def leases(user):
-    results = list_page(Lease, db.session.query(Lease).order_by(Lease.start_date.desc()))
+    query = db.session.query(Lease)
+    status = request.args.get("status")
+    if status:
+        if status not in ("ACTIVE", "EXPIRED", "TERMINATED", "RENEWED"):
+            abort(400, description="Invalid lease status")
+        query = query.filter(Lease.status == status)
+    results = list_page(Lease, query.order_by(Lease.start_date.desc(), Lease.id.desc()))
     return jsonify(items=[serialize(lease, "id", "room_id", "tenant_id", "start_date", "end_date", "status", "rent_ugx") for lease in results.items], total=results.total)
 
 @api.post("/leases")
@@ -554,6 +579,7 @@ def invoices():
         query = query.filter_by(tenant_id=linked)
     elif user.role not in STAFF:
         abort(403)
+    query = bounded_search(query, Invoice.invoice_number)
     results = list_page(Invoice, query.order_by(Invoice.created_at.desc()))
     fields = ("id", "invoice_number", "lease_id", "tenant_id", "period_start", "period_end", "due_date", "total_ugx", "paid_ugx", "credit_ugx", "status")
     return jsonify(items=[serialize(inv, *fields) for inv in results.items], total=results.total,
@@ -636,6 +662,7 @@ def payments():
         query = query.filter(Invoice.tenant_id == linked)
     elif user.role not in STAFF:
         abort(403)
+    query = bounded_search(query, Payment.reference, Payment.method, Payment.status)
     results = list_page(Payment, query.order_by(Payment.created_at.desc()))
     return jsonify(items=[serialize(p, "id", "invoice_id", "amount_ugx", "method", "status", "created_at") for p in results.items], total=results.total,
                    next_cursor=getattr(results, "next_cursor", None))
@@ -718,6 +745,7 @@ def maintenance_list():
         query = query.filter_by(tenant_id=tenant_id)
     elif user.role not in STAFF:
         abort(403)
+    query = bounded_search(query, MaintenanceRequest.title, MaintenanceRequest.description)
     results = list_page(MaintenanceRequest, query.order_by(MaintenanceRequest.created_at.desc()))
     return jsonify(items=[serialize(m, "id", "room_id", "title", "priority", "status") for m in results.items], total=results.total,
                    next_cursor=getattr(results, "next_cursor", None))
@@ -783,7 +811,8 @@ def maintenance_create():
 @api.get("/expenses")
 @roles(*STAFF)
 def expenses(user):
-    results = list_page(Expense, db.session.query(Expense).order_by(Expense.incurred_on.desc()))
+    query = bounded_search(db.session.query(Expense), Expense.category, Expense.description)
+    results = list_page(Expense, query.order_by(Expense.incurred_on.desc(), Expense.id.desc()))
     return jsonify(items=[serialize(e, "id", "property_id", "category", "description",
                                    "amount_ugx", "incurred_on", "status", "created_by",
                                    "reviewed_by") for e in results.items], total=results.total)

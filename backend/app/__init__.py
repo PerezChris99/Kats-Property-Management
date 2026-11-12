@@ -4,7 +4,7 @@ import secrets
 import time
 from urllib.parse import urlparse
 from werkzeug.middleware.proxy_fix import ProxyFix
-from flask import Flask, jsonify, request, abort
+from flask import Flask, jsonify, request, abort, g
 from flask_cors import CORS
 from sqlalchemy import text
 from werkzeug.exceptions import HTTPException
@@ -46,6 +46,7 @@ def create_app(test_config=None):
 
     @app.before_request
     def validate_request():
+        g.kats_request_started = time.perf_counter()
         if not request.path.startswith("/api/"):
             return None
         if request.content_length and request.content_length > app.config["MAX_CONTENT_LENGTH"]:
@@ -64,6 +65,21 @@ def create_app(test_config=None):
 
     @app.after_request
     def security_headers(response):
+        # Log only slow or failed API requests, with route templates instead
+        # of personal identifiers, authorization headers or query strings.
+        started = getattr(g, "kats_request_started", None)
+        if started is not None and request.path.startswith("/api/"):
+            duration_ms = round((time.perf_counter() - started) * 1000)
+            try:
+                threshold_ms = max(100, min(60000, int(os.getenv("SLOW_API_MS", "1200"))))
+            except ValueError:
+                threshold_ms = 1200
+            if duration_ms >= threshold_ms or response.status_code >= 500:
+                app.logger.warning(
+                    "api_observation route=%s method=%s status=%d elapsed_ms=%d",
+                    request.url_rule.rule if request.url_rule else "unmatched",
+                    request.method, response.status_code, duration_ms,
+                )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Frame-Options"] = "DENY"
@@ -128,6 +144,7 @@ def create_app(test_config=None):
     from . import dispute_models  # noqa: F401
     from . import maintenance_plan_models  # noqa: F401
     from . import account_models  # noqa: F401
+    from . import organization_models  # noqa: F401
     from .api import api
     app.register_blueprint(api, url_prefix="/api/v1")
     from .mfa import mfa_api
@@ -150,6 +167,10 @@ def create_app(test_config=None):
     app.register_blueprint(analytics_api, url_prefix="/api/v1")
     from .workspace_analytics import workspace_analytics_api
     app.register_blueprint(workspace_analytics_api, url_prefix="/api/v1")
+    from .finance_health import finance_health_api
+    app.register_blueprint(finance_health_api, url_prefix="/api/v1")
+    from .workspace_search import workspace_search_api
+    app.register_blueprint(workspace_search_api, url_prefix="/api/v1")
     from .portfolio_edit import portfolio_api
     app.register_blueprint(portfolio_api, url_prefix="/api/v1")
     from .report_exports import report_api

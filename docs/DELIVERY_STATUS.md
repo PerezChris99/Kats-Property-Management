@@ -4,7 +4,7 @@
 
 | Scope | Implementation in source | Validation and remaining dependency |
 |---|---|---|
-| Foundation | Docker development stack, Flask/React, SQLAlchemy/PostgreSQL migrations through 0027, Redis/Celery workers, PWA | Actual HostWares TLS deployment, backup restore and external observability |
+| Foundation | Docker development stack, Flask/React, SQLAlchemy/PostgreSQL migrations through 0028 (additive organization registry, not isolated SaaS), Redis/Celery workers, PWA | Actual HostWares TLS deployment, backup restore and external observability |
 | Accounts/security | Argon2id, short-lived JWT/CSRF, one-time refresh rotation/revocation; hashed invitation/reset tokens, 30-minute recovery, SMTP TLS sender | Approved public domain, transactional SMTP credentials/deliverability, real auth/security UAT |
 | Roles | Server role ceilings, stored grant matrix, seed-permissions CLI, owner/superadmin permission editor | Whole-endpoint object-level penetration matrix and policy/tenant ownership verification |
 | Property portfolio | Properties, buildings, floors, room placement, bounded search, indexed history pagination, auditable editing of listing/property metadata; backward-compatible legacy rooms | Owner-reviewed actual portfolio records, comprehensive archival/merge policies and multi-device UAT |
@@ -21,7 +21,7 @@
 | Documents | Tenant-scoped presigned S3-compatible private files, signed immutable object versions, MIME magic and ClamAV fail-closed scan before download | Real private S3 versioning and ClamAV, independent scanner tests, retention/legal approval |
 | Messages | In-app alerts and scheduled reminders, resilient record model | SMS/email provider handoff and verified delivery, template/privacy consent |
 | Admin/marketing | Role permissions, TOTP opt-in MFA, encrypted authenticator secrets, personal-data access/correction/erasure triage, versioned legal pages, demo inquiry inbox | MFA enrollment/recovery and privacy-registration procedures, approved wording, provider oversight |
-| Testing | Current Python tests, frontend JavaScript lint and API regression tests, React JSX production build, PostgreSQL 16 migration round-trip through 0027, restricted-role document/tenancy RLS checks, PostgreSQL concurrency and audit-trigger tests | Comprehensive external E2E, security/load tests, mobile/iOS/Android devices and genuine UAT |
+| Testing | Current Python tests, frontend JavaScript lint and API regression tests, React JSX production build, PostgreSQL 16 migration round-trip through 0028, restricted-role document/tenancy RLS checks, PostgreSQL concurrency and audit-trigger tests | Comprehensive external E2E, security/load tests, mobile/iOS/Android devices and genuine UAT |
 | Release | JSX-only frontend; Caddy HTTPS/isolated production Compose + separate managed PostgreSQL/Redis packaging, CI syntax validation | Not deployed; DNS, mail, storage, backups, fiscal/payment integrations and production acceptance remain |
 
 | Utility management | Water/electricity meters, integer consumption snapshots, caretaker readings, independent invoice approval and tenant-scoped visibility | Meter photo evidence, tariffs/contract review, shared-utility policies, field UAT |
@@ -31,9 +31,9 @@
 
 ## Security baseline and known limitations
 
-The repository includes proprietary Kats Properties ownership notices, bounded API request/rate controls, Redis rate-limit storage in production, verified-cookie authentication and role grants, database query/pool bounds, indexed paginated lists and PostgreSQL FORCE RLS on private document rows. All new sensitive routes are subject to anonymous-route regression checks. A CI scanner checks high-confidence secret signatures in the current source tree.
+The repository includes proprietary Kats Properties ownership notices, bounded API request/rate controls, Redis rate-limit storage in production, verified-cookie authentication and role grants, database query/pool bounds, indexed paginated lists and PostgreSQL FORCE RLS on private document and six core tenancy/finance tables. All new sensitive routes are subject to anonymous-route regression checks. A CI scanner checks high-confidence secret signatures in the current source tree.
 
-This does **not** prove secrets were never exposed historically; any leaked credentials need rotation. Database RLS applies to **documents only**, while financial and other tenant records rely on server-side RBAC and object-level checks. An external security review, provider credentials, production monitoring, scale/load tests and backup restore drills remain required.
+This does **not** prove secrets were never exposed historically; any leaked credentials need rotation. PostgreSQL FORCE RLS applies to **seven core private tables**: documents, tenants, leases, invoices, payments, maintenance requests and notifications. Other customer-related tables still require API object checks, and the new organization registry is not multi-tenant isolation. An external security review, provider credentials, production monitoring, scale/load tests and backup restore drills remain required.
 
 ## Outstanding code-level caveats
 
@@ -51,7 +51,7 @@ views support bounded page sizes and optional exact-count suppression; the React
 resource interface has server-side page navigation and in-flight GET coalescing.
 
 The database has 14 additional workload-focused composite indexes and a forced
-PostgreSQL row security policy for **private documents** scoped by verified
+PostgreSQL row security policy for **seven core private tables** scoped by verified
 tenant/caretaker identity. It does not falsely claim RLS is enabled on every
 table or that a superuser cannot bypass RLS.
 
@@ -72,3 +72,13 @@ enrollment is opt-in until every required operator actually activates it.
 The production container definition is a *deployable configuration*, not
 proof of actual DNS, TLS, managed services or go-live. Legacy unscanned
 document objects remain inaccessible until verified.
+
+## Nationwide phase 1 (unreleased, 2026-11-12)
+
+The current perez PR adds scoped cross-record search, SQL-backed table search,
+finance consistency diagnostics, a dormant legacy organization registry and
+latency observations. The organization registry does not authorize multiple
+independent customer organizations; mandatory organization isolation, actual
+bank reconciliation, balanced general ledger, agency payouts, provider contracts,
+security acceptance, mobile UAT and external go-live checks remain pending.
+See [NATIONWIDE_MODERNIZATION.md](NATIONWIDE_MODERNIZATION.md).
