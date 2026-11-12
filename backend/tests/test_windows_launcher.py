@@ -156,7 +156,7 @@ def test_concurrent_frontend_backend_share_complete_config(tmp_path,monkeypatch)
     assert not list(tmp_path.glob(".env.native.*.tmp"))
 
 
-def test_vscode_uses_parallel_background_tasks_in_one_split_terminal_group():
+def test_vscode_starts_backend_first_then_frontend_in_split_terminal_group():
     import json
     import re
     tasks=json.loads((ROOT/".vscode"/"tasks.json").read_text(encoding="utf-8"))["tasks"]
@@ -170,7 +170,7 @@ def test_vscode_uses_parallel_background_tasks_in_one_split_terminal_group():
         "KATS: Dev services (split in VS Code)",
     ]
     services=byname["KATS: Dev services (split in VS Code)"]
-    assert services["dependsOrder"]=="parallel"
+    assert services["dependsOrder"]=="sequence"
     assert services["dependsOn"]==[
         "KATS: Unified demo backend (PostgreSQL / SQLite fallback)",
         "KATS: Native frontend (BAT)",
