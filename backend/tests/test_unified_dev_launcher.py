@@ -78,7 +78,7 @@ def test_never_attach_a_running_backend_to_unknown_database(monkeypatch,tmp_path
 
 def test_unified_backend_requires_successful_local_prepare(monkeypatch,tmp_path):
     configured(monkeypatch,tmp_path,postgres=False)
-    with pytest.raises(launcher.StartupError,match="not been prepared"):
+    with pytest.raises(launcher.StartupError,match="No initialized local demo"):
         launcher.dev_mode()
     (tmp_path/"dev-mode.json").write_text(json.dumps({
         "mode":"pgdemo","root":"C:/wrong-checkout","accounts":31}))
@@ -213,6 +213,7 @@ def test_sqlite_read_only_check_never_creates_or_resets_existing_rows(tmp_path):
 
 def test_dev_frontend_waits_in_visible_pane_without_seeding_or_building(monkeypatch,capsys):
     checks=iter([False, False, True])
+    monkeypatch.setenv("KATS_FAST_START", "0")
     events=[]
     monkeypatch.setattr(launcher,"dev_mode",lambda:"pgdemo")
     monkeypatch.setattr(launcher,"PG_DEMO_CONFIG",Path(__file__))  # exists
