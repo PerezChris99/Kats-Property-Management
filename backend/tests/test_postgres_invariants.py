@@ -103,3 +103,17 @@ def test_postgres_parallel_approval_posts_ledger_once():
         assert db.session.query(LedgerEntry).filter_by(payment_id=payid,
               event="PAYMENT_RECEIVED").count()==1
         assert db.session.get(Payment,payid).status=="RECONCILED"
+
+def test_new_postgres_properties_are_atomically_mapped_to_legacy_organization():
+    """The dormant registry must not silently miss newly inserted properties."""
+    from app.organization_models import PropertyOrganization, LEGACY_ORGANIZATION_ID
+    app=postgres_application()
+    with app.app_context():
+        p=Property(name="Registry guard "+uuid.uuid4().hex[:8],
+                   address="Kampala", district="Kampala")
+        db.session.add(p)
+        db.session.commit()
+        mapping=db.session.get(PropertyOrganization,p.id)
+        assert mapping is not None
+        assert mapping.organization_id==LEGACY_ORGANIZATION_ID
+        assert db.session.query(PropertyOrganization).filter_by(property_id=p.id).count()==1
