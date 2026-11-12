@@ -29,9 +29,18 @@ test('all dashboard charts use one lazily imported visualization toolkit with li
   }
   assert.ok(annual.includes("from './charts/ChartKit'"));
   assert.equal(annual.includes('<svg'),false);
-  assert.equal(/recharts|chart.js|react-chartjs-2|upsetjs/i.test(read('package.json')),false);
-  assert.ok(kit.includes('viewBox='));
-  assert.ok(kit.includes('<title>'));
+  const pkg=JSON.parse(read('package.json'));
+  assert.ok(pkg.dependencies.recharts,'Recharts is the one charting library');
+  assert.ok(pkg.dependencies['react-is'],'Recharts React 19 peer support');
+  assert.equal(/chart.js|react-chartjs-2|upsetjs/i.test(read('package.json')),false);
+  assert.ok(kit.includes("from 'recharts'"),'all chart primitives use Recharts');
+  assert.ok(kit.includes('<ResponsiveContainer'), 'responsive charts use literal Recharts container');
+  assert.ok(kit.includes('<Tooltip'), 'native chart tooltips available');
+  assert.ok(kit.includes('<Legend'), 'native chart legends available');
+  assert.ok(kit.includes('<RechartsPieChart') &&
+            kit.includes('<RechartsBarChart') &&
+            kit.includes('<RechartsLineChart') &&
+            kit.includes('<RechartsRadarChart'), 'all visual types are Recharts');
 });
 
 test('workspace sizing tokens are 14px base with 12-col responsive layout',()=>{

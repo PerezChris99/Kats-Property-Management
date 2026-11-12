@@ -191,6 +191,10 @@ jobs:
         run: |
           cd ..
           KATS_ENV_FILE=ops/production.env.sample docker compose --env-file ops/production.env.sample -f compose.production.yml config --quiet
+      - name: Validate Hostwares multi-service deployment contract with example env
+        run: |
+          cd ..
+          docker compose --env-file ops/production.env.sample -f compose.hostwares.yml config --quiet
       - name: Validate PowerShell developer commands (no Docker execution)
         shell: pwsh
         run: |

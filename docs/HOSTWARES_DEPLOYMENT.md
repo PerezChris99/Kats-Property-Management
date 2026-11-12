@@ -1,6 +1,6 @@
-# HostWares staging and production plan
+# KATS Hostwares staging and production acceptance
 
-**Not deployed or verified.** The Docker Compose stack is development-only, its HTTP ports are localhost-bound, and it has no public HTTPS listener.
+**Not yet live-deployed or physically device-verified.** This repository now includes a Hostwares-targeted Compose variant and an actual external HTTPS verifier; deployment readiness is not evidence that a Hostwares project, database, domain or TLS certificate has been provisioned.
 
 ## Infrastructure gate
 
@@ -41,3 +41,81 @@ After every application migration, run `flask --app wsgi seed-permissions`; perm
 ## Financial acceptance gate
 
 Check the staff expense reviewer queue before relying on margin reports: legacy migrated expense rows are `REVIEW_REQUIRED` until independently rechecked. Calendar-day rent proration must be legally and contractually approved before a finance officer issues any such invoice. Annual trends derive collections from verified settlement timestamps, not payment creation time; historical payments without trusted settlement timestamps require separate reconciliation.
+
+
+## Hostwares managed deployment (private single-owner system)
+
+Hostwares documentation supports GitHub/private repos, Docker/Compose, custom ports,
+managed PostgreSQL, HTTPS, backups and image rollback:
+https://hostwares.com/docs/deployments and https://hostwares.com/docs/databases .
+
+Use the `main` branch and the repo-root `compose.hostwares.yml` as a
+**multi-service** deployment. It builds a React+nginx `web`, Flask `api`,
+Celery `worker` and `beat`. Hostwares terminates TLS and routes its public
+site to the `web` service on the configured `HOSTWARES_PORT` (default
+8080). The app's `/api/` and `/readyz` are reverse proxied to the private
+`api` service. Do not expose Flask, PostgreSQL or Redis publicly.
+
+Provision private PostgreSQL with a restricted user, TLS CA and
+`sslmode=verify-full`, plus private Redis. Set **all required** production
+environment secrets in Hostwares' encrypted site settings (see
+`ops/production.env.sample`); do not commit or share them. Use an explicitly
+approved HTTPS `PUBLIC_APP_URL`, `CORS_ORIGINS`, and `TRUSTED_HOSTS`.
+Keep external payment/fiscal gateways disabled until formally approved.
+
+Before enabling public traffic run, in the protected production API runtime:
+`python -m flask --app wsgi db upgrade`,
+`python -m flask --app wsgi seed-permissions`, and
+`python -m app.release_preflight`. Create the OWNER using the existing
+protected owner setup and enroll MFA for all active privileged accounts.
+A live promotion is blocked until these checks and managed backup restore
+evidence are recorded.
+
+### Local configuration contract check
+
+```bash
+docker compose --env-file ops/production.env.sample \
+  -f compose.hostwares.yml config --quiet
+```
+
+### Public HTTPS read-only verification
+
+After Hostwares actually assigns a hostname and completes deployment:
+
+```bash
+python ops/verify_hostwares_live.py \
+  --url https://YOUR-REAL-HOSTWARES-HOSTNAME \
+  --evidence .local/hostwares-live-acceptance.json
+```
+
+The probe verifies a TLS-validated HTTPS origin, Flask/PostgreSQL readiness,
+request IDs, the built React HTML and JS assets, deep-linked `/login`, and
+that private finance/asset API routes deny anonymous access and cannot be
+cached. It uses **GET only**, with no credentials or writes. Tests deliberately
+reject a fake HTML health response, a missing bundle or an exposed API.
+
+If no public deployment URL is available, this gate is **NOT TESTED**, not
+passed. Deployment status `RUNNING` alone does not prove security or that
+the right app version is live.
+
+### Physical-device release gate
+
+Chromium touch emulation in `ops/test_browser_e2e.py` exercises viewport,
+DPR, tap, Recharts resizing and console/page-error safety for common Android,
+iPhone-sized and tablet-sized screens. It **does not run iOS Safari,
+Samsung Internet, or any real device**.
+
+An actual operator must record pass/fail evidence for: (1) a low-end Android
+phone with Chrome over throttled mobile data, (2) a second Android with Samsung
+Internet, (3) a physical iPhone Safari, and (4) an iPad Safari. On each,
+sign in as a disposable authorized role, test MFA, charts/tooltip touch,
+readability, tenant permission isolation, page refresh and navigation,
+offline/reconnect, and real form/receipt/maintenance flows. Repeat after fixes
+and preserve a private device/OS/browser/date/result issue record. Never use
+screenshots exposing real tenant data.
+
+**Required live evidence still outstanding:** Hostwares project/deployment ID,
+verified public origin and certificate, actual API/database smoke results,
+MFA sign-in and recovery, offsite restore demonstration, worker/Redis task
+recovery, real physical-device signoff and any real payment/fiscal provider
+transactions. Do not mark them complete based solely on GitHub Actions.
