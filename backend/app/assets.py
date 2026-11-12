@@ -97,9 +97,9 @@ def create_asset(user):
         next_service_on=optional_service_date(obj.get("next_service_on"))
     )
     db.session.add(record)
-    db.session.flush()
-    audit(user,"asset.create","property_asset",record.id,property_id=record.property_id)
     try:
+        db.session.flush()
+        audit(user,"asset.create","property_asset",record.id,property_id=record.property_id)
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
