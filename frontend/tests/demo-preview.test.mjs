@@ -9,7 +9,10 @@ test('preview account picker uses real server-issued sessions, not client passwo
   assert.ok(ui.includes("api('auth/demo-sign-in'"));
   assert.ok(ui.includes("onSuccess(payload.user)"));
   assert.ok(ui.includes("navigate('/dashboard')"));
-  assert.ok(ui.includes('demoAccounts.length === 31'));
+  assert.ok(ui.includes('demoAccounts.length > 0'));
+  assert.ok(ui.includes("setDemoStatus('offline')"), 'failed local Flask must show a visible status');
+  assert.ok(ui.includes('setTimeout(query'), 'demo discovery must retry while Flask warms up');
+  assert.ok(ui.includes('Retry local connection'), 'user needs explicit retry');
   assert.ok(ui.includes('signInDemo(\'landlord\')'));
   assert.ok(ui.includes('signInDemo(account.key)'));
   assert.ok(ui.includes('role="group" aria-label="Sign in as a demo tenant"'));
