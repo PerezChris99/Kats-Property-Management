@@ -59,21 +59,27 @@ stored. Generated isolated runtime credentials are written to the git-ignored
 `.env.pg-demo`; the system never touches other databases, destroys tables,
 or connects to cloud/production databases for this workflow.
 
-Later starts verify the database marker and idempotently seed missing
-**initial** demo records without overwriting passwords or operator changes.
+Later starts verify the database marker and idempotently check the
+**existing** demo records without overwriting passwords or operator changes.
+Partially damaged demo datasets fail safely rather than being silently repaired.
 The `.env.pg-demo` credentials and `.local/dev-mode.json` are never
 committed. The backend refuses an unprepared or wrong database mode.
 
-You can force the decision in the VS Code terminal's environment before
-starting tasks:
+By default no environment setting is needed. To **force PostgreSQL**
+without allowing fallback, use an integrated PowerShell terminal and prepare
+there first, then run the **KATS: Dev services (split in VS Code)** task:
 
 ```powershell
-$env:KATS_DEMO_DB = 'postgres' # Require local PostgreSQL; fail rather than fall back
-# or
-$env:KATS_DEMO_DB = 'sqlite'   # Explicit reduced-functionality preview
-# otherwise unset to prefer PostgreSQL and auto-fallback
+$env:KATS_DEMO_DB = 'postgres'
+.\\ops\\launch.bat dev-prepare
 Remove-Item Env:KATS_DEMO_DB -ErrorAction SilentlyContinue
 ```
+
+For intentional SQLite-only development, use
+`$env:KATS_DEMO_DB='sqlite'` for that preflight command. Variables set in
+a terminal do **not** automatically change the environment of VS Code Tasks
+launched by VS Code; the regular combined Start Dev task instead uses its
+own default PostgreSQL-first auto-selection.
 
 For custom PG ports use `KATS_PG_DEMO_PORT` before first setup. If already
 configured, update the ignored configuration deliberately; the launcher
