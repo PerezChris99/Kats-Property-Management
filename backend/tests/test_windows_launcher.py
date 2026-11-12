@@ -176,10 +176,10 @@ def test_vscode_launches_two_background_services_in_parallel_visible_terminals()
     for task in (front,back):
         assert task["type"]=="process"
         assert task["command"]=="powershell.exe"
-        assert task["args"][4].endswith("ops\\\\vscode_task.ps1")
+        assert task["args"][4].endswith("ops\\vscode_task.ps1")
         matcher=task["problemMatcher"][0]
         assert matcher["background"]["activeOnStart"]
-        assert matcher["background"]["endsPattern"]==r"^\\[READY\\]"
+        assert matcher["background"]["endsPattern"]==r"^\[READY\]"
         regex=re.compile(matcher["pattern"]["regexp"])
         assert regex.groups>=3
         assert all(matcher["pattern"][key] in range(1,regex.groups+1)
