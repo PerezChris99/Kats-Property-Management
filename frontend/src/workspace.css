@@ -279,3 +279,12 @@
 .portal .kats-report-year input {max-width:205px;}
 .portal .kats-chart-card > h2 {font-size:16px;margin:0 0 12px;}
 .portal .kats-chart-card > .kats-chart-svg {max-height:260px;}
+
+
+.portal .kats-workspace-read-alert {
+  max-width:var(--content-max);width:calc(100% - 32px);margin:12px auto 0;
+  padding:10px 14px;border:1px solid #D3A6A6;border-left:3px solid #B34848;
+  background:#FFF9F9;color:#772E31;font-size:var(--font-size-sm);
+  border-radius:var(--radius-sm);display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+}
+.portal .kats-workspace-read-alert button {margin-left:4px;}
