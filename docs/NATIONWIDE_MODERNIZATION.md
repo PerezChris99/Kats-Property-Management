@@ -97,3 +97,14 @@ proof that a contractor has completed servicing.
 
 The register intentionally does not create contractor payments or purchase
 commitments; those require verified accounting and approval workflows.
+
+## Production release MFA hard gate
+
+The production-only `python -m app.release_preflight` now rejects approval
+when no active owner account exists or any active OWNER, SUPER_ADMIN, MANAGER
+or ACCOUNTANT lacks an enabled MFA enrollment and stored encrypted secret.
+Inactive accounts do not block rollout. The gate does **not** disable,
+enroll or modify any account, so administrators must enroll privileged
+users through the existing MFA workflow before requesting release approval.
+The gate is not a substitute for manual challenge/recovery testing or
+independent authentication penetration testing.
