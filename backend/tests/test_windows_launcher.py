@@ -182,7 +182,7 @@ def test_vscode_uses_parallel_background_tasks_in_one_split_terminal_group():
     for task in (front,back):
         assert task["type"]=="process"
         assert task["command"]=="powershell.exe"
-        assert task["args"][4].endswith("ops\\\\vscode_task.ps1")
+        assert task["args"][4].endswith("ops\\vscode_task.ps1")
         matcher=task["problemMatcher"][0]
         assert matcher["background"]["activeOnStart"]
         assert matcher["background"]["endsPattern"]==r"^\\[READY\\]"
