@@ -74,7 +74,7 @@ jobs:
           APP_ENV: testing
       - run: python -m compileall -q app
       - name: Compile optional browser and test database harness
-        run: cd .. && python -m py_compile ops/test_browser_e2e.py ops/run_windows.py ops/test_windows.py backend/tests/prepare_postgres.py backend/tests/seed_e2e.py
+        run: cd .. && python -m py_compile ops/test_browser_e2e.py ops/run_windows.py ops/test_windows.py ops/test_pg_demo_live.py backend/local_dev_server.py backend/tests/prepare_postgres.py backend/tests/seed_e2e.py
       - run: python -m flask --app wsgi db upgrade
         env:
           APP_ENV: testing
@@ -113,6 +113,8 @@ jobs:
           # Prove warm restart is marker-guarded and never reuses admin creds.
           KATS_PG_ADMIN_PASSWORD=purposely_invalid_for_warm_start python ops/local_postgres_demo.py prepare
           python ops/local_postgres_demo.py verify
+          # Real localhost TCP service and live demo-selector probe.
+          python ops/test_pg_demo_live.py
         env:
           KATS_PG_ADMIN_USER: kats_ci
           KATS_PG_ADMIN_PASSWORD: ci_only_password
