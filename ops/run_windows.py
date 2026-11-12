@@ -186,7 +186,11 @@ def dev_mode():
             "Unified development database has not been prepared. Run "
             "'KATS: Start Dev (Frontend + Backend)' (not the backend pane alone)."
         ) from exc
-    if selected.get("root") != str(ROOT.resolve()) or selected.get("mode") not in ("pgdemo", "preview"):
+    if (selected.get("root") != str(ROOT.resolve())
+            or selected.get("mode") not in ("pgdemo", "preview")
+            or not isinstance(selected.get("prepared_at"), int)
+            or time.time() - selected["prepared_at"] > 4 * 60 * 60
+            or selected["prepared_at"] > time.time() + 60):
         raise StartupError("Stale or invalid unified development session; run the combined start task.")
     return selected["mode"]
 
@@ -226,6 +230,8 @@ def dev_prepare():
             "KATS backend already occupies the API port. Use the Stop task "
             "before switching demo databases; existing records are untouched."
         )
+    # A failed preparation must not leave an older database choice usable.
+    DEV_MODE_FILE.unlink(missing_ok=True)
     config()  # independent local-only config; never read operational .env
     frontend(build=True)
     python = backend()
