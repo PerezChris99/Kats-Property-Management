@@ -505,12 +505,30 @@ function TenantHome() {
     const [summary, setSummary] = useState(null);
     const [lease, setLease] = useState(null);
     const [error, setError] = useState('');
-    useEffect(() => { Promise.all([api('tenant/dashboard'), api('tenant/lease')]).then(([s, l]) => { setSummary(s); setLease(l.lease); }).catch(err => setError(String(err))); }, []);
+    const [leaseError, setLeaseError] = useState('');
+    const [leaseLoading, setLeaseLoading] = useState(true);
+    const [reload, setReload] = useState(0);
+    useEffect(() => {
+        let active = true;
+        setError('');
+        setLeaseError('');
+        setLeaseLoading(true);
+        // Fetch these independently: an unavailable lease service must not
+        // suppress successful payment/balance information (or vice versa).
+        api('tenant/dashboard').then(result => {
+            if (active) setSummary(result);
+        }).catch(err => { if (active) setError(err.message || 'Could not load rent summary'); });
+        api('tenant/lease').then(result => {
+            if (active) setLease(result.lease || null);
+        }).catch(err => { if (active) setLeaseError(err.message || 'Could not load lease'); })
+            .finally(() => { if (active) setLeaseLoading(false); });
+        return () => { active = false; };
+    }, [reload]);
     return <section className="page"><span className="eyebrow">TENANT PORTAL</span><h1>My rental account</h1><p>Your current lease and recorded rent activity.</p>
     {error && <p role="alert" className="error">{error}</p>}
     {summary ? <div className="stat-grid"><div className="stat"><small>Invoiced</small><strong>UGX {summary.total_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Paid</small><strong>UGX {summary.paid_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Outstanding</small><strong>UGX {summary.outstanding_ugx.toLocaleString('en-UG')}</strong></div></div> : !error ? <p role="status">Loading rent summary…</p> : <p role="alert">Unable to load rental summary. Check the API and reload.</p>}
     <Suspense fallback={<p className="data-loading" role="status">Loading rental charts…</p>}><TenantAnalytics /></Suspense>
-    <div className="quick"><h2>My lease</h2>{lease ? <p><strong>{lease.property_name || 'Your property'}</strong> · Unit {lease.room_number || lease.room_id} · Monthly rent: UGX {Number(lease.rent_ugx).toLocaleString('en-UG')} · Lease ends: {lease.end_date}.</p> : <p>No active lease is currently linked to your account.</p>}<Link to="/invoices">Invoices</Link><Link to="/payments">Payments</Link><Link to="/maintenance">Maintenance</Link></div>
+    <div className="quick"><h2>My lease</h2>{leaseError && <p role="alert">{leaseError} <button type="button" className="outline-button small" onClick={() => setReload(n=>n+1)}>Retry</button></p>}{leaseLoading ? <p role="status">Loading lease…</p> : lease ? <p><strong>{lease.property_name || 'Your property'}</strong> · Unit {lease.room_number || lease.room_id} · Monthly rent: UGX {Number(lease.rent_ugx).toLocaleString('en-UG')} · Lease ends: {lease.end_date}.</p> : !leaseError ? <p>No active lease is currently linked to your account.</p> : null}<Link to="/invoices">Invoices</Link><Link to="/payments">Payments</Link><Link to="/maintenance">Maintenance</Link></div>
   </section>;
 }
 function CaretakerHome() {
