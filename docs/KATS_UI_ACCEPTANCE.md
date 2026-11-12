@@ -5,7 +5,7 @@
 ## Assumptions
 
 1. Preserve the existing `/api/v1/analytics/...` contracts instead of introducing `/api/landlord/<id>/...` endpoints. The account identity comes from the authenticated cookie/JWT, so tenant IDs and landlord IDs are **not** trusted from browser paths.
-2. Keep **one** existing responsive SVG chart toolkit, `ChartKit.jsx`, rather than installing a second charting library and changing the project's reproducible package lock. It supplies viewBox scaling, accessible SVG titles, tabular exact values, and a common colorblind-safe palette. This achieves responsive charts without Recharts' `ResponsiveContainer` API; the exact library preference is intentionally not followed.
+2. Use **one** chart library: stable Recharts 3.10.1 plus React-compatible `react-is`, in the committed reproducible npm lockfile. `ChartKit.jsx` exports Recharts-only wrappers for pie/donut, bar, line, UpSet-style overlap, and radar charts. Literal `ResponsiveContainer`, `Tooltip` and `Legend` are present; a fixed-height CSS frame avoids zero-size chart warnings. Exact values remain in accessible data tables. No second custom SVG plotting toolkit remains.
 3. Seeded synthetic data is allowed **only in disposable tests/demo preview**. The authenticated application always queries Flask and its configured database.
 4. The existing 14px token/12-column system and functional React Router error/404 screens already exist; extend and enforce them rather than introducing duplicate competing implementations.
 5. Financial 'applied' payments and actual 'settled' payments are distinct, and invoices are not cash.
@@ -106,3 +106,22 @@ Keyboard focus, reduced motion, loading/error/empty states, exact chart data tab
 | Build & server startup | Existing app factory and import tests, no removed module | `npm run build`, Flask SQLite boot, PostgreSQL runtime, Windows launcher job |
 
 **Release boundary:** Passing the local CI matrix does not certify real tenant data, external payments, live hosting, offsite backup restores, or legal/regulatory acceptance. Do not falsely mark these as complete.
+
+
+## Recharts + Hostwares acceptance follow-up (2026-11-12)
+
+- Recharts 3.10.1 is now the **literal implementation** for every exported dashboard chart component.
+  Native `ResponsiveContainer`, `PieChart`, `BarChart`, `LineChart`,
+  `RadarChart`, `Tooltip`, and `Legend` are used; the prior manual
+  `<svg>` chart drawing was removed. The overlap visualization is a
+  Recharts UpSet-style intersection bar chart with an exact membership matrix.
+- The committed npm lockfile supports `npm ci` in local builds and Docker.
+  `ops/test_browser_e2e.py` adds touch, DPR, viewport and Recharts console
+  checks for mobile and tablet-sized Chromium contexts.
+- `compose.hostwares.yml` is a proposed managed Hostwares deployment topology,
+  and `ops/verify_hostwares_live.py` is the *actual* no-secrets, read-only
+  HTTPS deployment probe, with backend tests against false positives.
+- **No live Hostwares deployment URL or physical Android/iPhone/iPad has been
+  accessed from this session.** Those gates remain open until the owner
+  supplies or creates real external resources and device signoff evidence.
+  See `docs/HOSTWARES_DEPLOYMENT.md`.
