@@ -44,8 +44,11 @@ def upgrade():
         DECLARE total_debit bigint;
         DECLARE total_credit bigint;
         BEGIN
-          target_id := CASE WHEN TG_TABLE_NAME = 'journal_events'
-                            THEN NEW.id ELSE NEW.event_id END;
+          IF TG_TABLE_NAME = 'journal_events' THEN
+            target_id := NEW.id;
+          ELSE
+            target_id := NEW.event_id;
+          END IF;
           SELECT count(*), coalesce(sum(debit_ugx),0), coalesce(sum(credit_ugx),0)
             INTO entries, total_debit, total_credit
             FROM journal_lines WHERE event_id = target_id;
