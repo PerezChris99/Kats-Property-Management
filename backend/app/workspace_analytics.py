@@ -136,7 +136,7 @@ def landlord_property_scores(_user):
         total,occupied = rooms.get(pid,(0,0))
         applied,billed = rents.get(pid,(0,0))
         ticket_total,open_count = jobs.get(pid,(0,0))
-        points.append({"name":name,
+        points.append({"id":pid, "name":name,
                        "occupancy":round(100*occupied/total) if total else 0,
                        "collection":round(100*applied/billed) if billed else 0,
                        "maintenance":round(100*(ticket_total-open_count)/ticket_total) if ticket_total else 0,
