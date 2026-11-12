@@ -134,6 +134,17 @@ async function performApi(path, options, method) {
     }
     return payload;
 }
+function reportWorkspaceReadError(task) {
+    return task.catch(error => {
+        // Even when an individual page forgets its error state, the workspace
+        // shell can show a visible recovery message for failed private reads.
+        if (!(error instanceof DOMException && error.name === 'AbortError')
+            && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+            window.dispatchEvent(new Event('kats:workspace-read-error'));
+        }
+        throw error;
+    });
+}
 export async function api(path, options = {}) {
     validatePath(path);
     const method = (options.method || 'GET').toUpperCase();
@@ -143,13 +154,15 @@ export async function api(path, options = {}) {
     }
     // Only coalesce plain GETs; preserve distinct abort signals or headers.
     if (options.signal || options.headers || options.body) {
-        return performApi(path, options, method);
+        return path.startsWith('auth/') ? performApi(path, options, method)
+            : reportWorkspaceReadError(performApi(path, options, method));
     }
     const key = path;
     const existing = inflight.get(key);
     if (existing)
         return existing;
-    const pending = performApi(path, options, method).finally(() => {
+    const pending = (path.startsWith('auth/') ? performApi(path, options, method)
+        : reportWorkspaceReadError(performApi(path, options, method))).finally(() => {
         if (inflight.get(key) === pending)
             inflight.delete(key);
     });
