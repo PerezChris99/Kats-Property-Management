@@ -110,6 +110,8 @@ jobs:
         run: |
           cd ..
           python ops/local_postgres_demo.py setup
+          # Prove warm restart is marker-guarded and never reuses admin creds.
+          KATS_PG_ADMIN_PASSWORD=purposely_invalid_for_warm_start python ops/local_postgres_demo.py prepare
           python ops/local_postgres_demo.py verify
         env:
           KATS_PG_ADMIN_USER: kats_ci

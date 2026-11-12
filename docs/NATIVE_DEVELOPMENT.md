@@ -15,40 +15,101 @@ Frontend `/api`, `/readyz`, and `/healthz` proxy to Flask's dedicated
 backend listener. Only valid, distinct ports are accepted, and both services
 remain loopback-only. Production reverse-proxy routing is unaffected.
 
-## First-time setup, without Docker
+## One-command development: local PostgreSQL + demo accounts + React/Flask
 
-1. Open the repository in VS Code. Ensure Python 3.12+ and Node 20+ are on PATH.
-2. **Once per checkout or after requirements change:** **Tasks: Run Task → KATS: Native setup (database + build)**. It creates
-   an ignored local secrets file, installs Python/Node dependencies, builds
-   the React app, creates the isolated local SQLite schema and seeds role
-   permissions. It never overwrites an existing database or production .env.
-3. **Tasks: Run Task → KATS: Start Dev (Frontend + Backend)**.
-   VS Code now launches **two independent tasks in parallel** within a split
-   integrated terminal group: Flask/backend **left**, React/Vite **right**.
-   Each pane has live logs and its own exit status. Neither waits on a build,
-   dependency installation, migration or permission seeding during startup.
-   Missing prerequisites produce an immediate, specific setup instruction.
-   The optional Native start (split in VS Code) task is an alias.
-   For deterministic pane placement outside VS Code, run .\start.bat:
-   Windows Terminal opens Flask first on the left and React on the right.
-4. **Tasks: Run Task → KATS: Verify frontend ↔ backend ↔ database**.
-   The check requires JSON `status=ready` and Flask's `X-Request-ID` from
-   `http://127.0.0.1:5173/readyz`, then confirms the direct Flask SQL
-   readiness at `:8000/readyz` and an HTTP 401/422 from proxied
-   unauthenticated `/api/v1/auth/me`. A Vite HTML 200 cannot pass.
-5. Open `http://localhost:5173`. Owner creation is a separate privileged
-   operation: **KATS: Native create owner (BAT)**.
+**Recommended default:** Open the repository root in VS Code, ensure Python
+3.12+, Node 22+ and your installed **PostgreSQL 17** (or compatible version)
+are available. From **Terminal → Run Task**, choose:
 
-Local settings and the SQLite database stay in ignored `.env.native` and
-`.local/kats-preview.sqlite3`. The preview mode **is not equivalent to
-production**: SQLite does not enforce PostgreSQL RLS and background Celery
-scheduling/payment-provider integrations are inactive. Financial workflows
-must not be considered operationally accepted in preview mode.
+**KATS: Start Dev (Frontend + Backend)**
+
+This single task runs sequential preflight, then launches two live integrated
+terminals in parallel:
+
+1. **Prepare:** install missing Python/npm dependencies; run the React JSX,
+   lint, unit-test and Vite build; find a PostgreSQL server on localhost
+   (default TCP port `5432`, override via `KATS_PG_DEMO_PORT` on first run).
+2. **If PostgreSQL is reachable:** initialize the isolated `kats_demo`
+   database (first run requires the *local* PostgreSQL admin password), run
+   Alembic migrations, seed route permissions, create and validate 31
+   synthetic accounts (**1 OWNER + 30 TENANT**), and preserve subsequent user
+   edits. The account picker enables direct demo sign-in. The application's
+   runtime uses `kats_demo_runtime`, which is not a PostgreSQL superuser and
+   cannot bypass RLS. This uses installed local PostgreSQL, **not SQLite or
+   Docker's parallel `kats_native` database**.
+3. **If PostgreSQL is unreachable:** visibly report **SQLite FALLBACK**,
+   initialize only `.local/kats-preview.sqlite3`, seed the same 31 demo
+   accounts and launch the app. This mode has no PostgreSQL RLS or full Celery
+   infrastructure. **If PostgreSQL is listening but passwords, marker,
+   migration or seeding fail, startup stops instead of silently changing DBs.**
+4. **Start:** Flask/backend runs in the **left** VS Code integrated terminal
+   and React/Vite in the **right**, both with live logs. Open
+   http://127.0.0.1:5173. The original secure login and 31-account local
+   demo selector remain available.
+5. **Verify:** Run task **KATS: Verify frontend ↔ backend ↔ database**.
+   It checks the Vite → Flask SQL bridge, protection of anonymous sessions,
+   and all 31 demo accounts.
+
+### First-run PostgreSQL authorization
+
+The bootstrap **only** connects to `127.0.0.1`. It asks for the PostgreSQL
+administrator password *in the VS Code terminal* and uses it once to create
+the named restricted database roles and `kats_demo`. The password is not
+stored. Generated isolated runtime credentials are written to the git-ignored
+`.env.pg-demo`; the system never touches other databases, destroys tables,
+or connects to cloud/production databases for this workflow.
+
+Later starts verify the database marker and idempotently check the
+**existing** demo records without overwriting passwords or operator changes.
+Partially damaged demo datasets fail safely rather than being silently repaired.
+The `.env.pg-demo` credentials and `.local/dev-mode.json` are never
+committed. The backend refuses an unprepared or wrong database mode.
+
+By default no environment setting is needed. To **force PostgreSQL**
+without allowing fallback, use an integrated PowerShell terminal and prepare
+there first, then run the **KATS: Dev services (split in VS Code)** task:
+
+```powershell
+$env:KATS_DEMO_DB = 'postgres'
+.\\ops\\launch.bat dev-prepare
+Remove-Item Env:KATS_DEMO_DB -ErrorAction SilentlyContinue
+```
+
+For intentional SQLite-only development, use
+`$env:KATS_DEMO_DB='sqlite'` for that preflight command. Variables set in
+a terminal do **not** automatically change the environment of VS Code Tasks
+launched by VS Code; the regular combined Start Dev task instead uses its
+own default PostgreSQL-first auto-selection.
+
+For custom PG ports use `KATS_PG_DEMO_PORT` before first setup. If already
+configured, update the ignored configuration deliberately; the launcher
+refuses unrelated database owners or mismatched instance markers.
+
+Existing test/workflow options are retained: **KATS: PostgreSQL demo
+verify (counts, RLS and logins)** performs an exact clean-demo integrity
+audit; **KATS: Demo start (landlord + 30 tenants)** remains an explicit
+SQLite preview mode; and **KATS: Native setup (database + build)** retains
+the older isolated Docker/SQLite developer workflow. The ordinary
+**KATS: Start Dev** task uses local PostgreSQL as its first choice.
+
+### Stopping and restarting
+
+Stop via **KATS: Stop (preserve database)** or `.\stop.bat`; this keeps both
+the `kats_demo` PostgreSQL database and the SQLite fallback intact.
+Do not run two backends against port 8000 while changing database modes.
+If port 8000 is already occupied, the unified task stops with a useful error
+rather than silently attaching to a different database.
+
+**Note:** The root `.\start.bat` remains the legacy *external Windows
+Terminal* launcher; choose the VS Code **Start Dev** task to use the complete
+combined PostgreSQL/seed workflow without leaving VS Code.
 
 ## Start both services when Flask is already running
 
-Use **Tasks: Run Task → KATS: Start Dev (Frontend + Backend)**, even if
-an older KATS Flask process is already active at `127.0.0.1:8000`.
+For the combined PostgreSQL/demo task, first stop an already running
+KATS backend to avoid mixing the new demo session with a previous database.
+Standalone native frontend/backend launchers can still reuse an existing
+healthy service without disturbing it.
 
 The launcher checks both local ports first. If it recognizes an existing
 healthy KATS Flask endpoint, it **reuses that backend** and starts only
@@ -86,8 +147,9 @@ are corrected. The default Start Dev task runs two independent background tasks 
 5. Run `KATS: Verify frontend ↔ backend ↔ database` only after both servers
    have started; this check is not a substitute for launching the app.
 
-Use `KATS: Native setup (database + build)` only initially or to explicitly
-run the build/tests. **A full setup may legitimately take several minutes**
+The combined PostgreSQL demo Start Dev task now performs an idempotent build,
+setup and seed preflight. The older `KATS: Native setup (database + build)` remains
+available for the separate legacy Docker/SQLite workflow. **A full setup may legitimately take several minutes**
 on a first install, but it no longer runs on every ordinary startup.
 Legacy Docker-only setup/launch/log tasks were removed from the VS Code
 task picker to prevent misleading errors when Docker is absent.

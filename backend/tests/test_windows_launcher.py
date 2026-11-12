@@ -139,7 +139,7 @@ def test_backend_stack_starts_its_own_celery_worker_beat_and_schedule_directory(
     text=SOURCE.read_text(encoding="utf-8")
     assert 'run_front = mode in ("start", "frontend")' in text
     assert 'run_back = mode in ("start", "backend", "backend-stack")' in text
-    assert 'if mode in ("start", "backend-stack") and not preview:' in text
+    assert 'if mode in ("start", "backend-stack") and not preview and backend_mode != "pgdemo":' in text
     assert 'STATE.mkdir(parents=True, exist_ok=True)' in text
     assert 'if action == "split":' in text
     assert 'start_split()' in text
@@ -158,43 +158,47 @@ def test_concurrent_frontend_backend_share_complete_config(tmp_path,monkeypatch)
 
 def test_vscode_uses_parallel_background_tasks_in_one_split_terminal_group():
     import json
+    import re
     tasks=json.loads((ROOT/".vscode"/"tasks.json").read_text(encoding="utf-8"))["tasks"]
     byname={task["label"]:task for task in tasks}
     master=byname["KATS: Native start (split in VS Code)"]
-    assert master["dependsOrder"]=="parallel"
-    assert master["dependsOn"]==["KATS: Native backend stack (BAT)","KATS: Native frontend (BAT)"]
+    assert master["dependsOn"]==["KATS: Start Dev (Frontend + Backend)"]
+    top=byname["KATS: Start Dev (Frontend + Backend)"]
+    assert top["dependsOrder"]=="sequence"
+    assert top["dependsOn"]==[
+        "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
+        "KATS: Dev services (split in VS Code)",
+    ]
+    services=byname["KATS: Dev services (split in VS Code)"]
+    assert services["dependsOrder"]=="parallel"
+    assert services["dependsOn"]==[
+        "KATS: Unified demo backend (PostgreSQL / SQLite fallback)",
+        "KATS: Native frontend (BAT)",
+    ]
     front=byname["KATS: Native frontend (BAT)"]
-    back=byname["KATS: Native backend stack (BAT)"]
-    assert front["args"][-1] == "frontend"
-    assert back["args"][-1] == "backend-stack"
-    for task in (front, back):
-        assert task["type"] == "process"
-        assert task["command"] == "powershell.exe"
+    back=byname["KATS: Unified demo backend (PostgreSQL / SQLite fallback)"]
+    assert front["args"][-1]=="frontend"
+    assert back["args"][-1]=="dev-backend"
+    for task in (front,back):
+        assert task["type"]=="process"
+        assert task["command"]=="powershell.exe"
         assert task["args"][4].endswith("ops\\vscode_task.ps1")
-        assert task["problemMatcher"][0]["background"]["activeOnStart"]
-        assert task["problemMatcher"][0]["background"]["endsPattern"] == r"^\[READY\]"
-    assert front["isBackground"] and back["isBackground"]
-    # Each task is a separate native process; neither has a build/setup dependency.
+        matcher=task["problemMatcher"][0]
+        assert matcher["background"]["activeOnStart"]
+        assert matcher["background"]["endsPattern"]==r"^\[READY\]"
+        regex=re.compile(matcher["pattern"]["regexp"])
+        assert regex.groups>=3
+        assert all(matcher["pattern"][key] in range(1,regex.groups+1)
+                   for key in ("file","line","message"))
+        assert re.compile(matcher["background"]["endsPattern"]).search("[READY] Flask")
+        assert task["isBackground"]
+        assert task["presentation"]["panel"]=="dedicated"
     assert front["options"]["env"]["KATS_FAST_START"]=="1"
-    assert back["options"]["env"]["KATS_FAST_START"]=="1"
+    assert 'os.environ["KATS_FAST_START"] = "1"' in SOURCE.read_text(encoding="utf-8")
     assert front["presentation"]["focus"] is True
     assert back["presentation"]["focus"] is False
-    assert all(t["presentation"]["panel"]=="dedicated" for t in (front, back))
-
-    # VS Code rejects the former pattern {"regexp":"a^"}: it had no file,
-    # line or message groups and could prevent every dependent task starting.
-    import re
-    for task in (front, back):
-        matcher = task["problemMatcher"][0]
-        pattern = matcher["pattern"]
-        regex = re.compile(pattern["regexp"])
-        assert regex.groups >= 3
-        assert all(pattern[key] in range(1, regex.groups + 1)
-                   for key in ("file", "line", "message"))
-        assert matcher["background"]["activeOnStart"]
-        assert re.compile(matcher["background"]["endsPattern"]).search("[READY] React")
     assert front["presentation"]["group"]==back["presentation"]["group"]=="kats-dev-parallel"
-    assert front["presentation"]["panel"]==back["presentation"]["panel"]=="dedicated"
+
 
 
 def test_vscode_command_palette_start_dev_entry_is_discoverable():
@@ -204,10 +208,15 @@ def test_vscode_command_palette_start_dev_entry_is_discoverable():
     assert len(aliases)==1
     alias=aliases[0]
     assert "type" not in alias
-    assert alias["dependsOrder"]=="parallel"
-    assert alias["dependsOn"]==["KATS: Native backend stack (BAT)","KATS: Native frontend (BAT)"]
+    assert alias["dependsOrder"]=="sequence"
+    assert alias["dependsOn"]==[
+        "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
+        "KATS: Dev services (split in VS Code)",
+    ]
     assert alias["problemMatcher"]==[]
-    assert "LEFT" in alias["detail"] and "RIGHT" in alias["detail"]
+    assert "flask left" in alias["detail"].lower()
+    assert "vite right" in alias["detail"].lower()
+
 
 
 def test_windows_vscode_tasks_use_argument_safe_process_invocation():
@@ -329,9 +338,9 @@ def test_native_tasks_hide_docker_only_commands_and_keep_valid_start_stop():
     for retired in ("KATS: Setup","KATS: Start app","KATS: Logs",
                     "KATS: Full local acceptance"):
         assert retired not in by_label, "Docker-only task is not a native startup"
-    assert by_label["KATS: Start Dev (Frontend + Backend)"]["dependsOrder"]=="parallel"
+    assert by_label["KATS: Start Dev (Frontend + Backend)"]["dependsOrder"]=="sequence"
     assert by_label["KATS: Stop (preserve database)"]["args"][-1]=="stop"
     assert by_label["KATS: Native setup (database + build)"]["args"][-1]=="setup"
-    assert by_label["KATS: Verify frontend ↔ backend ↔ database"]["args"][-1]=="doctor"
+    assert by_label["KATS: Verify frontend ↔ backend ↔ database"]["args"][-1]=="dev-doctor"
     script=(ROOT / "ops" / "vscode_task.ps1").read_text(encoding="utf-8")
     assert "'start' = @{ Script = 'ops/launch.bat'; Args = @('start') }" in script

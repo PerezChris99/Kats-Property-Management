@@ -21,6 +21,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parent.parent
 FRONT = ROOT / "frontend"
@@ -30,6 +31,8 @@ VENV = ROOT / ".venv"
 CONFIG = ROOT / ".env.native"
 COMPOSE = ROOT / "compose.native-deps.yml"
 PROJECT = "kats-native"
+PG_DEMO_CONFIG = ROOT / ".env.pg-demo"
+DEV_MODE_FILE = STATE / "dev-mode.json"
 class StartupError(RuntimeError):
     pass
 
@@ -151,11 +154,162 @@ def environment(settings, preview=False):
         })
     return values
 
+def read_pg_demo_config():
+    """Read only the ignored, dedicated localhost demo credentials."""
+    if not PG_DEMO_CONFIG.is_file():
+        raise StartupError("No .env.pg-demo. Run unified Dev prepare first.")
+    values = {}
+    for line in PG_DEMO_CONFIG.read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        key, sep, value = line.partition("=")
+        if not sep or not key.strip() or not value:
+            raise StartupError("Malformed dedicated PostgreSQL demo configuration.")
+        values[key.strip()] = value.strip()
+    if (not values.get("KATS_DEMO_INSTANCE")
+            or len(values["KATS_DEMO_INSTANCE"]) != 32
+            or not values.get("RUNTIME_PASSWORD")
+            or len(values["RUNTIME_PASSWORD"]) < 32
+            or not values.get("KATS_PG_DEMO_PORT","").isdigit()
+            or not 1024 <= int(values["KATS_PG_DEMO_PORT"]) <= 65535
+            or not values.get("SECRET_KEY") or not values.get("JWT_SECRET_KEY")):
+        raise StartupError("Unsafe PostgreSQL demo config; run the dedicated demo setup.")
+    return values
+
+
+def dev_mode():
+    """A successful preparation selects ONE database for BOTH service tasks."""
+    try:
+        selected = json.loads(DEV_MODE_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise StartupError(
+            "Unified development database has not been prepared. Run "
+            "'KATS: Start Dev (Frontend + Backend)' (not the backend pane alone)."
+        ) from exc
+    if (selected.get("root") != str(ROOT.resolve())
+            or selected.get("mode") not in ("pgdemo", "preview")
+            or not isinstance(selected.get("prepared_at"), int)
+            or time.time() - selected["prepared_at"] > 4 * 60 * 60
+            or selected["prepared_at"] > time.time() + 60):
+        raise StartupError("Stale or invalid unified development session; run the combined start task.")
+    return selected["mode"]
+
+
+def pg_demo_environment(settings):
+    """Execute ONLY as the isolated non-superuser PostgreSQL demo runtime role."""
+    values = read_pg_demo_config()
+    out = environment(settings, preview=True)  # memory-only workers, no provider keys
+    out.pop("KATS_PG_ADMIN_PASSWORD", None)
+    out.update({
+        "APP_ENV": "development",
+        "KATS_PREVIEW_MODE": "0",
+        "KATS_SEED_DEMO": "1",
+        "KATS_LOCAL_PG_DEMO": "1",
+        "KATS_LOCAL_PG_INSTANCE": values["KATS_DEMO_INSTANCE"],
+        "KATS_LOCAL_PG_PORT": values["KATS_PG_DEMO_PORT"],
+        "DATABASE_URL": (
+            "postgresql+psycopg://kats_demo_runtime:"
+            + quote(values["RUNTIME_PASSWORD"], safe="")
+            + "@127.0.0.1:" + values["KATS_PG_DEMO_PORT"] + "/kats_demo"
+        ),
+        "SECRET_KEY": values["SECRET_KEY"],
+        "JWT_SECRET_KEY": values["JWT_SECRET_KEY"],
+    })
+    return out
+
+
+def dev_prepare():
+    """One VS Code command: install/build, seed isolated local PG, else preview.
+
+    Never seed on ambiguous PG credentials, marker mismatches or occupied app
+    ports; these are failures rather than reasons to silently use SQLite.
+    """
+    started_at = time.time()
+    if port_open(BACKEND_PORT):
+        raise StartupError(
+            "KATS backend already occupies the API port. Use the Stop task "
+            "before switching demo databases; existing records are untouched."
+        )
+    # A failed preparation must not leave an older database choice usable.
+    DEV_MODE_FILE.unlink(missing_ok=True)
+    config()  # independent local-only config; never read operational .env
+    frontend(build=True)
+    python = backend()
+    requested = os.getenv("KATS_DEMO_DB", "auto").lower().strip()
+    if requested not in ("auto", "postgres", "sqlite"):
+        raise StartupError("KATS_DEMO_DB must be auto, postgres, or sqlite.")
+    if requested == "sqlite":
+        choice = "preview"
+    else:
+        if PG_DEMO_CONFIG.exists():
+            port = int(read_pg_demo_config()["KATS_PG_DEMO_PORT"])
+        else:
+            port_value = os.getenv("KATS_PG_DEMO_PORT", "5432")
+            if not port_value.isdigit() or not 1024 <= int(port_value) <= 65535:
+                raise StartupError("KATS_PG_DEMO_PORT must be a localhost TCP port.")
+            port = int(port_value)
+        choice = "pgdemo" if port_open(port) else "preview"
+        if choice == "preview" and requested == "postgres":
+            raise StartupError(
+                f"Local PostgreSQL is not listening on 127.0.0.1:{port}. "
+                "Start the PostgreSQL service; no SQLite fallback was authorized."
+            )
+    if choice == "pgdemo":
+        print("[DEV] Local PostgreSQL detected: preparing kats_demo and 31 accounts...", flush=True)
+        invoke([str(python), str(ROOT / "ops" / "local_postgres_demo.py"), "prepare"],
+               cwd=ROOT, env=venv_environment(os.environ))
+        invoke([str(python), str(ROOT / "ops" / "local_postgres_demo.py"), "check"],
+               cwd=ROOT, env=venv_environment(os.environ))
+    else:
+        print("[FALLBACK] Local PostgreSQL unavailable or SQLite explicitly selected.", flush=True)
+        print("[FALLBACK] Synthetic SQLite preview ONLY: no PostgreSQL RLS or Celery.", flush=True)
+        settings = config()
+        runtime = venv_environment(environment(settings, preview=True))
+        invoke([str(python), str(ROOT / "ops" / "init_preview.py")],
+               cwd=BACK, env=runtime)
+        invoke([str(python), "-m", "flask", "--app", "wsgi", "seed-permissions"],
+               cwd=BACK, env=runtime)
+        invoke([str(python), str(ROOT / "ops" / "seed_demo_preview.py")],
+               cwd=BACK, env=runtime)
+    if stop_requested(started_at):
+        raise StartupError("Stop was requested during demo preparation.")
+    STATE.mkdir(exist_ok=True)
+    temp = DEV_MODE_FILE.with_name(DEV_MODE_FILE.name + "." + secrets.token_hex(8) + ".tmp")
+    try:
+        temp.write_text(json.dumps({
+            "mode": choice, "root": str(ROOT.resolve()),
+            "accounts": 31, "prepared_at": int(time.time()),
+        }), encoding="utf-8")
+        os.replace(temp, DEV_MODE_FILE)
+    finally:
+        temp.unlink(missing_ok=True)
+    print("[READY] Unified dev: " + ("local PostgreSQL kats_demo" if choice == "pgdemo"
+          else "SQLite demo fallback") + ", 1 OWNER and 30 TENANT profiles.", flush=True)
+    print("[NEXT] VS Code launches Flask and React in split integrated terminals.", flush=True)
+
+
+def dev_doctor():
+    verify_http_bridge()
+    try:
+        with urllib.request.urlopen(
+            f"{FRONTEND_ORIGIN}/api/v1/auth/demo-accounts", timeout=6
+        ) as response:
+            payload = json.load(response)
+    except (OSError, ValueError) as exc:
+        raise StartupError("Demo account API is not available from the React origin.") from exc
+    if (not payload.get("enabled") or
+            len(payload.get("accounts", [])) != 31):
+        raise StartupError("Expected one demo owner and 30 tenants, but demo accounts are missing.")
+    print("[PASS] Combined Flask/React/SQL backend and all 31 demo logins visible.", flush=True)
+
+
 def select_backend_mode():
     """Select isolated local development dependencies without touching prod."""
     requested = os.getenv("KATS_DEV_BACKEND", "auto").strip().lower()
-    if requested not in ("auto", "docker", "preview"):
-        raise StartupError("KATS_DEV_BACKEND must be auto, docker, or preview.")
+    if requested not in ("auto", "docker", "preview", "unified"):
+        raise StartupError("KATS_DEV_BACKEND must be auto, docker, preview, or unified.")
+    if requested == "unified":
+        return dev_mode()
     if requested == "preview":
         return "preview"
     docker = shutil.which("docker")
@@ -532,7 +686,14 @@ def launch(mode):
         else:
             frontend(build=False)
     python = (ready_backend(backend_mode) if quick else backend()) if (run_back and not reuse_back) else None
-    runtime = ((venv_environment(environment(settings, preview=preview))
+    if run_back and not reuse_back and backend_mode == "pgdemo":
+        # The prepared mode is pinned; never silently attach to an ordinary
+        # PostgreSQL instance or switch to SQLite if localhost PG disappears.
+        invoke([str(python), str(ROOT / "ops" / "local_postgres_demo.py"), "check"],
+               env=venv_environment(os.environ))
+    runtime = ((venv_environment(pg_demo_environment(settings))
+                if backend_mode == "pgdemo" else
+                venv_environment(environment(settings, preview=preview))
                 if quick else prepare_backend(settings, python, backend_mode))
                if run_back and not reuse_back else base)
     if run_back and not reuse_back and quick and preview and os.getenv("KATS_SEED_DEMO") == "1":
@@ -557,7 +718,7 @@ def launch(mode):
             processes.append(start_service("Flask", [str(python), "-m", "flask",
                 "--app", "wsgi", "run", "--host", "127.0.0.1", "--port", str(BACKEND_PORT),
                 "--no-reload"], cwd=BACK, env=runtime, flags=flags))
-            if mode in ("start", "backend-stack") and not preview:
+            if mode in ("start", "backend-stack") and not preview and backend_mode != "pgdemo":
                 STATE.mkdir(parents=True, exist_ok=True)
                 processes.append(start_service("Celery worker", [str(python), "-m", "celery",
                     "-A", "app.tasks.celery_app", "worker", "--pool=solo",
@@ -666,7 +827,7 @@ def start_split():
 
 def main():
     parser = argparse.ArgumentParser(description="Windows KATS launcher")
-    parser.add_argument("action", choices=("split", "setup", "doctor", "start", "frontend", "backend", "backend-stack", "owner", "stop"))
+    parser.add_argument("action", choices=("split", "setup", "doctor", "dev-prepare", "dev-backend", "dev-doctor", "start", "frontend", "backend", "backend-stack", "owner", "stop"))
     action = parser.parse_args().action
     try:
         if os.name != "nt":
@@ -682,6 +843,14 @@ def main():
             print("[setup] Schema and permissions ready (" + mode + " mode).", flush=True)
         elif action == "doctor":
             verify_http_bridge()
+        elif action == "dev-prepare":
+            dev_prepare()
+        elif action == "dev-doctor":
+            dev_doctor()
+        elif action == "dev-backend":
+            os.environ["KATS_DEV_BACKEND"] = "unified"
+            os.environ["KATS_FAST_START"] = "1"
+            launch("backend-stack")
         elif action == "stop":
             STATE.mkdir(parents=True, exist_ok=True)
             STOP_FILE.write_text(str(time.time()) + "\\n", encoding="utf-8")
