@@ -33,9 +33,10 @@ def test_manual_upgrade_only_migrates_permissions_never_seeds(monkeypatch):
                         calls.append(("run",role,list(map(str,args)))))
     monkeypatch.setattr(pg,"grants",lambda vals:calls.append(("grants",)))
     pg.upgrade_schema()
-    assert any("upgrade" in cmd for action,role,cmd in calls if action=="run")
-    assert any("seed-permissions" in cmd for action,role,cmd in calls if action=="run")
-    assert not any("--postgres" in cmd for action,role,cmd in calls if action=="run")
+    commands=[row[2] for row in calls if row[0]=="run"]
+    assert any("upgrade" in cmd for cmd in commands)
+    assert any("seed-permissions" in cmd for cmd in commands)
+    assert not any("--postgres" in cmd for cmd in commands)
 
 
 def test_first_run_requires_explicit_isolated_database_setup(monkeypatch,tmp_path):
