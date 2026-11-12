@@ -226,12 +226,34 @@ def setup():
     verify(values)
     print("[READY] Choose VS Code: KATS PostgreSQL demo start (31 accounts)")
 
+def prepare():
+    """Idempotent development launch preparation with no repeated admin prompt.
+
+    A configured PG demo must pass its database marker and runtime-role
+    checks. Fresh setup alone asks for localhost PostgreSQL admin credentials.
+    Existing demo accounts, passwords and business test changes are retained.
+    """
+    if not CONFIG.exists():
+        setup()
+        return
+    values=load()
+    marker(values,OWNER)
+    marker(values,RUNTIME)
+    run(values,OWNER,["-m","flask","--app","wsgi","db","upgrade"],ROOT/"backend")
+    run(values,OWNER,["-m","flask","--app","wsgi","seed-permissions"],ROOT/"backend")
+    run(values,OWNER,[str(ROOT/"ops"/"seed_demo_preview.py"),"--postgres"])
+    grants(values)
+    marker(values,RUNTIME)
+    print("[READY] Local PostgreSQL kats_demo: 1 owner + 30 tenant demo accounts; runtime role and RLS preserved.")
+
+
 def main():
     parser=argparse.ArgumentParser(description="Local PostgreSQL synthetic demo, never production")
-    parser.add_argument("action",choices=("setup","verify","check","serve"))
+    parser.add_argument("action",choices=("setup","prepare","verify","check","serve"))
     action=parser.parse_args().action
     try:
         if action=="setup":setup()
+        elif action=="prepare":prepare()
         else:
             values=load()
             marker(values,RUNTIME)
