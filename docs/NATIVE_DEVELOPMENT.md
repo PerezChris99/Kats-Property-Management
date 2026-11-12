@@ -23,32 +23,39 @@ are available. From **Terminal → Run Task**, choose:
 
 **KATS: Start Dev (Frontend + Backend)**
 
-This single task runs sequential preflight, then launches two live integrated
-terminals in parallel:
+This task now **seeds the local database exactly once**, then launches two
+live integrated terminals in parallel. A routine restart does not rebuild
+React, reapply migrations, reseed permissions, or rewrite rent/tenant data.
 
-1. **Prepare:** install missing Python/npm dependencies; run the React JSX,
-   lint, unit-test and Vite build; find a PostgreSQL server on localhost
-   (default TCP port `5432`, override via `KATS_PG_DEMO_PORT` on first run).
-2. **If PostgreSQL is reachable:** initialize the isolated `kats_demo`
-   database (first run requires the *local* PostgreSQL admin password), run
-   Alembic migrations, seed route permissions, create and validate 31
-   synthetic accounts (**1 OWNER + 30 TENANT**), and preserve subsequent user
-   edits. The account picker enables direct demo sign-in. The application's
-   runtime uses `kats_demo_runtime`, which is not a PostgreSQL superuser and
-   cannot bypass RLS. This uses installed local PostgreSQL, **not SQLite or
-   Docker's parallel `kats_native` database**.
-3. **If PostgreSQL is unreachable:** visibly report **SQLite FALLBACK**,
-   initialize only `.local/kats-preview.sqlite3`, seed the same 31 demo
-   accounts and launch the app. This mode has no PostgreSQL RLS or full Celery
-   infrastructure. **If PostgreSQL is listening but passwords, marker,
-   migration or seeding fail, startup stops instead of silently changing DBs.**
-4. **Start:** Flask/backend runs in the **left** VS Code integrated terminal
-   and React/Vite in the **right**, both with live logs. Open
-   http://127.0.0.1:5173. The original secure login and 31-account local
-   demo selector remain available.
-5. **Verify:** Run task **KATS: Verify frontend ↔ backend ↔ database**.
-   It checks the Vite → Flask SQL bridge, protection of anonymous sessions,
-   and all 31 demo accounts.
+1. **First run:** Check Python and npm dependencies, build React, detect local
+   PostgreSQL on `127.0.0.1:5432`, create the separate `kats_demo`
+   database and restricted users, migrate and seed synthetic **1 OWNER + 30
+   TENANT** profiles and their leases/invoices. The local PostgreSQL admin
+   password is needed *only* if this dedicated database has never been
+   initialized.
+2. **Subsequent runs:** Check changed package dependencies and validate
+   the PostgreSQL instance marker, then **reuse the same database and all
+   existing edits**. No demo seeding, migrations, permission updates or
+   password resets occur automatically. Flask starts under the non-superuser
+   `kats_demo_runtime` role.
+3. **SQLite fallback:** Only when PostgreSQL is unavailable and **no existing
+   configured PostgreSQL demo exists**, initialize the isolated SQLite demo
+   once. Later starts also reuse SQLite without reseeding. If your already
+   configured PostgreSQL instance is offline, startup **fails visibly**
+   rather than silently switching to a different database.
+4. **VS Code terminals:** Flask/backend (port 8000) and Vite/React (port
+   5173) start in parallel. Cold Windows Flask startup now emits explicit
+   `[boot]` stages and verifies an actual PostgreSQL `SELECT 1`, allowing
+   sufficient time for a slow Python import. React shows a visible local
+   connection state and automatically retries demo-account discovery while
+   Flask starts. Missing demo logins are not silently hidden.
+5. **Verify:** Use **KATS: Verify frontend ↔ backend ↔ database** or
+   `.\\ops\\launch.bat dev-doctor` to check Flask SQL readiness,
+   proxy and the original demo accounts.
+
+The application is at http://127.0.0.1:5173. Changes in demo tenants,
+payments or leases persist across starts and stops. The demo selector
+only lists currently active eligible demo accounts from PostgreSQL.
 
 ### First-run PostgreSQL authorization
 
@@ -59,9 +66,15 @@ stored. Generated isolated runtime credentials are written to the git-ignored
 `.env.pg-demo`; the system never touches other databases, destroys tables,
 or connects to cloud/production databases for this workflow.
 
-Later starts verify the database marker and idempotently check the
-**existing** demo records without overwriting passwords or operator changes.
-Partially damaged demo datasets fail safely rather than being silently repaired.
+Later starts **only verify the database marker**; they do not run
+migrations, seed scripts or permission commands. Existing edited records
+are retained, including intentionally changed/inactivated demo profiles.
+If a future application update introduces new schema migrations, run
+`.\\ops\\local_pg_demo.bat upgrade` **explicitly once**, after a local
+backup. This performs migrations and permissions only, not demo seeding.
+For a deeper read-only seed/RLS audit, run
+`.\\ops\\local_pg_demo.bat verify` (note: it checks the original exact
+seed counts and can fail after intentional user edits).
 The `.env.pg-demo` credentials and `.local/dev-mode.json` are never
 committed. The backend refuses an unprepared or wrong database mode.
 
