@@ -4,7 +4,7 @@ import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 const LandlordAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.LandlordAnalytics})));
 const TenantAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.TenantAnalytics})));
 const ProrationPage = lazy(() => import('./ProrationPage').then(m => ({ default: m.ProrationPage })));
-const UtilitiesPage = lazy(() => import('./UtilitiesPage').then(m => ({ default: m.UtilitiesPage })));
+const UtilitiesPage = lazy(() => import('./UtilitiesPage'));
 const PrivacyRequestsPage = lazy(() => import('./PrivacyRequestsPage'));
 const DisputesPage = lazy(() => import('./DisputesPage'));
 const PreventiveMaintenancePage = lazy(() => import('./PreventiveMaintenancePage'));
