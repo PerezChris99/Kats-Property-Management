@@ -274,18 +274,28 @@ def demo_accounts():
     if not demo_http_allowed():
         abort(404)
     from .models import User
-    accounts = []
-    for key, email in [("landlord", "landlord@demo.kats.invalid")] + [
-        (f"tenant-{i:02d}", f"tenant{i:02d}@demo.kats.invalid") for i in range(1, 31)
-    ]:
-        account = db.session.query(User).filter_by(email=email, is_active=True).first()
-        if account and account.role == ("OWNER" if key == "landlord" else "TENANT"):
-            accounts.append({"key": key, "name": account.full_name,
-                             "role": "LANDLORD" if key == "landlord" else "TENANT"})
-    # An unseeded preview never displays non-functional shortcuts.
-    if len(accounts) != 31:
-        return jsonify(enabled=False, accounts=[])
-    return jsonify(enabled=True, accounts=accounts)
+    # The initial seed creates 31 accounts once; later user changes must
+    # never cause the *remaining* usable demo logins to disappear. Filter
+    # noninteractive accounts and fetch all rows in one bounded query.
+    pairs = [("landlord", "landlord@demo.kats.invalid")] + [
+        (f"tenant-{i:02d}", f"tenant{i:02d}@demo.kats.invalid")
+        for i in range(1, 31)
+    ]
+    users = {
+        user.email: user for user in db.session.query(User).filter(
+            User.email.in_([email for _, email in pairs]),
+            User.is_active.is_(True),
+            User.mfa_enabled.is_(False)
+        ).all()
+    }
+    accounts = [
+        {"key": key, "name": users[email].full_name,
+         "role": "LANDLORD" if key == "landlord" else "TENANT"}
+        for key, email in pairs
+        if email in users and users[email].role == (
+            "OWNER" if key == "landlord" else "TENANT")
+    ]
+    return jsonify(enabled=bool(accounts), accounts=accounts)
 
 
 @api.post("/auth/demo-sign-in")
