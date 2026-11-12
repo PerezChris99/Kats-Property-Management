@@ -75,8 +75,8 @@ def landlord_monthly(_user):
     paid = {_month(month): int(amount) for month, amount in collections}
     invoices = {_month(month): int(amount) for month, amount in billed}
     months = sorted(set(paid) | set(invoices))[-12:]
-    return jsonify(points=[{"month":month, "collections_ugx":paid.get(month, 0),
-                            "invoiced_ugx":invoices.get(month, 0)} for month in months],
+    return jsonify(points=[{"name":month, "value":paid.get(month, 0),
+                            "secondary":invoices.get(month, 0)} for month in months],
                    unit="UGX",
                    method=("Reconciled unreversed payments grouped by actual settlement month. "
                            "Invoices grouped by rent period; these are different accounting events."))
