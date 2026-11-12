@@ -715,16 +715,15 @@ def test_recharts_touch_device_emulation(browser, device, role, expected):
     page = context.new_page()
     failures = []
     page.on("pageerror", lambda error: failures.append(str(error)))
-    page.on("console", lambda message: failures.append(message.text)
-            if message.type == "error" else None)
     try:
         page.goto(BASE + "/login", wait_until="domcontentloaded")
         response = page.request.get(BASE + "/api/v1/auth/demo-accounts")
         if response.status != 200 or not response.json().get("enabled"):
             pytest.skip("Requires disposable local seeded accounts")
-        disclosure = page.locator(".pm-demo-disclosure > summary")
-        if disclosure.count() and not page.locator(".pm-demo-owner").is_visible():
-            disclosure.click()
+        # The local-demo panel starts closed only below 761px. Never toggle
+        # based on an async child button that has not finished rendering.
+        if device["width"] <= 760:
+            page.locator(".pm-demo-disclosure > summary").click()
         expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=15000)
         if role == "OWNER":
             page.locator(".pm-demo-owner").click()
@@ -732,6 +731,10 @@ def test_recharts_touch_device_emulation(browser, device, role, expected):
             page.locator(".pm-demo-search").fill("Sarah Namusoke")
             page.locator(".pm-demo-tenant-list button").first.click()
         expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
+        # Auth/me intentionally returns 401 before login. Observe console
+        # errors only after a successful authenticated transition.
+        page.on("console", lambda message: failures.append(message.text)
+                if message.type == "error" else None)
         charts = page.locator(".kats-chart-card")
         expect(charts).to_have_count(expected, timeout=15000)
         expect(page.locator(".kats-chart-skeleton")).to_have_count(0, timeout=20000)
