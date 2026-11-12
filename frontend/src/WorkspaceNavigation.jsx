@@ -1,15 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, Bell, BookOpen, Building2, CalendarRange, ChartColumnIncreasing, ChevronRight, ClipboardCheck, CreditCard, Gauge, FileCheck2, FileClock, FileText, FolderLock, House, KeyRound, LayoutDashboard, LogOut, Mail, Menu, ReceiptText, Search, Settings2, ShieldCheck, Smartphone, Users, Wallet, Wrench, X } from 'lucide-react';
-const GROUPS = [
-    { title: 'Overview', pages: ['dashboard', 'notifications', 'trends', 'reports'] },
-    { title: 'Portfolio', pages: ['properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor'] },
-    { title: 'Tenancies', pages: ['tenants', 'leases', 'renewals', 'inspections', 'deposits', 'disputes', 'documents'] },
-    { title: 'Finance', pages: ['invoices', 'proration', 'payments', 'mobile-money', 'receipts', 'statements', 'efris', 'expenses', 'expense-approvals'] },
-    { title: 'Operations', pages: ['maintenance', 'preventive-maintenance', 'work-orders', 'utilities', 'assignments', 'inquiries'] },
-    { title: 'Administration', pages: ['users', 'invitations', 'permissions', 'legal', 'audit', 'settings', 'privacy-requests', 'security'] }
-];
-// Compact primary destinations; original URLs and backend permissions remain intact.
 export const COMPACT_GROUPS = [
     { title: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard, pages: ['dashboard'] },
     { title: 'Portfolio', label: 'Portfolio', icon: Building2, pages: ['properties','buildings','floors','rooms','room-placement','portfolio-editor'] },
