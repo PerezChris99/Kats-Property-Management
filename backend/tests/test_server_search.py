@@ -15,7 +15,7 @@ def test_search_matches_records_beyond_first_page(app, monkeypatch):
     response = owner.get("/api/v1/tenants?page=1&page_size=5&q=DistinctiveNameForSearch")
     assert response.status_code == 200, response.json
     assert [item["id"] for item in response.json["items"]] == [target.id]
-    assert owner.get("/api/v1/tenants?q=%25").status_code == 200
+    assert owner.get("/api/v1/tenants?q=%25x").status_code == 200
     assert owner.get("/api/v1/tenants?q=" + "a"*101).status_code == 400
     assert owner.get("/api/v1/tenants?q=a").status_code == 400
     assert tenant.get("/api/v1/tenants?q=DistinctiveNameForSearch").status_code == 403
