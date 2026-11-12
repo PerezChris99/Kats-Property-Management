@@ -15,49 +15,49 @@ Frontend `/api`, `/readyz`, and `/healthz` proxy to Flask's dedicated
 backend listener. Only valid, distinct ports are accepted, and both services
 remain loopback-only. Production reverse-proxy routing is unaffected.
 
-## One-command development: local PostgreSQL + demo accounts + React/Flask
+## VS Code development — one-time setup, then instant daily start
 
-**Recommended default:** Open the repository root in VS Code, ensure Python
-3.12+, Node 22+ and your installed **PostgreSQL 17** (or compatible version)
-are available. From **Terminal → Run Task**, choose:
+**After you've already seeded `kats_demo`, skip setup entirely.** In VS Code,
+select **Terminal → Run Task → KATS: Start Dev (Frontend + Backend)**.
 
-**KATS: Start Dev (Frontend + Backend)**
+- Both integrated terminal panes open **immediately and in parallel**.
+  **Left:** Flask on `127.0.0.1:8000`.
+  **Right:** React/Vite on `127.0.0.1:5173`. The React pane displays a brief
+  *waiting for Flask* message and launches Vite after the API is SQL-ready,
+  so the browser does not get preventable proxy connection errors.
+- Ordinary starts **do not seed, migrate, build, install packages, modify
+  permissions, reset accounts or create a new database**. They only start
+  the existing services against the restricted `kats_demo_runtime`
+  PostgreSQL role. Existing properties, rent records and edited tenants are
+  retained. The same ignored `.env.pg-demo` works even if the temporary
+  `.local/dev-mode.json` file has been cleaned.
+- If Flask cannot start, its own integrated terminal prints specific
+  `[boot]` / `[ERROR]` messages, while the React terminal remains visible
+  rather than being suppressed by a sequential VS Code task dependency.
 
-This task now **seeds the local database exactly once**, then opens two
-integrated terminals with backend readiness gating the frontend. A routine restart does not rebuild
-React, reapply migrations, reseed permissions, or rewrite rent/tenant data.
+**Only if you have never initialized this project:** choose
+**KATS: Setup demo once + Start Dev**. This first-run task installs missing
+dependencies, builds the frontend once, initializes the dedicated localhost
+PostgreSQL `kats_demo` database, applies migrations/permissions, creates
+**1 OWNER and 30 TENANT synthetic accounts**, then automatically opens the
+same two dev terminals. The PostgreSQL administrator password is requested
+only during the initial restricted-role bootstrap and is not persisted.
 
-1. **First run:** Check Python and npm dependencies, build React, detect local
-   PostgreSQL on `127.0.0.1:5432`, create the separate `kats_demo`
-   database and restricted users, migrate and seed synthetic **1 OWNER + 30
-   TENANT** profiles and their leases/invoices. The local PostgreSQL admin
-   password is needed *only* if this dedicated database has never been
-   initialized.
-2. **Subsequent runs:** Check changed package dependencies and validate
-   the PostgreSQL instance marker, then **reuse the same database and all
-   existing edits**. No demo seeding, migrations, permission updates or
-   password resets occur automatically. Flask starts under the non-superuser
-   `kats_demo_runtime` role.
-3. **SQLite fallback:** Only when PostgreSQL is unavailable and **no existing
-   configured PostgreSQL demo exists**, initialize the isolated SQLite demo
-   once. Later starts also reuse SQLite without reseeding. If your already
-   configured PostgreSQL instance is offline, startup **fails visibly**
-   rather than silently switching to a different database.
-4. **VS Code terminals:** Flask/backend (port 8000) starts **first**;
-   only after SQL-backed `/readyz` is successful does Vite/React start on
-   port 5173 in a second split terminal. This avoids startup-time Vite
-   `ECONNREFUSED` proxy errors. Cold Windows Flask startup emits explicit
-   `[boot]` stages and verifies an actual PostgreSQL `SELECT 1`, allowing
-   sufficient time for a slow Python import. React shows a visible local
-   connection state and automatically retries demo-account discovery while
-   Flask starts. Missing demo logins are not silently hidden.
-5. **Verify:** Use **KATS: Verify frontend ↔ backend ↔ database** or
-   `.\\ops\\launch.bat dev-doctor` to check Flask SQL readiness,
-   proxy and the original demo accounts.
+The separate **KATS: Dev prepare (PostgreSQL + seed 31 accounts)** task
+performs preparation *without starting servers*, for advanced maintenance.
+It is **never** a dependency of the daily Start Dev task.
 
-The application is at http://127.0.0.1:5173. Changes in demo tenants,
-payments or leases persist across starts and stops. The demo selector
-only lists currently active eligible demo accounts from PostgreSQL.
+**PostgreSQL is preferred.** SQLite is only a first-run fallback when
+PostgreSQL is unavailable and no configured PostgreSQL demo exists; daily
+startup cannot silently substitute SQLite for an established PostgreSQL
+database. For an explicit local PostgreSQL-only setup, run
+`$env:KATS_DEMO_DB='postgres'; .\\ops\\launch.bat dev-prepare` from a
+PowerShell terminal, then use the ordinary Start Dev task.
+
+Visit http://127.0.0.1:5173/login after startup. The login page reads the
+active demo users through Flask and retries on transient errors. To verify,
+run the **KATS: Verify frontend ↔ backend ↔ database** task or
+`.\\ops\\launch.bat dev-doctor`.
 
 ### First-run PostgreSQL authorization
 
@@ -78,11 +78,12 @@ For a deeper read-only seed/RLS audit, run
 `.\\ops\\local_pg_demo.bat verify` (note: it checks the original exact
 seed counts and can fail after intentional user edits).
 The `.env.pg-demo` credentials and `.local/dev-mode.json` are never
-committed. The backend refuses an unprepared or wrong database mode.
+committed. A missing temporary mode file is recovered from the validated,
+existing PostgreSQL configuration without rerunning setup or seeding.
 
 By default no environment setting is needed. To **force PostgreSQL**
-without allowing fallback, use an integrated PowerShell terminal and prepare
-there first, then run the **KATS: Dev services (split in VS Code)** task:
+without allowing fallback, use an integrated PowerShell terminal to initialize
+it once, then use the **KATS: Start Dev (Frontend + Backend)** task:
 
 ```powershell
 $env:KATS_DEMO_DB = 'postgres'
@@ -93,8 +94,8 @@ Remove-Item Env:KATS_DEMO_DB -ErrorAction SilentlyContinue
 For intentional SQLite-only development, use
 `$env:KATS_DEMO_DB='sqlite'` for that preflight command. Variables set in
 a terminal do **not** automatically change the environment of VS Code Tasks
-launched by VS Code; the regular combined Start Dev task instead uses its
-own default PostgreSQL-first auto-selection.
+launched by VS Code; the one-time setup task uses its own default PostgreSQL-first auto-selection;
+regular Start Dev does not run setup or database selection.
 
 For custom PG ports use `KATS_PG_DEMO_PORT` before first setup. If already
 configured, update the ignored configuration deliberately; the launcher

@@ -8,7 +8,7 @@
       ],
       "dependsOrder": "sequence",
       "problemMatcher": [],
-      "detail": "Alias of the unified Start Dev task. PostgreSQL first, then explicitly labeled SQLite fallback if localhost PG is unavailable."
+      "detail": "DAILY RUN alias: start both servers against an existing once-seeded PostgreSQL demo. Use Setup once + Start Dev if not initialized."
     },
     {
       "label": "KATS: Unified demo backend (PostgreSQL / SQLite fallback)",
@@ -31,7 +31,7 @@
         "panel": "dedicated",
         "group": "kats-dev-parallel",
         "focus": false,
-        "clear": false,
+        "clear": true,
         "showReuseMessage": false
       },
       "problemMatcher": [
@@ -51,7 +51,7 @@
         }
       ],
       "isBackground": true,
-      "detail": "Start Flask using the precise database mode pinned by unified preparation; refuse unprepared or wrong databases."
+      "detail": "LEFT VS Code terminal: start existing localhost PostgreSQL Flask API quickly with no pip, migrations or seeding. Warm startup can work even if ephemeral session file was cleaned."
     },
     {
       "label": "KATS: PostgreSQL demo verify (counts, RLS and logins)",
@@ -100,7 +100,17 @@
         "focus": true
       },
       "problemMatcher": [],
-      "detail": "Build and validate dependencies, migrate the dedicated local PostgreSQL demo, seed 1 OWNER + 30 TENANT accounts. Fall back to isolated SQLite preview only if PG is unavailable."
+      "detail": "ONE-TIME SETUP ONLY: install dependencies/build, create isolated local PostgreSQL demo and seed 1 OWNER + 30 tenants. Does not start the dev servers."
+    },
+    {
+      "label": "KATS: Setup demo once + Start Dev",
+      "dependsOn": [
+        "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
+        "KATS: Start Dev (Frontend + Backend)"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "detail": "FIRST RUN ONLY: setup local PostgreSQL, seed 31 accounts exactly once, then start both Flask and React terminals. Future runs use Start Dev alone."
     },
     {
       "label": "KATS: Demo start (landlord + 30 tenants)",
@@ -191,22 +201,67 @@
     },
     {
       "label": "KATS: Start Dev (Frontend + Backend)",
-      "detail": "Single task: initialize 31 PostgreSQL demo users only once, reuse them on daily runs; start Flask LEFT until SQL-ready, then Vite RIGHT. Both remain in split VS Code panes.",
+      "detail": "DAILY RUN: open Flask LEFT and React RIGHT immediately in split VS Code terminals. Reuses already seeded local PostgreSQL; no setup, migrations, rebuild or seeding.",
       "problemMatcher": [],
       "dependsOn": [
-        "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
-        "KATS: Dev services (split in VS Code)"
+        "KATS: Unified demo backend (PostgreSQL / SQLite fallback)",
+        "KATS: Dev frontend (fast Vite)"
       ],
-      "dependsOrder": "sequence"
+      "dependsOrder": "parallel"
+    },
+    {
+      "label": "KATS: Dev frontend (fast Vite)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\ops\\vscode_task.ps1",
+        "-Target",
+        "dev-frontend"
+      ],
+      "problemMatcher": [
+        {
+          "owner": "kats-native",
+          "fileLocation": "relative",
+          "pattern": {
+            "regexp": "^\\[KATS-PROBLEM\\] (.+):(\\d+): (.+)$",
+            "file": 1,
+            "line": 2,
+            "message": 3
+          },
+          "background": {
+            "activeOnStart": true,
+            "endsPattern": "^\\[READY\\]"
+          }
+        }
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "kats-dev-parallel",
+        "focus": true,
+        "clear": true,
+        "showReuseMessage": false
+      },
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "KATS_FAST_START": "1"
+        }
+      },
+      "isBackground": true,
+      "detail": "RIGHT VS Code terminal opens immediately; wait for existing Flask SQL readiness, then start Vite without npm install, build, migrations or database seeding."
     },
     {
       "label": "KATS: Dev services (split in VS Code)",
       "dependsOn": [
-        "KATS: Unified demo backend (PostgreSQL / SQLite fallback)",
-        "KATS: Native frontend (BAT)"
+        "KATS: Start Dev (Frontend + Backend)"
       ],
       "dependsOrder": "sequence",
-      "detail": "Boot Flask and wait for its SQL-backed [READY] first, then launch Vite. Both remain running in split VS Code terminals. Prevents early ECONNREFUSED requests."
+      "detail": "Alias for the daily two-terminal frontend/backend startup; no database preparation."
     },
     {
       "label": "KATS: Native setup (database + build)",
@@ -286,7 +341,7 @@
       ],
       "dependsOrder": "sequence",
       "problemMatcher": [],
-      "detail": "Alias of the unified PostgreSQL-first Start Dev task, with both servers in split integrated terminals."
+      "detail": "Alias for daily fast Flask + Vite launch in two VS Code integrated terminals; no reseeding."
     },
     {
       "label": "KATS: Native frontend (BAT)",

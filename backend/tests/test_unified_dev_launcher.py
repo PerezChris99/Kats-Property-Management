@@ -78,7 +78,7 @@ def test_never_attach_a_running_backend_to_unknown_database(monkeypatch,tmp_path
 
 def test_unified_backend_requires_successful_local_prepare(monkeypatch,tmp_path):
     configured(monkeypatch,tmp_path,postgres=False)
-    with pytest.raises(launcher.StartupError,match="not been prepared"):
+    with pytest.raises(launcher.StartupError,match="No initialized local demo"):
         launcher.dev_mode()
     (tmp_path/"dev-mode.json").write_text(json.dumps({
         "mode":"pgdemo","root":"C:/wrong-checkout","accounts":31}))
@@ -109,27 +109,36 @@ def test_pg_demo_runtime_uses_only_restricted_local_user_and_disables_real_provi
     assert "real-host" not in env["DATABASE_URL"]
 
 
-def test_vscode_main_task_prepares_then_splits_services_without_additional_process_count():
+def test_vscode_daily_start_opens_both_terminal_tasks_without_prep():
     root=Path(__file__).resolve().parents[2]
     tasks=json.loads((root/".vscode/tasks.json").read_text(encoding="utf-8"))["tasks"]
     by_name={task["label"]:task for task in tasks}
     start=by_name["KATS: Start Dev (Frontend + Backend)"]
-    assert start["dependsOrder"]=="sequence"
+    assert start["dependsOrder"]=="parallel"
     assert start["dependsOn"]==[
-        "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
-        "KATS: Dev services (split in VS Code)",
-    ]
-    services=by_name["KATS: Dev services (split in VS Code)"]
-    assert services["dependsOrder"]=="sequence"
-    assert services["dependsOn"]==[
         "KATS: Unified demo backend (PostgreSQL / SQLite fallback)",
-        "KATS: Native frontend (BAT)",
+        "KATS: Dev frontend (fast Vite)",
     ]
+    assert by_name["KATS: Dev services (split in VS Code)"]["dependsOn"]==[start["label"]]
     assert by_name["KATS: Dev prepare (PostgreSQL + seed 31 accounts)"]["args"][-1]=="dev-prepare"
+    once=by_name["KATS: Setup demo once + Start Dev"]
+    assert once["dependsOrder"]=="sequence"
+    assert once["dependsOn"]==[
+        "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
+        start["label"],
+    ]
+    assert by_name["KATS: Dev frontend (fast Vite)"]["args"][-1]=="dev-frontend"
     assert by_name["KATS: Unified demo backend (PostgreSQL / SQLite fallback)"]["args"][-1]=="dev-backend"
     assert by_name["KATS: Verify frontend ↔ backend ↔ database"]["args"][-1]=="dev-doctor"
     assert by_name["KATS: Native start (split in VS Code)"]["dependsOn"]==[start["label"]]
     assert by_name["KATS: PostgreSQL demo start (31 accounts)"]["dependsOn"]==[start["label"]]
+    for label in start["dependsOn"]:
+        task=by_name[label]
+        assert task["isBackground"]
+        assert task["presentation"]["reveal"]=="always"
+        assert task["presentation"]["panel"]=="dedicated"
+        assert task["presentation"]["group"]=="kats-dev-parallel"
+        assert task["problemMatcher"][0]["background"]["endsPattern"]==r"^\[READY\]"
     assert len([t for t in tasks if t.get("type")=="process" and (
         t["label"].startswith("KATS: Native") or t["label"].startswith("KATS Test:"))])==22
 
@@ -200,3 +209,38 @@ def test_sqlite_read_only_check_never_creates_or_resets_existing_rows(tmp_path):
     assert launcher.verify_sqlite_demo(path)==1
     with sqlite3.connect(path) as conn:
         assert conn.execute("SELECT count(*) FROM users").fetchone()[0]==1
+
+
+def test_dev_frontend_waits_in_visible_pane_without_seeding_or_building(monkeypatch,capsys):
+    checks=iter([False, False, True])
+    monkeypatch.setenv("KATS_FAST_START", "0")
+    events=[]
+    monkeypatch.setattr(launcher,"dev_mode",lambda:"pgdemo")
+    monkeypatch.setattr(launcher,"PG_DEMO_CONFIG",Path(__file__))  # exists
+    monkeypatch.setattr(launcher,"reachable",lambda url:next(checks))
+    monkeypatch.setattr(launcher,"stop_requested",lambda *_args:False)
+    monkeypatch.setattr(launcher.time,"sleep",lambda *_args:None)
+    monkeypatch.setattr(launcher,"launch",lambda mode:events.append(mode))
+    launcher.dev_frontend()
+    assert events==["frontend"]
+    assert "terminal ready" in capsys.readouterr().out
+    assert launcher.os.environ.get("KATS_FAST_START")=="1"
+
+
+def test_dev_frontend_requires_existing_prepared_demo(monkeypatch):
+    monkeypatch.setattr(launcher,"dev_mode",lambda: (_ for _ in ()).throw(
+        launcher.StartupError("one-time setup required")))
+    monkeypatch.setattr(launcher,"launch",lambda *_args:pytest.fail(
+        "Must not launch frontend against uninitialized DB"))
+    with pytest.raises(launcher.StartupError,match="one-time setup required"):
+        launcher.dev_frontend()
+
+
+def test_ignores_deleted_ephemeral_manifest_when_postgres_demo_credentials_remain(monkeypatch,tmp_path):
+    configured(monkeypatch,tmp_path,postgres=True)
+    conf=tmp_path/".env.pg-demo"
+    conf.write_text("existing-config",encoding="utf-8")
+    monkeypatch.setattr(launcher,"read_pg_demo_config",
+                        lambda:{"KATS_PG_DEMO_PORT":"5432"})
+    assert not (tmp_path/"dev-mode.json").exists()
+    assert launcher.dev_mode()=="pgdemo"
