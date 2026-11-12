@@ -9,7 +9,7 @@ pg = module_from_spec(spec)
 spec.loader.exec_module(pg)
 
 
-def test_configured_prepare_reuses_marker_and_never_asks_pg_admin(monkeypatch,tmp_path):
+def test_configured_prepare_is_strictly_read_only_and_never_reseeds(monkeypatch,tmp_path):
     config=tmp_path/".env.pg-demo"
     config.write_text("exists", encoding="utf-8")
     monkeypatch.setattr(pg,"CONFIG",config)
@@ -17,20 +17,26 @@ def test_configured_prepare_reuses_marker_and_never_asks_pg_admin(monkeypatch,tm
     monkeypatch.setattr(pg,"load",lambda:values)
     calls=[]
     monkeypatch.setattr(pg,"marker",lambda vals,role=pg.OWNER:calls.append(("marker",role)))
+    monkeypatch.setattr(pg,"run",lambda *_a,**_kw:pytest.fail("Warm startup must never migrate or seed"))
+    monkeypatch.setattr(pg,"grants",lambda *_a:pytest.fail("Warm startup must not mutate grants"))
+    monkeypatch.setattr(pg,"admin_bootstrap",lambda *_a:pytest.fail("Warm startup must not prompt for admin"))
+    pg.prepare()
+    pg.prepare()
+    assert calls==[("marker",pg.OWNER),("marker",pg.RUNTIME)] * 2
+
+
+def test_manual_upgrade_only_migrates_permissions_never_seeds(monkeypatch):
+    monkeypatch.setattr(pg,"load",lambda:{"KATS_DEMO_INSTANCE":"x"*32})
+    calls=[]
+    monkeypatch.setattr(pg,"marker",lambda *_a,**_kw:None)
     monkeypatch.setattr(pg,"run",lambda vals,role,args,cwd=pg.ROOT:
                         calls.append(("run",role,list(map(str,args)))))
     monkeypatch.setattr(pg,"grants",lambda vals:calls.append(("grants",)))
-    monkeypatch.setattr(pg,"admin_bootstrap",lambda vals:pytest.fail("existing demo must not rebootstrap roles"))
-    pg.prepare()
-    assert calls[0]==("marker",pg.OWNER)
-    assert calls[1]==("marker",pg.RUNTIME)
-    assert ("grants",) in calls
-    assert calls[-1]==("marker",pg.RUNTIME)
-    commands=[entry[2] for entry in calls if entry[0]=="run"]
-    assert any("db" in cmd and "upgrade" in cmd for cmd in commands)
+    pg.upgrade_schema()
+    commands=[row[2] for row in calls if row[0]=="run"]
+    assert any("upgrade" in cmd for cmd in commands)
     assert any("seed-permissions" in cmd for cmd in commands)
-    assert any("--postgres" in cmd for cmd in commands)
-    assert all("downgrade" not in cmd for cmd in commands)
+    assert not any("--postgres" in cmd for cmd in commands)
 
 
 def test_first_run_requires_explicit_isolated_database_setup(monkeypatch,tmp_path):

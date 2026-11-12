@@ -3,8 +3,8 @@ setlocal EnableExtensions
 rem Isolated localhost PostgreSQL demo. Never connects to Neon or production.
 set "ACTION=%~1"
 if not defined ACTION set "ACTION=setup"
-if /I not "%ACTION%"=="setup" if /I not "%ACTION%"=="verify" if /I not "%ACTION%"=="serve" if /I not "%ACTION%"=="check" (
-  echo [ERROR] Use setup, verify, serve or check.
+if /I not "%ACTION%"=="setup" if /I not "%ACTION%"=="prepare" if /I not "%ACTION%"=="upgrade" if /I not "%ACTION%"=="verify" if /I not "%ACTION%"=="serve" if /I not "%ACTION%"=="check" (
+  echo [ERROR] Use setup, prepare, upgrade, verify, serve or check.
   exit /b 2
 )
 set "ROOT=%~dp0.."

@@ -189,7 +189,6 @@ def dev_mode():
     if (selected.get("root") != str(ROOT.resolve())
             or selected.get("mode") not in ("pgdemo", "preview")
             or not isinstance(selected.get("prepared_at"), int)
-            or time.time() - selected["prepared_at"] > 4 * 60 * 60
             or selected["prepared_at"] > time.time() + 60):
         raise StartupError("Stale or invalid unified development session; run the combined start task.")
     return selected["mode"]
@@ -203,7 +202,7 @@ def pg_demo_environment(settings):
     out.update({
         "APP_ENV": "development",
         "KATS_PREVIEW_MODE": "0",
-        "KATS_SEED_DEMO": "1",
+        "KATS_SEED_DEMO": "0",
         "KATS_LOCAL_PG_DEMO": "1",
         "KATS_LOCAL_PG_INSTANCE": values["KATS_DEMO_INSTANCE"],
         "KATS_LOCAL_PG_PORT": values["KATS_PG_DEMO_PORT"],
@@ -219,23 +218,22 @@ def pg_demo_environment(settings):
 
 
 def dev_prepare():
-    """One VS Code command: install/build, seed isolated local PG, else preview.
+    """One-time initialization, followed by fast non-mutating daily startups.
 
-    Never seed on ambiguous PG credentials, marker mismatches or occupied app
-    ports; these are failures rather than reasons to silently use SQLite.
+    No existing local demo gets re-seeded, migrated, or reset on routine start.
+    Only a missing isolated demo triggers first-run setup, with the PostgreSQL
+    server always preferred. Configuration/credential errors fail closed.
     """
     started_at = time.time()
     if port_open(BACKEND_PORT):
         raise StartupError(
-            "KATS backend already occupies the API port. Use the Stop task "
-            "before switching demo databases; existing records are untouched."
+            "Port 8000 is already occupied. Stop the previous Flask terminal "
+            "before starting a new combined session; the database is preserved."
         )
-    # A failed preparation must not leave an older database choice usable.
+    # Never accidentally reuse a previous selection after failed startup.
     DEV_MODE_FILE.unlink(missing_ok=True)
-    config()  # independent local-only config; never read operational .env
-    frontend(build=True)
-    python = backend()
-    requested = os.getenv("KATS_DEMO_DB", "auto").lower().strip()
+    settings = config()
+    requested = os.getenv("KATS_DEMO_DB", "auto").strip().lower()
     if requested not in ("auto", "postgres", "sqlite"):
         raise StartupError("KATS_DEMO_DB must be auto, postgres, or sqlite.")
     if requested == "sqlite":
@@ -251,19 +249,46 @@ def dev_prepare():
         choice = "pgdemo" if port_open(port) else "preview"
         if choice == "preview" and requested == "postgres":
             raise StartupError(
-                f"Local PostgreSQL is not listening on 127.0.0.1:{port}. "
-                "Start the PostgreSQL service; no SQLite fallback was authorized."
+                f"PostgreSQL is not listening on 127.0.0.1:{port}. "
+                "Start the PostgreSQL service; SQLite fallback was not authorized."
             )
+        if choice == "preview" and PG_DEMO_CONFIG.exists():
+            # The configured database exists but the service is down; do not
+            # accidentally point the frontend at old/different SQLite records.
+            raise StartupError(
+                f"Your already-configured kats_demo PostgreSQL server is offline "
+                f"on 127.0.0.1:{port}. Start PostgreSQL to keep your data. "
+                "For an intentional SQLite preview use KATS_DEMO_DB=sqlite."
+            )
+
+    sqlite_path = STATE / "kats-preview.sqlite3"
+    first_run = (not PG_DEMO_CONFIG.exists() if choice == "pgdemo"
+                 else not sqlite_path.is_file())
+    # Vite development does not need a fresh release build on every run.
+    # Reinstall only if the lockfile changed or packages went missing.
+    lock = FRONT / "package-lock.json"
+    npm_stamp = STATE / "npm-lock.sha256"
+    frontend_changed = (not npm_stamp.is_file()
+                        or not lock.is_file()
+                        or npm_stamp.read_text(encoding="utf-8")
+                        != hashlib.sha256(lock.read_bytes()).hexdigest())
+    frontend(build=first_run or frontend_changed)
+    python = backend()  # pip runs ONLY if requirements changed or venv missing
+
     if choice == "pgdemo":
-        print("[DEV] Local PostgreSQL detected: preparing kats_demo and 31 accounts...", flush=True)
+        if first_run:
+            print("[FIRST RUN] Creating isolated PostgreSQL demo and seeding 31 accounts ONCE.",
+                  flush=True)
+        else:
+            print("[REUSE] Existing PostgreSQL kats_demo: no migration, permission "
+                  "seeding or demo seeding.", flush=True)
         invoke([str(python), str(ROOT / "ops" / "local_postgres_demo.py"), "prepare"],
                cwd=ROOT, env=venv_environment(os.environ))
         invoke([str(python), str(ROOT / "ops" / "local_postgres_demo.py"), "check"],
                cwd=ROOT, env=venv_environment(os.environ))
-    else:
-        print("[FALLBACK] Local PostgreSQL unavailable or SQLite explicitly selected.", flush=True)
-        print("[FALLBACK] Synthetic SQLite preview ONLY: no PostgreSQL RLS or Celery.", flush=True)
-        settings = config()
+    elif first_run:
+        print("[FIRST RUN][SQLITE FALLBACK] Initializing reduced local preview ONCE.",
+              flush=True)
         runtime = venv_environment(environment(settings, preview=True))
         invoke([str(python), str(ROOT / "ops" / "init_preview.py")],
                cwd=BACK, env=runtime)
@@ -271,6 +296,11 @@ def dev_prepare():
                cwd=BACK, env=runtime)
         invoke([str(python), str(ROOT / "ops" / "seed_demo_preview.py")],
                cwd=BACK, env=runtime)
+    else:
+        print("[REUSE][SQLITE FALLBACK] Keeping existing preview and data "
+              "unchanged. PostgreSQL RLS is NOT available.", flush=True)
+        verify_sqlite_demo(sqlite_path)
+
     if stop_requested(started_at):
         raise StartupError("Stop was requested during demo preparation.")
     STATE.mkdir(exist_ok=True)
@@ -283,9 +313,33 @@ def dev_prepare():
         os.replace(temp, DEV_MODE_FILE)
     finally:
         temp.unlink(missing_ok=True)
-    print("[READY] Unified dev: " + ("local PostgreSQL kats_demo" if choice == "pgdemo"
-          else "SQLite demo fallback") + ", 1 OWNER and 30 TENANT profiles.", flush=True)
-    print("[NEXT] VS Code launches Flask and React in split integrated terminals.", flush=True)
+    print("[READY] Unified dev: " + ("EXISTING localhost PostgreSQL kats_demo"
+          if choice == "pgdemo" else "explicit/automatic SQLite fallback")
+          + " · no daily reseeding.", flush=True)
+
+
+def verify_sqlite_demo(path):
+    """Read-only detection of the initial demo seed; NEVER amend tenant data."""
+    import sqlite3
+    if not path.is_file():
+        raise StartupError("SQLite preview is not initialized; run unified Dev start.")
+    try:
+        with sqlite3.connect("file:" + path.resolve().as_posix() + "?mode=ro", uri=True,
+                             timeout=3) as conn:
+            count = conn.execute(
+                "SELECT count(*) FROM users WHERE email='landlord@demo.kats.invalid' "
+                "OR email LIKE 'tenant__@demo.kats.invalid'"
+            ).fetchone()[0]
+    except sqlite3.Error as exc:
+        raise StartupError("Existing SQLite preview is not readable; refusing to reseed "
+                           "or overwrite it.") from exc
+    if count == 0:
+        raise StartupError("SQLite database exists but has no initial demo seed. "
+                           "Existing data preserved; inspect it before initializing.")
+    if count < 31:
+        print(f"[REUSE] Only {count} original demo users remain; "
+              "changed/deleted records are preserved.", flush=True)
+    return count
 
 
 def dev_doctor():
@@ -297,10 +351,12 @@ def dev_doctor():
             payload = json.load(response)
     except (OSError, ValueError) as exc:
         raise StartupError("Demo account API is not available from the React origin.") from exc
-    if (not payload.get("enabled") or
-            len(payload.get("accounts", [])) != 31):
-        raise StartupError("Expected one demo owner and 30 tenants, but demo accounts are missing.")
-    print("[PASS] Combined Flask/React/SQL backend and all 31 demo logins visible.", flush=True)
+    accounts = payload.get("accounts")
+    if not payload.get("enabled") or not isinstance(accounts, list) or not accounts:
+        raise StartupError("No active demo logins were returned. Check PostgreSQL "
+                           "marker, local demo database and Flask startup logs.")
+    print(f"[PASS] React -> Flask -> SQL; {len(accounts)} live demo account choices "
+          "visible from the existing database (no reseeding).", flush=True)
 
 
 def select_backend_mode():
@@ -715,9 +771,12 @@ def launch(mode):
                 cwd=FRONT, env=base, flags=flags))
         if run_back and not reuse_back:
             runtime["PYTHONUNBUFFERED"] = "1"
-            processes.append(start_service("Flask", [str(python), "-m", "flask",
-                "--app", "wsgi", "run", "--host", "127.0.0.1", "--port", str(BACKEND_PORT),
-                "--no-reload"], cwd=BACK, env=runtime, flags=flags))
+            flask_command = ([str(python), "-u", str(BACK / "local_dev_server.py")]
+                if backend_mode == "pgdemo" else
+                [str(python), "-u", "-m", "flask", "--app", "wsgi", "run",
+                 "--host", "127.0.0.1", "--port", str(BACKEND_PORT), "--no-reload"])
+            processes.append(start_service("Flask", flask_command,
+                cwd=BACK, env=runtime, flags=flags))
             if mode in ("start", "backend-stack") and not preview and backend_mode != "pgdemo":
                 STATE.mkdir(parents=True, exist_ok=True)
                 processes.append(start_service("Celery worker", [str(python), "-m", "celery",
@@ -727,7 +786,12 @@ def launch(mode):
                     "-A", "app.tasks.celery_app", "beat", "--loglevel=info",
                     "--schedule", str(STATE / "celerybeat-schedule")],
                     cwd=BACK, env=runtime, flags=flags))
-        until = time.monotonic() + 45
+        # On cold Windows machines the Flask import tree (cryptography,
+        # SQLAlchemy, migrations and app modules) can exceed 45 seconds.
+        # Keep the boot-phase logs visible and distinguish slow vs failed.
+        timeout_s = 150 if backend_mode == "pgdemo" else 60
+        until = time.monotonic() + timeout_s
+        next_notice = time.monotonic() + 12
         while time.monotonic() < until:
             for name, proc in processes:
                 if proc.poll() is not None:
@@ -735,9 +799,19 @@ def launch(mode):
             if ((not run_front or reachable(f"{FRONTEND_ORIGIN}/"))
                 and (not run_back or reachable(f"{BACKEND_ORIGIN}/readyz"))):
                 break
+            if run_back and time.monotonic() >= next_notice:
+                print(f"[startup] Waiting for Flask :{BACKEND_PORT} SQL readiness "
+                      f"({timeout_s}s maximum); read the [Flask] [boot] messages.",
+                      flush=True)
+                next_notice = time.monotonic() + 12
             time.sleep(.5)
         else:
-            raise StartupError("Service readiness timed out; inspect startup errors above.")
+            raise StartupError(
+                f"Flask did not return JSON /readyz within {timeout_s}s. "
+                f"Check earlier [Flask] [boot]/[ERROR] output and the local "
+                f"PostgreSQL service on 127.0.0.1:5432. "
+                f"React ECONNREFUSED errors are downstream of this failure."
+            )
         ready = []
         if run_front:
             ready.append(f"React {FRONTEND_ORIGIN}" + (" (existing)" if reuse_front else " (started)"))

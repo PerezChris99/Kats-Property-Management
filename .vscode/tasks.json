@@ -191,7 +191,7 @@
     },
     {
       "label": "KATS: Start Dev (Frontend + Backend)",
-      "detail": "Single task: build React, initialize/seed 31 synthetic users on installed localhost PostgreSQL, explicitly fall back to SQLite only when PG is unavailable, then launch Flask left and Vite right in VS Code.",
+      "detail": "Single task: initialize 31 PostgreSQL demo users only once, reuse them on daily runs; start Flask LEFT until SQL-ready, then Vite RIGHT. Both remain in split VS Code panes.",
       "problemMatcher": [],
       "dependsOn": [
         "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
@@ -205,7 +205,8 @@
         "KATS: Unified demo backend (PostgreSQL / SQLite fallback)",
         "KATS: Native frontend (BAT)"
       ],
-      "dependsOrder": "parallel"
+      "dependsOrder": "sequence",
+      "detail": "Boot Flask and wait for its SQL-backed [READY] first, then launch Vite. Both remain running in split VS Code terminals. Prevents early ECONNREFUSED requests."
     },
     {
       "label": "KATS: Native setup (database + build)",
