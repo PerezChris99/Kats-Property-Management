@@ -128,6 +128,7 @@ def create_app(test_config=None):
     from . import dispute_models  # noqa: F401
     from . import maintenance_plan_models  # noqa: F401
     from . import account_models  # noqa: F401
+    from . import organization_models  # noqa: F401
     from .api import api
     app.register_blueprint(api, url_prefix="/api/v1")
     from .mfa import mfa_api
