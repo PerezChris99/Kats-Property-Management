@@ -125,12 +125,16 @@ async function performApi(path, options, method) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
         if (response.status === 429) {
-            throw new Error('Too many requests. Please try again shortly.');
+            const error = new Error('Too many requests. Please try again shortly.');
+            error.httpStatus = 429;
+            throw error;
         }
         const serverMessage = payload?.error?.message;
-        throw new Error(typeof serverMessage === 'string' && serverMessage.length <= 300
+        const error = new Error(typeof serverMessage === 'string' && serverMessage.length <= 300
             ? serverMessage
             : 'Request failed (' + response.status + ')');
+        error.httpStatus = response.status;
+        throw error;
     }
     return payload;
 }
@@ -139,6 +143,7 @@ function reportWorkspaceReadError(task) {
         // Even when an individual page forgets its error state, the workspace
         // shell can show a visible recovery message for failed private reads.
         if (!(error instanceof DOMException && error.name === 'AbortError')
+            && error.httpStatus !== 401
             && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
             window.dispatchEvent(new Event('kats:workspace-read-error'));
         }
