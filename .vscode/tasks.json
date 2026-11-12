@@ -8,7 +8,7 @@
       ],
       "dependsOrder": "sequence",
       "problemMatcher": [],
-      "detail": "Start full PostgreSQL-backed demo in two VS Code terminal panes. First run PostgreSQL demo setup; no Docker required."
+      "detail": "Alias of the unified Start Dev task. PostgreSQL first, then explicitly labeled SQLite fallback if localhost PG is unavailable."
     },
     {
       "label": "KATS: Unified demo backend (PostgreSQL / SQLite fallback)",
@@ -50,7 +50,7 @@
         }
       ],
       "isBackground": true,
-      "detail": "Starts Flask against isolated local kats_demo database, using a non-owner PostgreSQL role; never starts Docker or SQLite."
+      "detail": "Start Flask using the precise database mode pinned by unified preparation; refuse unprepared or wrong databases."
     },
     {
       "label": "KATS: PostgreSQL demo verify (counts, RLS and logins)",
@@ -98,7 +98,7 @@
         "group": "kats-postgres-demo"
       },
       "problemMatcher": [],
-      "detail": "One-time: create ONLY kats_demo in your installed localhost PostgreSQL using separately prompted local postgres admin password; migrate/seed/verify 31 synthetic users. No Docker."
+      "detail": "Build and validate dependencies, migrate the dedicated local PostgreSQL demo, seed 1 OWNER + 30 TENANT accounts. Fall back to isolated SQLite preview only if PG is unavailable."
     },
     {
       "label": "KATS: Demo start (landlord + 30 tenants)",
@@ -189,7 +189,7 @@
     },
     {
       "label": "KATS: Start Dev (Frontend + Backend)",
-      "detail": "Starts TWO independent VS Code terminal panes simultaneously: LEFT Flask/backend and RIGHT React/Vite frontend. Setup/install/build is a separate task.",
+      "detail": "Single task: build React, initialize/seed 31 synthetic users on installed localhost PostgreSQL, explicitly fall back to SQLite only when PG is unavailable, then launch Flask left and Vite right in VS Code.",
       "problemMatcher": [],
       "dependsOn": [
         "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
@@ -283,7 +283,7 @@
       ],
       "dependsOrder": "sequence",
       "problemMatcher": [],
-      "detail": "Alias of Start Dev: backend LEFT, frontend RIGHT, concurrent tasks."
+      "detail": "Alias of the unified PostgreSQL-first Start Dev task, with both servers in split integrated terminals."
     },
     {
       "label": "KATS: Native frontend (BAT)",
