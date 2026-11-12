@@ -1,6 +1,6 @@
 """Account analytics are queried and grouped at the DB, never from demo arrays."""
 from app.extensions import db
-from app.models import User, Room, Invoice
+from app.models import User, Room, Invoice, Tenant
 from conftest import auth_client
 from test_demo_preview import load_seeder
 
@@ -61,11 +61,11 @@ def test_tenant_charts_are_scoped_and_update_from_real_invoices(app,monkeypatch)
     before=tenant.get("/api/v1/analytics/tenant/balance-trend").json["points"]
     other_before=other.get("/api/v1/analytics/tenant/balance-trend").json["points"]
     assert len(before)==2 and len(other_before)==2
-    target_id=db.session.query(Invoice.id).join(
-        __import__("app.models",fromlist=["Tenant"]).Tenant,
-        Invoice.tenant_id==__import__("app.models",fromlist=["Tenant"]).Tenant.id
-    ).filter_by(user_id=db.session.query(User.id).filter_by(
-        email="tenant01@demo.kats.invalid").scalar()).first()[0]
+    target_id=(db.session.query(Invoice.id)
+               .join(Tenant, Invoice.tenant_id==Tenant.id)
+               .filter(Tenant.user_id==db.session.query(User.id).filter_by(
+                   email="tenant01@demo.kats.invalid").scalar())
+               .first()[0])
     inv=db.session.get(Invoice,target_id)
     increment=min(1000,inv.total_ugx-inv.paid_ugx-inv.credit_ugx)
     if increment:
