@@ -729,6 +729,8 @@ def approve_payment(user, payment_id):
     payment.reviewed_by = user.id
     db.session.add(LedgerEntry(invoice_id=invoice.id, payment_id=payment.id,
                                event="PAYMENT_RECEIVED", amount_ugx=payment.amount_ugx))
+    from .journal import post_receipt_journal
+    post_receipt_journal(payment)
     audit(user, "payment.approve", "payment", payment.id)
     db.session.commit()
     return jsonify(payment=serialize(payment, "id", "status"), invoice=serialize(invoice, "id", "status", "paid_ugx"))
@@ -1244,6 +1246,8 @@ def reverse_payment(user, payment_id):
         invoice_id=invoice.id, payment_id=payment.id,
         event="PAYMENT_REVERSED", amount_ugx=-payment.amount_ugx
     ))
+    from .journal import post_receipt_journal
+    post_receipt_journal(payment, reverse=True)
     audit(user, "payment.reverse", "payment", payment.id,
           reason=reason, amount_ugx=payment.amount_ugx)
     db.session.commit()
