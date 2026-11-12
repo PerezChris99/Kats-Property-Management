@@ -1,0 +1,92 @@
+# Hostwares single-origin deployment. Hostwares terminates public TLS and proxies
+# HTTPS to this private nginx site port. Do NOT expose Flask, PG or Redis.
+# Database and Redis must be provisioned separately and injected as env secrets.
+name: kats-hostwares
+x-app-environment: &app-environment
+  APP_ENV: production
+  PUBLIC_APP_URL: ${PUBLIC_APP_URL:?Required HTTPS site URL}
+  CORS_ORIGINS: ${CORS_ORIGINS:?Required explicit site origin}
+  TRUSTED_HOSTS: ${TRUSTED_HOSTS:?Required public host}
+  DATABASE_URL: ${DATABASE_URL:?Required private PostgreSQL URL}
+  SECRET_KEY: ${SECRET_KEY:?Required independent secret}
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Required independent JWT secret}
+  MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?Required Fernet key}
+  REDIS_URL: ${REDIS_URL:?Required private Redis URL}
+  RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:?Required Redis rate limit store}
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL:?Required Redis broker}
+  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:?Required Redis result backend}
+  COOKIE_SECURE: "true"
+  TRUST_PROXY_HEADERS: "true"
+  APP_BEHIND_TRUSTED_PROXY: "true"
+  PUBLIC_REGISTRATION_ENABLED: "false"
+  RATELIMIT_ENABLED: "true"
+  MTN_MOMO_ENABLED: ${MTN_MOMO_ENABLED:-false}
+  AIRTEL_MONEY_ENABLED: ${AIRTEL_MONEY_ENABLED:-false}
+  EFRIS_ENABLED: ${EFRIS_ENABLED:-false}
+  DB_POOL_SIZE: ${DB_POOL_SIZE:-5}
+  DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-2}
+  DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-10}
+  DB_POOL_RECYCLE: ${DB_POOL_RECYCLE:-1800}
+  API_WORKERS: ${API_WORKERS:-2}
+  CELERY_WORKER_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-2}
+  DB_CONNECTION_BUDGET: ${DB_CONNECTION_BUDGET:-80}
+  S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+  S3_BUCKET: ${S3_BUCKET:-}
+  S3_REGION: ${S3_REGION:-auto}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+  CLAMAV_HOST: ${CLAMAV_HOST:-}
+  CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-465}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  MAIL_FROM: ${MAIL_FROM:-}
+
+services:
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment: *app-environment
+    expose: ["8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=4)"]
+      interval: 30s
+      timeout: 6s
+      retries: 4
+      start_period: 45s
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 1024m
+  worker:
+    build: ./backend
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=warning", "--concurrency=2"]
+    restart: unless-stopped
+    environment: *app-environment
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 1024m
+  beat:
+    build: ./backend
+    command: ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=warning"]
+    restart: unless-stopped
+    environment: *app-environment
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 512m
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    ports: ["${HOSTWARES_PORT:-8080}:80"]
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [backend]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+networks:
+  backend:
+    driver: bridge
