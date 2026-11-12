@@ -79,22 +79,23 @@ def create_asset(user):
         if not room or room.property_id!=prop.id:
             return fail("Room does not belong to this property",409)
     raw_status=obj.get("status","IN_SERVICE")
-    if raw_status not in STATES:
+    if not isinstance(raw_status,str) or raw_status not in STATES:
         return fail("Invalid asset status")
     raw_serial=obj.get("serial_reference")
     if raw_serial is not None and (not isinstance(raw_serial,str) or len(raw_serial)>120):
         return fail("Invalid serial reference")
+    description=obj.get("description","")
+    if not isinstance(description,str) or len(description)>1000:
+        return fail("Description must be text no longer than 1000 characters")
     record=PropertyAsset(
         property_id=prop.id,room_id=room_id or None,
         name=required_string(obj,"name",160),
         category=required_string(obj,"category",50),
-        description=str(obj.get("description") or ""),
+        description=description,
         serial_reference=(raw_serial.strip() or None) if raw_serial is not None else None,
         status=raw_status,
         next_service_on=optional_service_date(obj.get("next_service_on"))
     )
-    if len(record.description)>1000:
-        return fail("Description is too long")
     db.session.add(record)
     db.session.flush()
     audit(user,"asset.create","property_asset",record.id,property_id=record.property_id)
@@ -122,7 +123,7 @@ def update_asset(user,asset_id):
                 setattr(record,name,value)
     if "status" in obj:
         status=obj["status"]
-        if status not in STATES:
+        if not isinstance(status,str) or status not in STATES:
             return fail("Invalid asset status")
         if status!=record.status:
             changes["status"]={"from":record.status,"to":status}
