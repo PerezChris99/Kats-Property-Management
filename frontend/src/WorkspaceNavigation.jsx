@@ -6,7 +6,7 @@ export const COMPACT_GROUPS = [
     { title: 'Portfolio', label: 'Portfolio', icon: Building2, pages: ['properties','buildings','floors','rooms','room-placement','portfolio-editor'] },
     { title: 'Tenancies', label: 'Tenancies', icon: Users, pages: ['tenants','leases','renewals','inspections','deposits','disputes'] },
     { title: 'Finance', label: 'Finance', icon: Wallet, pages: ['invoices','proration','payments','mobile-money','receipts','statements','efris','expenses','expense-approvals','finance-health','journal-control','arrears'] },
-    { title: 'Operations', label: 'Operations', icon: Wrench, pages: ['maintenance','maintenance-aging','preventive-maintenance','work-orders','utilities','assignments'] },
+    { title: 'Operations', label: 'Operations', icon: Wrench, pages: ['maintenance','maintenance-aging','assets','preventive-maintenance','work-orders','utilities','assignments'] },
     { title: 'Insights', label: 'Reports & files', icon: ChartColumnIncreasing, pages: ['reports','trends','documents','notifications','inquiries'] },
     { title: 'Administration', label: 'Administration', icon: ShieldCheck, pages: ['users','invitations','permissions','legal','audit','settings','privacy-requests','security'] }
 ];
@@ -72,6 +72,7 @@ const PAGE_META = {
     expenses: { label: 'Expenses', icon: Wallet },
     'expense-approvals': { label: 'Expense review', icon: ClipboardCheck },
     maintenance: { label: 'Maintenance', icon: Wrench },
+    assets: { label: 'Equipment register', icon: Building2 },
     'maintenance-aging': { label: 'Maintenance aging', icon: Activity },
     'preventive-maintenance': { label: 'Maintenance plans', icon: CalendarRange },
     utilities: { label: 'Utilities', icon: Gauge },
