@@ -138,7 +138,7 @@ def test_vscode_daily_start_opens_both_terminal_tasks_without_prep():
         assert task["presentation"]["reveal"]=="always"
         assert task["presentation"]["panel"]=="dedicated"
         assert task["presentation"]["group"]=="kats-dev-parallel"
-        assert task["problemMatcher"][0]["background"]["endsPattern"]==r"^\\[READY\\]"
+        assert task["problemMatcher"][0]["background"]["endsPattern"]==r"^\[READY\]"
     assert len([t for t in tasks if t.get("type")=="process" and (
         t["label"].startswith("KATS: Native") or t["label"].startswith("KATS Test:"))])==22
 
