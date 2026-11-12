@@ -132,3 +132,71 @@ def test_vscode_main_task_prepares_then_splits_services_without_additional_proce
     assert by_name["KATS: PostgreSQL demo start (31 accounts)"]["dependsOn"]==[start["label"]]
     assert len([t for t in tasks if t.get("type")=="process" and (
         t["label"].startswith("KATS: Native") or t["label"].startswith("KATS Test:"))])==22
+
+
+def test_repeated_postgres_start_does_not_reseed_or_rebuild(monkeypatch,tmp_path):
+    import hashlib
+    calls=configured(monkeypatch,tmp_path,postgres=True)
+    monkeypatch.delenv("KATS_DEMO_DB",raising=False)
+    (tmp_path/".env.pg-demo").write_text("existing-demo",encoding="utf-8")
+    monkeypatch.setattr(launcher,"read_pg_demo_config",lambda:{"KATS_PG_DEMO_PORT":"5432"})
+    (tmp_path/"npm-lock.sha256").write_text(hashlib.sha256(
+        (launcher.FRONT/"package-lock.json").read_bytes()).hexdigest(),encoding="utf-8")
+    builds=[]
+    monkeypatch.setattr(launcher,"frontend",lambda *,build=False:builds.append(build))
+    launcher.dev_prepare()
+    assert launcher.dev_mode()=="pgdemo"
+    assert builds==[False]
+    assert len(calls)==2
+    assert calls[0][0][-1]=="prepare"
+    assert calls[1][0][-1]=="check"
+    assert all("seed" not in " ".join(args).lower() and
+               "upgrade" not in " ".join(args).lower() for args,_ in calls)
+
+
+def test_sqlite_reuse_preserves_existing_database_without_seed(monkeypatch,tmp_path):
+    import hashlib
+    calls=configured(monkeypatch,tmp_path,postgres=False)
+    monkeypatch.setenv("KATS_DEMO_DB","sqlite")
+    (tmp_path/"kats-preview.sqlite3").write_text("existing-demo",encoding="utf-8")
+    monkeypatch.setattr(launcher,"verify_sqlite_demo",lambda path:31)
+    (tmp_path/"npm-lock.sha256").write_text(hashlib.sha256(
+        (launcher.FRONT/"package-lock.json").read_bytes()).hexdigest(),encoding="utf-8")
+    builds=[]
+    monkeypatch.setattr(launcher,"frontend",lambda *,build=False:builds.append(build))
+    launcher.dev_prepare()
+    assert launcher.dev_mode()=="preview"
+    assert calls==[], "Warm SQLite must not run init, migrate, or seed"
+    assert builds==[False]
+
+
+def test_existing_postgres_offline_never_silently_falls_back(monkeypatch,tmp_path):
+    calls=configured(monkeypatch,tmp_path,postgres=False)
+    monkeypatch.delenv("KATS_DEMO_DB",raising=False)
+    (tmp_path/".env.pg-demo").write_text("already-configured",encoding="utf-8")
+    monkeypatch.setattr(launcher,"read_pg_demo_config",lambda:{"KATS_PG_DEMO_PORT":"5432"})
+    with pytest.raises(launcher.StartupError,match="already-configured kats_demo"):
+        launcher.dev_prepare()
+    assert calls==[]
+
+
+def test_pg_runtime_does_not_automatically_seed(monkeypatch,tmp_path):
+    configured(monkeypatch,tmp_path,postgres=True)
+    monkeypatch.setattr(launcher,"read_pg_demo_config",lambda:{
+        "KATS_DEMO_INSTANCE":"f"*32,"KATS_PG_DEMO_PORT":"5432",
+        "RUNTIME_PASSWORD":"r"*40,"SECRET_KEY":"s"*40,"JWT_SECRET_KEY":"t"*40})
+    env=launcher.pg_demo_environment({
+        "POSTGRES_PASSWORD":"z"*48,"SECRET_KEY":"a"*40,"JWT_SECRET_KEY":"b"*40})
+    assert env["KATS_SEED_DEMO"]=="0"
+    assert env["KATS_LOCAL_PG_DEMO"]=="1"
+
+
+def test_sqlite_read_only_check_never_creates_or_resets_existing_rows(tmp_path):
+    import sqlite3
+    path=tmp_path/"kats-preview.sqlite3"
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE users (email TEXT)")
+        conn.execute("INSERT INTO users VALUES ('landlord@demo.kats.invalid')")
+    assert launcher.verify_sqlite_demo(path)==1
+    with sqlite3.connect(path) as conn:
+        assert conn.execute("SELECT count(*) FROM users").fetchone()[0]==1
