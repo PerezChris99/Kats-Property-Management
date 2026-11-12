@@ -31,7 +31,8 @@
         "panel": "dedicated",
         "group": "kats-dev-parallel",
         "focus": false,
-        "clear": false
+        "clear": false,
+        "showReuseMessage": false
       },
       "problemMatcher": [
         {
@@ -45,7 +46,7 @@
           },
           "background": {
             "activeOnStart": true,
-            "endsPattern": "^\\s*\\* Running on http://127\\.0\\.0\\.1:8000"
+            "endsPattern": "^\\[READY\\]"
           }
         }
       ],
@@ -95,7 +96,8 @@
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
-        "group": "kats-postgres-demo"
+        "group": "kats-postgres-demo",
+        "focus": true
       },
       "problemMatcher": [],
       "detail": "Build and validate dependencies, migrate the dedicated local PostgreSQL demo, seed 1 OWNER + 30 TENANT accounts. Fall back to isolated SQLite preview only if PG is unavailable."
