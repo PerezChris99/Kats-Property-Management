@@ -1,8 +1,10 @@
 import { api } from './lib/api';
-import { WorkspaceNavigation } from './WorkspaceNavigation';
+import { WorkspaceNavigation, WorkspaceSectionTabs } from './WorkspaceNavigation';
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+const LandlordAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.LandlordAnalytics})));
+const TenantAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.TenantAnalytics})));
 const ProrationPage = lazy(() => import('./ProrationPage').then(m => ({ default: m.ProrationPage })));
-const UtilitiesPage = lazy(() => import('./UtilitiesPage').then(m => ({ default: m.UtilitiesPage })));
+const UtilitiesPage = lazy(() => import('./UtilitiesPage'));
 const PrivacyRequestsPage = lazy(() => import('./PrivacyRequestsPage'));
 const DisputesPage = lazy(() => import('./DisputesPage'));
 const PreventiveMaintenancePage = lazy(() => import('./PreventiveMaintenancePage'));
@@ -34,6 +36,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-r
 import { ArrowRight, Building2, CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { PublicShell, LandingPage, RequestAccessPage, LegalPage, ImageAttributionsPage } from './site/Marketing';
 import { PHOTOS } from './site/media';
+import { NotFoundPage } from './RouteFailure';
 const RESOURCES = {
     properties: { title: 'Properties', path: 'properties', columns: ['name', 'address', 'district'], writable: ['OWNER', 'MANAGER', 'SUPER_ADMIN'],
         fields: [{ name: 'name', label: 'Property name', required: true }, { name: 'address', label: 'Address', required: true }, { name: 'district', label: 'District', required: true }] },
@@ -432,7 +435,7 @@ function Dashboard({ user }) {
         <Link className="button" to="/reports">View reports <ArrowRight size={16}/></Link>
       </div>
       {error && <p role="alert" className="error">{error}</p>}
-      {!summary ? <p role="status" className="data-loading">Loading your portfolio overview…</p> : <>
+      {!summary && !error ? <p role="status" className="data-loading">Loading your portfolio overview…</p> : !summary ? <div className="empty" role="alert"><p>Portfolio overview is unavailable.</p><button className="button small" onClick={() => { setError(''); api('dashboard').then(setSummary).catch(e=>setError(String(e))); }}>Retry</button></div> : <>
         <div className="kats-overview-spotlight">
           <div className="kats-overview-primary">
             <span className="kats-overview-label">RENT PERFORMANCE</span>
@@ -457,6 +460,7 @@ function Dashboard({ user }) {
           <div className="stat"><small>Recorded occupancy</small><strong>{occupancy === null ? '—' : occupancy + '%'}</strong></div>
         </div>
       </>}
+      <Suspense fallback={<p className="data-loading" role="status">Loading portfolio charts…</p>}><LandlordAnalytics /></Suspense>
       <div className="quick kats-overview-actions"><h2>Go to workspace</h2><div><Link to="/properties">Properties <ArrowRight size={15}/></Link><Link to="/rooms">Rooms <ArrowRight size={15}/></Link><Link to="/invoices">Invoices <ArrowRight size={15}/></Link><Link to="/payments">Payments <ArrowRight size={15}/></Link></div></div>
     </section>;
 }
@@ -492,7 +496,8 @@ function TenantHome() {
     useEffect(() => { Promise.all([api('tenant/dashboard'), api('tenant/lease')]).then(([s, l]) => { setSummary(s); setLease(l.lease); }).catch(err => setError(String(err))); }, []);
     return <section className="page"><span className="eyebrow">TENANT PORTAL</span><h1>My rental account</h1><p>Your current lease and recorded rent activity.</p>
     {error && <p role="alert" className="error">{error}</p>}
-    {summary ? <div className="stat-grid"><div className="stat"><small>Invoiced</small><strong>UGX {summary.total_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Paid</small><strong>UGX {summary.paid_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Outstanding</small><strong>UGX {summary.outstanding_ugx.toLocaleString('en-UG')}</strong></div></div> : <p>Loading rent summary…</p>}
+    {summary ? <div className="stat-grid"><div className="stat"><small>Invoiced</small><strong>UGX {summary.total_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Paid</small><strong>UGX {summary.paid_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Outstanding</small><strong>UGX {summary.outstanding_ugx.toLocaleString('en-UG')}</strong></div></div> : !error ? <p role="status">Loading rent summary…</p> : <p role="alert">Unable to load rental summary. Check the API and reload.</p>}
+    <Suspense fallback={<p className="data-loading" role="status">Loading rental charts…</p>}><TenantAnalytics /></Suspense>
     <div className="quick"><h2>My lease</h2>{lease ? <p><strong>{lease.property_name || 'Your property'}</strong> · Unit {lease.room_number || lease.room_id} · Monthly rent: UGX {Number(lease.rent_ugx).toLocaleString('en-UG')} · Lease ends: {lease.end_date}.</p> : <p>No active lease is currently linked to your account.</p>}<Link to="/invoices">Invoices</Link><Link to="/payments">Payments</Link><Link to="/maintenance">Maintenance</Link></div>
   </section>;
 }
@@ -517,6 +522,13 @@ function Portal({ user, logout, systemReady }) {
     const nav = canOperate ? ['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'preventive-maintenance', 'disputes', 'expenses', 'expense-approvals', 'reports', 'trends', 'statements', 'receipts', 'mobile-money', 'efris', 'inspections', 'renewals', 'deposits', 'work-orders', 'documents', 'notifications', 'privacy-requests', 'security', ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' ? ['settings'] : []), ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' ? ['users', 'invitations', 'permissions', 'legal', 'audit', 'inquiries'] : []), ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' || user.role === 'MANAGER' ? ['assignments'] : [])] : user.role === 'CARETAKER' ? ['dashboard', 'rooms', 'payments', 'utilities', 'maintenance', 'preventive-maintenance', 'work-orders', 'inspections', 'documents', 'notifications', 'privacy-requests', 'security', 'receipts'] : ['dashboard', 'invoices', 'payments', 'utilities', 'statements', 'receipts', 'deposits', 'maintenance', 'disputes', 'inspections', 'documents', 'mobile-money', 'notifications', 'privacy-requests', 'security'];
     const viewResource = user.role === 'CARETAKER' ? CARETAKER_RESOURCES[page] : RESOURCES[page];
     const pageTitle = page.replaceAll('-', ' ').replace(/^./, c => c.toUpperCase());
+    const [readFailed, setReadFailed] = useState(false);
+    useEffect(() => {
+        setReadFailed(false);
+        const onFailure = () => setReadFailed(true);
+        window.addEventListener('kats:workspace-read-error', onFailure);
+        return () => window.removeEventListener('kats:workspace-read-error', onFailure);
+    }, [page]);
     return <div className="portal">
     <WorkspaceNavigation pages={nav} active={page} user={user} onLogout={logout}/>
     <div className="portal-main">
@@ -530,7 +542,13 @@ function Portal({ user, logout, systemReady }) {
           <span><strong>{user.full_name}</strong><small>{user.role.replaceAll('_', ' ')}</small></span>
         </div></div>
       </header>
-      <main className="portal-content" data-view={page} key={page}><Suspense fallback={<p className="data-loading" role="status">Opening workspace…</p>}>{page === 'more' ? <section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key => <Link key={key} to={'/' + key}>{key[0].toUpperCase() + key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section> : page === 'statements' && nav.includes(page) ? (user.role === 'TENANT' ? <TenantStatementSelfPage /> : <TenantStatementsPage />) :
+      <main className="portal-content" data-view={page} key={page}>
+        {readFailed && <div className="kats-workspace-read-alert" role="alert">
+          Some workspace records could not be loaded. Check your connection or
+          <button className="outline-button small" onClick={() => window.location.reload()}>Reload this page</button>.
+        </div>}
+        {page !== "dashboard" && page !== "more" && <WorkspaceSectionTabs pages={nav} active={page} role={user.role}/>}
+        <Suspense fallback={<p className="data-loading" role="status">Opening workspace…</p>}>{page === 'more' ? <section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key => <Link key={key} to={'/' + key}>{key[0].toUpperCase() + key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section> : page === 'statements' && nav.includes(page) ? (user.role === 'TENANT' ? <TenantStatementSelfPage /> : <TenantStatementsPage />) :
             page === 'receipts' && nav.includes(page) ? <ReceiptsPage /> :
                 page === 'utilities' && nav.includes(page) ? <UtilitiesPage role={user.role}/> :
                 page === 'privacy-requests' && nav.includes(page) ? <PrivacyRequestsPage role={user.role}/> :
@@ -623,6 +641,6 @@ export default function App() {
     {['dashboard', 'rooms', 'maintenance', 'inspections', 'payments', 'profile'].map(path => <Route key={'caretaker-' + path} path={'/caretaker/' + path} element={<Navigate to={path === 'profile' ? '/security' : '/' + path} replace/>}/>)}
     {['users', 'roles', 'permissions', 'integrations', 'efris', 'payments', 'audit-logs', 'legal-pages', 'system-settings'].map(path => <Route key={'admin-' + path} path={'/admin/' + path} element={<Navigate to={path === 'audit-logs' ? '/audit' : path === 'legal-pages' ? '/legal' : path === 'system-settings' ? '/security' :
                     path === 'integrations' ? '/efris' : path === 'roles' || path === 'permissions' ? '/permissions' : '/' + path} replace/>}/>)}
-    <Route path="*" element={<Navigate to="/" replace/>}/>
+    <Route path="*" element={<NotFoundPage/>}/>
   </Routes></Suspense></>;
 }

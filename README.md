@@ -21,6 +21,18 @@ KATS is a mobile-first property management application **owned by Kats Propertie
 
 The optional Flask/Vite Vercel Services configuration, publicly labelled synthetic sample-login sidebar and guarded Neon dataset seeder are documented in [Vercel + Neon deployment](docs/VERCEL_NEON_DEPLOYMENT.md). **Not live:** the connected Vercel account returned 403 on `katsproperty` project creation. Neon has been provisioned but not migrated or seeded; Redis/workers still require an approved production setup. Never expose real tenant credentials in a public demo.
 
+## Compact authenticated workspaces and live analytics
+
+Landlord and tenant dashboards share a 14px design-token system, responsive
+12-column layouts and a lazily loaded single SVG chart toolkit. Eight
+authenticated Flask analytics endpoints aggregate current PostgreSQL data,
+including occupancy, collection trends, exact tenant-overlap counts, property
+scores, and tenant-only payment/balance histories. Every chart has loading,
+empty, error and retry states. Functional render-error boundaries and a
+visible 404 avoid silent blank routes. The existing annual trends page
+shares the same chart renderer. Read the
+[workspace analytics and SQL documentation](docs/WORKSPACE_UI_ANALYTICS.md).
+
 ## Local PostgreSQL demo (Docker-free)
 
 Use an existing **localhost PostgreSQL 16/17+** installation and run

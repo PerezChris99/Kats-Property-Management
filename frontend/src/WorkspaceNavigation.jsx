@@ -1,14 +1,46 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, Bell, BookOpen, Building2, CalendarRange, ChartColumnIncreasing, ChevronRight, ClipboardCheck, CreditCard, Gauge, FileCheck2, FileClock, FileText, FolderLock, House, KeyRound, LayoutDashboard, LogOut, Mail, Menu, ReceiptText, Search, Settings2, ShieldCheck, Smartphone, Users, Wallet, Wrench, X } from 'lucide-react';
-const GROUPS = [
-    { title: 'Overview', pages: ['dashboard', 'notifications', 'trends', 'reports'] },
-    { title: 'Portfolio', pages: ['properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor'] },
-    { title: 'Tenancies', pages: ['tenants', 'leases', 'renewals', 'inspections', 'deposits', 'disputes', 'documents'] },
-    { title: 'Finance', pages: ['invoices', 'proration', 'payments', 'mobile-money', 'receipts', 'statements', 'efris', 'expenses', 'expense-approvals'] },
-    { title: 'Operations', pages: ['maintenance', 'preventive-maintenance', 'work-orders', 'utilities', 'assignments', 'inquiries'] },
-    { title: 'Administration', pages: ['users', 'invitations', 'permissions', 'legal', 'audit', 'settings', 'privacy-requests', 'security'] }
+export const COMPACT_GROUPS = [
+    { title: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard, pages: ['dashboard'] },
+    { title: 'Portfolio', label: 'Portfolio', icon: Building2, pages: ['properties','buildings','floors','rooms','room-placement','portfolio-editor'] },
+    { title: 'Tenancies', label: 'Tenancies', icon: Users, pages: ['tenants','leases','renewals','inspections','deposits','disputes'] },
+    { title: 'Finance', label: 'Finance', icon: Wallet, pages: ['invoices','proration','payments','mobile-money','receipts','statements','efris','expenses','expense-approvals'] },
+    { title: 'Operations', label: 'Operations', icon: Wrench, pages: ['maintenance','preventive-maintenance','work-orders','utilities','assignments'] },
+    { title: 'Insights', label: 'Reports & files', icon: ChartColumnIncreasing, pages: ['reports','trends','documents','notifications','inquiries'] },
+    { title: 'Administration', label: 'Administration', icon: ShieldCheck, pages: ['users','invitations','permissions','legal','audit','settings','privacy-requests','security'] }
 ];
+export const TENANT_GROUPS = [
+    { title: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard, pages: ['dashboard'] },
+    { title: 'Rent', label: 'Rent & payments', icon: Wallet, pages: ['invoices','payments','mobile-money','receipts','statements','deposits'] },
+    { title: 'Home', label: 'Property care', icon: Wrench, pages: ['maintenance','disputes','inspections','utilities'] },
+    { title: 'Records', label: 'Records & updates', icon: FileText, pages: ['documents','notifications'] },
+    { title: 'Account', label: 'My account', icon: ShieldCheck, pages: ['privacy-requests','security'] }
+];
+export function compactGroups(pages, role) {
+    const groups = role === 'TENANT' ? TENANT_GROUPS : COMPACT_GROUPS;
+    const allowed = new Set(pages);
+    const filtered = groups.map(group => ({...group, pages:group.pages.filter(page=>allowed.has(page))}))
+        .filter(group=>group.pages.length);
+    const used = new Set(filtered.flatMap(group=>group.pages));
+    const extra = pages.filter(page=>!used.has(page));
+    if (extra.length) filtered.push({title:'Other',label:'Other',icon:Menu,pages:extra});
+    return filtered;
+}
+export function WorkspaceSectionTabs({ pages, active, role }) {
+    const group = compactGroups(pages,role).find(item => item.pages.includes(active));
+    if (!group || group.pages.length < 2) return null;
+    return <nav className="kats-section-tabs" aria-label={group.label + ' subpages'}>
+      <div className="kats-section-tabs-heading"><span>{group.label}</span><small>Choose a section</small></div>
+      <div className="kats-section-tabs-list">
+        {group.pages.map((page,index) => <Link key={page} to={'/'+page}
+            aria-current={page===active ? 'page':undefined}
+            className={'kats-section-tab'+(page===active?' is-active':'')}>
+          <span className="kats-tab-index">{index+1}</span>{labelFor(page)}
+        </Link>)}
+      </div>
+    </nav>;
+}
 const PAGE_META = {
     dashboard: { label: 'Dashboard', icon: LayoutDashboard },
     notifications: { label: 'Notifications', icon: Bell },
@@ -63,21 +95,16 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }) {
     const drawerPanel = useRef(null);
     const groups = useMemo(() => {
         const wanted = query.trim().toLowerCase();
-        const used = new Set();
-        const result = GROUPS.map(group => {
-            const filtered = group.pages.filter(page => {
-                if (!pages.includes(page) || (wanted && !labelFor(page).toLowerCase().includes(wanted)))
-                    return false;
-                used.add(page);
-                return true;
-            });
-            return { title: group.title, pages: filtered };
-        }).filter(group => group.pages.length > 0);
-        const unmatched = pages.filter(page => !used.has(page) && (!wanted || labelFor(page).toLowerCase().includes(wanted)));
-        if (unmatched.length > 0)
-            result.push({ title: 'More', pages: unmatched });
-        return result;
-    }, [pages, query]);
+        const available = compactGroups(pages,user.role);
+        if (!wanted) return available;
+        // Search still exposes the original direct page URLs, even though
+        // the normal sidebar only shows grouped destinations.
+        return available.map(group=>({
+            ...group,
+            pages:group.pages.filter(page=>labelFor(page).toLowerCase().includes(wanted)
+                || group.label.toLowerCase().includes(wanted))
+        })).filter(group=>group.pages.length);
+    }, [pages,user.role,query]);
     useEffect(() => {
         setDrawerOpen(false);
         setQuery('');
@@ -129,18 +156,28 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }) {
         return () => window.removeEventListener('keydown', keyDown);
     }, []);
     function menuItems(close) {
-        return groups.length ? groups.map(group => (<section className="nav-group" key={group.title} aria-label={group.title}>
-        <h2 className="nav-group-label">{group.title}</h2>
-        {group.pages.map(page => {
-                const item = PAGE_META[page];
-                const Icon = item?.icon ?? ChevronRight;
-                return <Link className={'nav-item' + (page === active ? ' active' : '')} aria-current={page === active ? 'page' : undefined} key={page} to={'/' + page} onClick={close}>
-            <Icon size={17} strokeWidth={1.8} aria-hidden="true"/>
-            <span>{labelFor(page)}</span>
-            {page === active && <span className="nav-current-dot" aria-hidden="true"/>}
-          </Link>;
-            })}
-      </section>)) : <p className="nav-empty">No matching pages.</p>;
+        if (!groups.length) return <p className="nav-empty">No matching pages.</p>;
+        // Normal mode: one navigational entry per section. Search mode:
+        // direct links to the matching individual routes.
+        if (!query.trim()) return groups.map(group=>{
+            const Icon=group.icon;
+            const selected=group.pages.includes(active);
+            return <Link key={group.title} to={'/'+group.pages[0]}
+                className={'nav-item kats-nav-section'+(selected?' active':'')}
+                aria-current={selected?'location':undefined} onClick={close}>
+                <Icon size={17} strokeWidth={1.8} aria-hidden="true"/>
+                <span>{group.label}</span>
+                <ChevronRight size={14} aria-hidden="true"/>
+            </Link>;
+        });
+        return groups.map(group=><section className="nav-group" key={group.title} aria-label={group.label}>
+            <h2 className="nav-group-label">{group.label}</h2>
+            {group.pages.map(page=><Link className={'nav-item'+(active===page?' active':'')}
+                key={page} to={'/'+page} onClick={close}
+                aria-current={active===page?'page':undefined}>
+                <ChevronRight size={16} aria-hidden="true"/><span>{labelFor(page)}</span>
+            </Link>)}
+        </section>);
     }
     const bottomPages = (user.role === 'TENANT'
         ? ['dashboard', 'invoices', 'payments', 'maintenance']
