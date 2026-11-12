@@ -30,8 +30,10 @@ def test_postgres_is_the_default_and_31_account_preflight_is_in_one_task(monkeyp
     status=json.loads((tmp_path/"dev-mode.json").read_text())
     assert status["mode"]=="pgdemo" and status["accounts"]==31
     assert len(calls)==2
-    assert calls[0][0][-2:]==["local_postgres_demo.py","prepare"]
-    assert calls[1][0][-2:]==["local_postgres_demo.py","check"]
+    assert Path(calls[0][0][-2]).name=="local_postgres_demo.py"
+    assert calls[0][0][-1]=="prepare"
+    assert Path(calls[1][0][-2]).name=="local_postgres_demo.py"
+    assert calls[1][0][-1]=="check"
     assert launcher.dev_mode()=="pgdemo"
 
 
