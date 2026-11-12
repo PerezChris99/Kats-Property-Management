@@ -221,6 +221,7 @@ function ResourcePage({ resource, user }) {
     const [pageSize, setPageSize] = useState(25);
     const [total, setTotal] = useState(null);
     const [filter, setFilter] = useState('');
+    const [serverFilter, setServerFilter] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [editing, setEditing] = useState(false);
@@ -230,15 +231,26 @@ function ResourcePage({ resource, user }) {
     const [references, setReferences] = useState({});
     const latestLoad = useRef(0);
     const canWrite = resource.writable?.includes(user.role) ?? false;
+    const searchable = new Set(['properties', 'buildings', 'floors', 'rooms', 'tenants',
+        'invoices', 'payments', 'maintenance', 'expenses']).has(resource.path);
     const search = filter.trim().toLowerCase();
-    const visibleRows = search ? rows.filter(row => Object.values(row).some(value => String(value ?? '').toLowerCase().includes(search))) : rows;
+    const visibleRows = searchable ? rows : search
+        ? rows.filter(row => Object.values(row).some(value => String(value ?? '').toLowerCase().includes(search))) : rows;
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setPage(1);
+            setServerFilter(filter.trim().length >= 2 ? filter.trim() : '');
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [filter]);
     const load = useCallback(async (signal) => {
         const requestNumber = ++latestLoad.current;
         setLoading(true);
         setError('');
         try {
             const join = resource.path.includes('?') ? '&' : '?';
-            const payload = await api(resource.path + join + 'page=' + page + '&page_size=' + pageSize + '&include_total=0',
+            const q = searchable && serverFilter ? '&q=' + encodeURIComponent(serverFilter) : '';
+            const payload = await api(resource.path + join + 'page=' + page + '&page_size=' + pageSize + '&include_total=0' + q,
                 signal ? { signal } : {});
             if (requestNumber !== latestLoad.current || signal?.aborted) return;
             setRows(payload.items || []);
@@ -250,13 +262,13 @@ function ResourcePage({ resource, user }) {
         } finally {
             if (requestNumber === latestLoad.current && !signal?.aborted) setLoading(false);
         }
-    }, [resource.path, page, pageSize]);
+    }, [resource.path, page, pageSize, searchable, serverFilter]);
     useEffect(() => {
         const controller = new AbortController();
         void load(controller.signal);
         return () => { controller.abort(); };
     }, [load]);
-    useEffect(() => { setPage(1); setFilter(''); }, [resource.path]);
+    useEffect(() => { setPage(1); setFilter(''); setServerFilter(''); }, [resource.path]);
     useEffect(() => {
         if (!editing)
             return;
@@ -389,12 +401,12 @@ function ResourcePage({ resource, user }) {
     return <section className="page"><div className="page-head"><div><span className="eyebrow">OPERATIONS</span><h1>{resource.title}</h1></div>{canWrite && <button className="button" onClick={() => setEditing(!editing)}>{editing ? 'Cancel' : 'Add ' + resource.title.toLowerCase()}</button>}</div>
     {error && <div role="alert" className="error">{error} <button type="button" className="outline-button" onClick={() => { void load(); }}>Retry</button></div>}
     {editing && canWrite && <form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.filter(field => field.name !== 'idempotency_key').map(field => <label key={field.name}>{field.label}{field.options ? <select value={values[field.name] || ''} onChange={e => setValues({ ...values, [field.name]: e.target.value })} required={field.required}><option value="">Select</option>{field.options.map(option => <option key={option}>{option}</option>)}</select> : references[field.name]?.length ? <select value={values[field.name] || ''} onChange={e => setValues({ ...values, [field.name]: e.target.value })} required={field.required}><option value="">Select a record</option>{references[field.name].map(row => <option key={String(row.id)} value={String(row.id)}>{String(row.name || row.number || row.full_name || row.invoice_number || row.email || row.title || row.id)}</option>)}</select> : <input required={field.required} type={field.type || 'text'} min={field.type === 'number' ? (field.name === 'level' ? '-10' : '0') : undefined} value={values[field.name] || ''} onChange={e => setValues({ ...values, [field.name]: e.target.value })}/>}</label>)}</div><button className="button" disabled={busy}>{busy ? 'Saving…' : 'Save record'}</button></form>}
-    {!loading && rows.length > 0 && <div className="record-toolbar">
-      <label className="record-filter">Filter loaded records
-        <input type="search" placeholder="Search this table" value={filter} onChange={event => setFilter(event.target.value)}/></label>
-      <span aria-live="polite">{visibleRows.length} of {rows.length} loaded</span>
-    </div>}
-    {loading ? <p role="status" className="data-loading">Loading records…</p> : rows.length === 0 ? <div className="empty"><h2>No records yet</h2><p>Authorized records will appear here after they are created.</p></div> : visibleRows.length === 0 ? <div className="empty"><h2>No matching records</h2><p>Clear the filter to see the loaded records.</p><button type="button" className="outline-button" onClick={() => setFilter('')}>Clear filter</button></div> : <div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col => <th key={col}>{col.replaceAll('_', ' ')}</th>)}{resource.path === 'payments' && <th>Cash receipt</th>}{resource.path === 'payments' && canWrite && <th>Review</th>}{(resource.path === 'payments' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) || resource.path === 'invoices' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) || resource.path === 'caretaker/rooms' || resource.path === 'caretaker/assignments' || resource.path === 'admin/users') && <th>Actions</th>}</tr></thead><tbody>{visibleRows.map((item, i) => <tr key={String(item.id || i)}>{resource.columns.map(col => <td key={col}><DataCell column={col} value={item[col]}/></td>)}{resource.path === 'payments' && <td>{item.method === 'CASH' && ['PENDING_REVIEW','RECONCILED','REVERSED'].includes(item.status) ?
+    <div className="record-toolbar">
+      <label className="record-filter">{searchable ? 'Search all authorized records' : 'Filter loaded records'}
+        <input type="search" placeholder={searchable ? 'Search all records (2+ characters)' : 'Filter this page'} value={filter} onChange={event => setFilter(event.target.value)}/></label>
+      <span aria-live="polite">{searchable && serverFilter ? 'Database search' : 'Loaded records'}: {visibleRows.length} shown</span>
+    </div>
+    {loading ? <p role="status" className="data-loading">Loading records…</p> : rows.length === 0 ? <div className="empty"><h2>{serverFilter || search ? 'No matching records' : 'No records yet'}</h2><p>{serverFilter || search ? 'Try another search or clear the filter.' : 'Authorized records will appear here after they are created.'}</p>{(serverFilter || search) && <button type="button" className="outline-button" onClick={() => setFilter('')}>Clear search</button>}</div> : visibleRows.length === 0 ? <div className="empty"><h2>No matching records</h2><p>Clear the filter to see the loaded records.</p><button type="button" className="outline-button" onClick={() => setFilter('')}>Clear filter</button></div> : <div className="data-table-wrap"><table><thead><tr>{resource.columns.map(col => <th key={col}>{col.replaceAll('_', ' ')}</th>)}{resource.path === 'payments' && <th>Cash receipt</th>}{resource.path === 'payments' && canWrite && <th>Review</th>}{(resource.path === 'payments' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) || resource.path === 'invoices' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) || resource.path === 'caretaker/rooms' || resource.path === 'caretaker/assignments' || resource.path === 'admin/users') && <th>Actions</th>}</tr></thead><tbody>{visibleRows.map((item, i) => <tr key={String(item.id || i)}>{resource.columns.map(col => <td key={col}><DataCell column={col} value={item[col]}/></td>)}{resource.path === 'payments' && <td>{item.method === 'CASH' && ['PENDING_REVIEW','RECONCILED','REVERSED'].includes(item.status) ?
         <a className="outline-button" href={'/api/v1/payments/' + encodeURIComponent(String(item.id)) + '/cash-acknowledgement.pdf'}>Written cash receipt</a> : '—'}</td>}{resource.path === 'payments' && canWrite && <td>{item.status === 'PENDING_REVIEW' ? <button className="outline-button" disabled={busy} onClick={() => approve(String(item.id))}>Approve*</button> : <span>—</span>}</td>}
     {resource.path === 'payments' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) && <td>{item.status === 'RECONCILED' ? <button className="outline-button" disabled={busy} onClick={() => financeAction('payments/' + String(item.id) + '/reverse')}>Reverse</button> : '—'}</td>}
     {resource.path === 'invoices' && ['OWNER', 'ACCOUNTANT', 'SUPER_ADMIN'].includes(user.role) && <td>{item.status === 'ISSUED' && Number(item.paid_ugx) === 0 ? <button className="outline-button" disabled={busy} onClick={() => financeAction('invoices/' + String(item.id) + '/void')}>Void</button> : '—'}</td>}
