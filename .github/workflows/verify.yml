@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, perez]
+    branches: [main]
 # The perez branch is validated by its PR, not by a duplicate push job.
 # Separate main and PR concurrency groups to prevent queued PR checks from
 # blocking behind obsolete pushed-branch runs.
@@ -11,30 +11,6 @@ concurrency:
   group: kats-verify-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 jobs:
-  # ONE-TIME dependency lock regeneration for the Recharts migration.
-  # Remove this job and the perez push trigger after package-lock is committed.
-  lockfile-regenerate:
-    if: (github.event_name == 'pull_request' && github.head_ref == 'perez') || (github.event_name == 'push' && github.ref_name == 'perez')
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: perez
-          persist-credentials: true
-      - uses: actions/setup-node@v4
-        with: {node-version: '22'}
-      - name: Generate and commit reproducible dependency lock
-        run: |
-          cd frontend
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          cd ..
-          git add frontend/package-lock.json
-          if ! git diff --cached --quiet; then
-            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'build: lock Recharts and React 19 chart dependencies'
-            git push origin HEAD:perez
-          fi
   backend:
     runs-on: ubuntu-latest
     services:
