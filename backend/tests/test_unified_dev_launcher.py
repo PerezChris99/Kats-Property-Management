@@ -120,7 +120,7 @@ def test_vscode_main_task_prepares_then_splits_services_without_additional_proce
         "KATS: Dev services (split in VS Code)",
     ]
     services=by_name["KATS: Dev services (split in VS Code)"]
-    assert services["dependsOrder"]=="parallel"
+    assert services["dependsOrder"]=="sequence"
     assert services["dependsOn"]==[
         "KATS: Unified demo backend (PostgreSQL / SQLite fallback)",
         "KATS: Native frontend (BAT)",
