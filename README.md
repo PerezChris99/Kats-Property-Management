@@ -24,11 +24,18 @@ The optional Flask/Vite Vercel Services configuration, publicly labelled synthet
 ## Launch the real local PostgreSQL demo in VS Code
 
 The default **Terminal → Run Task → KATS: Start Dev (Frontend + Backend)**
-is now the **one-step** development workflow. It builds/verifies React,
-prepares the dedicated localhost PostgreSQL `kats_demo` database, applies
-migrations and permissions, seeds **1 landlord OWNER + 30 tenant accounts**,
-then opens Flask (left) and React/Vite (right) in VS Code integrated panes.
-The 31 demo logins are selectable from the local login page.
+is now the **one-step** development workflow. On the first run, it
+builds/verifies React, creates the dedicated localhost PostgreSQL `kats_demo`,
+applies migrations and permissions, and seeds **1 landlord OWNER + 30 tenants
+exactly once**. Subsequent launches simply reuse the existing PostgreSQL
+database, preserving all rent/tenant edits and skipping repeat migrations,
+seeding and unnecessary builds. Flask starts in the left VS Code integrated
+pane and React/Vite starts in the right.
+
+The local login page automatically retries the Flask demo-account endpoint:
+once Flask becomes ready the original seeded sign-ins appear without requiring
+a manual page refresh. If Flask fails, an explicit local status and retry
+button explain the missing demo selector.
 
 On first use, PostgreSQL may request the existing local administrator
 password to create the isolated database and restricted runtime roles;
