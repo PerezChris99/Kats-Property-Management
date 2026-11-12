@@ -182,9 +182,17 @@ def dev_mode():
     try:
         selected = json.loads(DEV_MODE_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
+        # A successful first run may predate the ephemeral .local session file,
+        # or users may have cleaned that file. The dedicated, ignored PG
+        # credentials are the persistent one-time setup record. Never seed here.
+        if PG_DEMO_CONFIG.exists():
+            read_pg_demo_config()  # validate the isolated localhost identity
+            print("[reuse] Found existing .env.pg-demo; no setup or seeding.", flush=True)
+            return "pgdemo"
         raise StartupError(
-            "Unified development database has not been prepared. Run "
-            "'KATS: Start Dev (Frontend + Backend)' (not the backend pane alone)."
+            "No initialized local demo was found. First run the VS Code task "
+            "'KATS: Setup demo once + Start Dev' to initialize PostgreSQL. "
+            "Regular 'KATS: Start Dev (Frontend + Backend)' only starts servers."
         ) from exc
     if (selected.get("root") != str(ROOT.resolve())
             or selected.get("mode") not in ("pgdemo", "preview")
@@ -340,6 +348,40 @@ def verify_sqlite_demo(path):
         print(f"[REUSE] Only {count} original demo users remain; "
               "changed/deleted records are preserved.", flush=True)
     return count
+
+
+def dev_frontend():
+    """Display a VS Code React terminal IMMEDIATELY; start Vite once Flask is ready.
+
+    Both terminals start together from the VS Code task graph. Waiting here,
+    rather than in tasks.json's sequential dependsOn, prevents the frontend
+    terminal from being suppressed by a slow or unready Flask process.
+    Never installs, builds, migrates or seeds on ordinary development startup.
+    """
+    selected = dev_mode()
+    if selected == "pgdemo" and not PG_DEMO_CONFIG.exists():
+        raise StartupError("Local PostgreSQL demo credentials are missing; run one-time setup.")
+    os.environ["KATS_FAST_START"] = "1"
+    print("[React] VS Code terminal ready. Waiting for Flask /readyz before Vite...", flush=True)
+    started = time.monotonic()
+    next_log = started + 10
+    while not reachable(f"{BACKEND_ORIGIN}/readyz"):
+        if stop_requested(time.time()):
+            raise StartupError("Stop was requested while waiting for Flask.")
+        now = time.monotonic()
+        if now - started >= 150:
+            raise StartupError(
+                "Flask has not become SQL-ready on port 8000. The backend "
+                "terminal shows the actual startup error; React was not started "
+                "against a disconnected API. No database changes were made."
+            )
+        if now >= next_log:
+            print("[React] Still waiting for Flask startup; see the BACKEND "
+                  "VS Code terminal for [boot] diagnostics.", flush=True)
+            next_log = now + 10
+        time.sleep(0.75)
+    print("[React] Flask ready; starting Vite with installed dependencies.", flush=True)
+    launch("frontend")
 
 
 def dev_doctor():
@@ -901,7 +943,7 @@ def start_split():
 
 def main():
     parser = argparse.ArgumentParser(description="Windows KATS launcher")
-    parser.add_argument("action", choices=("split", "setup", "doctor", "dev-prepare", "dev-backend", "dev-doctor", "start", "frontend", "backend", "backend-stack", "owner", "stop"))
+    parser.add_argument("action", choices=("split", "setup", "doctor", "dev-prepare", "dev-backend", "dev-frontend", "dev-doctor", "start", "frontend", "backend", "backend-stack", "owner", "stop"))
     action = parser.parse_args().action
     try:
         if os.name != "nt":
@@ -925,6 +967,8 @@ def main():
             os.environ["KATS_DEV_BACKEND"] = "unified"
             os.environ["KATS_FAST_START"] = "1"
             launch("backend-stack")
+        elif action == "dev-frontend":
+            dev_frontend()
         elif action == "stop":
             STATE.mkdir(parents=True, exist_ok=True)
             STOP_FILE.write_text(str(time.time()) + "\\n", encoding="utf-8")
@@ -939,7 +983,7 @@ def main():
                 dependencies(["down"], config())
                 print("[stop] PostgreSQL/Redis stopped; volumes retained.", flush=True)
             else:
-                print("[stop] SQLite preview database retained in .local.", flush=True)
+                print("[stop] Existing localhost PostgreSQL/SQLite demo data preserved.", flush=True)
         elif action == "owner":
             settings = config()
             python = backend()
