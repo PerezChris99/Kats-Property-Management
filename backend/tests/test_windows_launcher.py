@@ -156,7 +156,7 @@ def test_concurrent_frontend_backend_share_complete_config(tmp_path,monkeypatch)
     assert not list(tmp_path.glob(".env.native.*.tmp"))
 
 
-def test_vscode_starts_backend_first_then_frontend_in_split_terminal_group():
+def test_vscode_launches_two_background_services_in_parallel_visible_terminals():
     import json
     import re
     tasks=json.loads((ROOT/".vscode"/"tasks.json").read_text(encoding="utf-8"))["tasks"]
@@ -164,28 +164,22 @@ def test_vscode_starts_backend_first_then_frontend_in_split_terminal_group():
     master=byname["KATS: Native start (split in VS Code)"]
     assert master["dependsOn"]==["KATS: Start Dev (Frontend + Backend)"]
     top=byname["KATS: Start Dev (Frontend + Backend)"]
-    assert top["dependsOrder"]=="sequence"
+    assert top["dependsOrder"]=="parallel"
     assert top["dependsOn"]==[
-        "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
-        "KATS: Dev services (split in VS Code)",
-    ]
-    services=byname["KATS: Dev services (split in VS Code)"]
-    assert services["dependsOrder"]=="sequence"
-    assert services["dependsOn"]==[
         "KATS: Unified demo backend (PostgreSQL / SQLite fallback)",
-        "KATS: Native frontend (BAT)",
+        "KATS: Dev frontend (fast Vite)",
     ]
-    front=byname["KATS: Native frontend (BAT)"]
+    front=byname["KATS: Dev frontend (fast Vite)"]
     back=byname["KATS: Unified demo backend (PostgreSQL / SQLite fallback)"]
-    assert front["args"][-1]=="frontend"
+    assert front["args"][-1]=="dev-frontend"
     assert back["args"][-1]=="dev-backend"
     for task in (front,back):
         assert task["type"]=="process"
         assert task["command"]=="powershell.exe"
-        assert task["args"][4].endswith("ops\\vscode_task.ps1")
+        assert task["args"][4].endswith("ops\\\\vscode_task.ps1")
         matcher=task["problemMatcher"][0]
         assert matcher["background"]["activeOnStart"]
-        assert matcher["background"]["endsPattern"]==r"^\[READY\]"
+        assert matcher["background"]["endsPattern"]==r"^\\[READY\\]"
         regex=re.compile(matcher["pattern"]["regexp"])
         assert regex.groups>=3
         assert all(matcher["pattern"][key] in range(1,regex.groups+1)
@@ -193,29 +187,31 @@ def test_vscode_starts_backend_first_then_frontend_in_split_terminal_group():
         assert re.compile(matcher["background"]["endsPattern"]).search("[READY] Flask")
         assert task["isBackground"]
         assert task["presentation"]["panel"]=="dedicated"
-    assert front["options"]["env"]["KATS_FAST_START"]=="1"
-    assert 'os.environ["KATS_FAST_START"] = "1"' in SOURCE.read_text(encoding="utf-8")
+        assert task["presentation"]["reveal"]=="always"
     assert front["presentation"]["focus"] is True
     assert back["presentation"]["focus"] is False
     assert front["presentation"]["group"]==back["presentation"]["group"]=="kats-dev-parallel"
 
 
 
-def test_vscode_command_palette_start_dev_entry_is_discoverable():
+def test_vscode_command_palette_daily_start_does_not_depend_on_database_setup():
     import json
     tasks=json.loads((ROOT/".vscode"/"tasks.json").read_text(encoding="utf-8"))["tasks"]
     aliases=[task for task in tasks if task.get("label")=="KATS: Start Dev (Frontend + Backend)"]
     assert len(aliases)==1
     alias=aliases[0]
     assert "type" not in alias
-    assert alias["dependsOrder"]=="sequence"
-    assert alias["dependsOn"]==[
-        "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
-        "KATS: Dev services (split in VS Code)",
-    ]
+    assert alias["dependsOrder"]=="parallel"
+    assert "KATS: Dev prepare (PostgreSQL + seed 31 accounts)" not in alias["dependsOn"]
     assert alias["problemMatcher"]==[]
     assert "flask left" in alias["detail"].lower()
-    assert "vite right" in alias["detail"].lower()
+    assert "react right" in alias["detail"].lower()
+    initial=next(t for t in tasks if t["label"]=="KATS: Setup demo once + Start Dev")
+    assert initial["dependsOrder"]=="sequence"
+    assert initial["dependsOn"]==[
+        "KATS: Dev prepare (PostgreSQL + seed 31 accounts)",
+        alias["label"],
+    ]
 
 
 
@@ -338,7 +334,7 @@ def test_native_tasks_hide_docker_only_commands_and_keep_valid_start_stop():
     for retired in ("KATS: Setup","KATS: Start app","KATS: Logs",
                     "KATS: Full local acceptance"):
         assert retired not in by_label, "Docker-only task is not a native startup"
-    assert by_label["KATS: Start Dev (Frontend + Backend)"]["dependsOrder"]=="sequence"
+    assert by_label["KATS: Start Dev (Frontend + Backend)"]["dependsOrder"]=="parallel"
     assert by_label["KATS: Stop (preserve database)"]["args"][-1]=="stop"
     assert by_label["KATS: Native setup (database + build)"]["args"][-1]=="setup"
     assert by_label["KATS: Verify frontend ↔ backend ↔ database"]["args"][-1]=="dev-doctor"
