@@ -23,6 +23,11 @@ export function ChartPanel({ title, endpoint, kind, className = '' }) {
     setState({status:'loading',data:null,error:''});
     api(endpoint,{signal:controller.signal})
       .then(data => {
+        if (!data || typeof data !== 'object' ||
+            (kind !== 'venn' && !Array.isArray(data.points)) ||
+            (kind === 'venn' && !Number.isFinite(Number(data.total)))) {
+          throw new Error('The analytics response is invalid. Please retry.');
+        }
         if (!controller.signal.aborted) setState({status:'ready',data,error:''});
       })
       .catch(error=>{
