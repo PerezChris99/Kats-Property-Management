@@ -36,7 +36,7 @@ export function ChartPanel({ title, endpoint, kind, className = '' }) {
         });
       });
     return () => controller.abort();
-  },[endpoint,revision]);
+  },[endpoint,revision,kind]);
   const data=state.data,points=data?.points||[];
   const empty = (kind === 'venn' ? !data?.total : !points.length);
   return <article className={'kats-chart-card '+className} aria-label={title}>
