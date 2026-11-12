@@ -34,11 +34,40 @@ def upgrade():
         for table in ("journal_events","journal_lines"):
             op.execute(f"CREATE TRIGGER kats_protect_{table} BEFORE UPDATE OR DELETE ON {table} "
                        "FOR EACH ROW EXECUTE FUNCTION kats_append_only_guard()")
+        # Deferred checks assess the COMPLETE transaction, not intermediate
+        # flushes when an event exists before its two journal lines.
+        op.execute("""
+        CREATE FUNCTION kats_validate_journal_event() RETURNS trigger
+        LANGUAGE plpgsql AS $
+        DECLARE target_id text;
+        DECLARE entries integer;
+        DECLARE total_debit bigint;
+        DECLARE total_credit bigint;
+        BEGIN
+          target_id := CASE WHEN TG_TABLE_NAME = 'journal_events'
+                            THEN NEW.id ELSE NEW.event_id END;
+          SELECT count(*), coalesce(sum(debit_ugx),0), coalesce(sum(credit_ugx),0)
+            INTO entries, total_debit, total_credit
+            FROM journal_lines WHERE event_id = target_id;
+          IF entries <> 2 OR total_debit <> total_credit OR total_debit <= 0 THEN
+            RAISE EXCEPTION 'Unbalanced journal event %', target_id;
+          END IF;
+          RETURN NEW;
+        END;
+        $;
+        """)
+        for table in ("journal_events","journal_lines"):
+            op.execute(
+                f"CREATE CONSTRAINT TRIGGER kats_balance_{table} "
+                f"AFTER INSERT ON {table} DEFERRABLE INITIALLY DEFERRED "
+                "FOR EACH ROW EXECUTE FUNCTION kats_validate_journal_event()")
 
 def downgrade():
     if op.get_bind().dialect.name=="postgresql":
         for table in ("journal_lines","journal_events"):
+            op.execute(f"DROP TRIGGER IF EXISTS kats_balance_{table} ON {table}")
             op.execute(f"DROP TRIGGER IF EXISTS kats_protect_{table} ON {table}")
+        op.execute("DROP FUNCTION IF EXISTS kats_validate_journal_event()")
     op.drop_index("ix_journal_lines_event",table_name="journal_lines")
     op.drop_table("journal_lines")
     op.drop_index("ix_journal_events_payment",table_name="journal_events")
