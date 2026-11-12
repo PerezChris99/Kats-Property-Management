@@ -117,6 +117,8 @@ function Login({ onSuccess }) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [demoAccounts, setDemoAccounts] = useState([]);
+    const [demoStatus, setDemoStatus] = useState('connecting');
+    const [demoRetry, setDemoRetry] = useState(0);
     const [demoSearch, setDemoSearch] = useState('');
     const [demoExpanded, setDemoExpanded] = useState(() =>
         typeof window === 'undefined' || window.matchMedia('(min-width: 761px)').matches);
@@ -127,14 +129,35 @@ function Login({ onSuccess }) {
         return () => media.removeEventListener('change', onResize);
     }, []);
     useEffect(() => {
-        // Never request or render demo shortcuts in the production frontend bundle.
-        if (!import.meta.env.DEV) return undefined;
-        let live = true;
-        api('auth/demo-accounts')
-            .then(payload => { if (live && payload.enabled) setDemoAccounts(payload.accounts || []); })
-            .catch(() => { /* Demo shortcuts are not exposed outside local preview. */ });
-        return () => { live = false; };
-    }, []);
+        // The selector is local-only. While Flask boots, retry rather than
+        // silently hiding the already-seeded logins until a manual refresh.
+        if (!import.meta.env.DEV || PUBLIC_DEMO_ENABLED) return undefined;
+        let active = true;
+        let timer;
+        let attempts = 0;
+        const query = async () => {
+            try {
+                const payload = await api('auth/demo-accounts');
+                if (!active) return;
+                if (payload.enabled && Array.isArray(payload.accounts) &&
+                    payload.accounts.length > 0) {
+                    setDemoAccounts(payload.accounts);
+                    setDemoStatus('ready');
+                    return;
+                }
+                setDemoStatus('unavailable');
+            } catch {
+                if (!active) return;
+                setDemoStatus('offline');
+            }
+            attempts += 1;
+            // Only the local Vite dev build polls; never on the deployed site.
+            timer = setTimeout(query, Math.min(20000, 2500 + attempts * 1000));
+        };
+        setDemoStatus('connecting');
+        void query();
+        return () => { active = false; clearTimeout(timer); };
+    }, [demoRetry]);
     async function signInDemo(key) {
         if (busy) return;
         setBusy(true);
@@ -177,19 +200,33 @@ function Login({ onSuccess }) {
       {error && <p role="alert" className="error">{error}</p>}
       <button className="pm-cta pm-cta-yellow" disabled={busy}>{busy ? 'Signing in…' : 'Sign in securely'} <ArrowRight size={18}/></button></form>
       <div className="pm-login-links"><Link to="/forgot-password">Forgot your password?</Link><Link to="/request-access">Request access</Link></div><div className="pm-login-security"><ShieldCheck size={23}/><span>Session protection and role-based authorization help keep private property records in the right hands. No third-party social login is claimed.</span></div></section>
-      {!PUBLIC_DEMO_ENABLED && demoAccounts.length === 31 && <aside className="pm-local-demo-pane" aria-label="Local demo accounts">
+      {!PUBLIC_DEMO_ENABLED && import.meta.env.DEV && demoStatus !== 'ready' && <aside
+        className="pm-local-demo-pane pm-demo-status-pane" role="status"
+        aria-label="Local demo status">
+        <span className="pm-demo-kicker">LOCAL DEMO</span>
+        <h2>{demoStatus === 'offline' ? 'Waiting for Flask' :
+             demoStatus === 'unavailable' ? 'Demo accounts not available' : 'Connecting to local demo'}</h2>
+        <p>{demoStatus === 'offline'
+          ? 'The React interface is running, but the Flask API on port 8000 is not ready. The demo logins will appear automatically when it starts.'
+          : demoStatus === 'unavailable'
+            ? 'No active demo accounts were returned by the local backend. Check the PostgreSQL demo initialization.'
+            : 'Checking your locally seeded demo accounts…'}</p>
+        <button type="button" className="pm-demo-retry"
+          onClick={() => setDemoRetry(value => value + 1)}>Retry local connection</button>
+      </aside>}
+      {!PUBLIC_DEMO_ENABLED && import.meta.env.DEV && demoAccounts.length > 0 && <aside className="pm-local-demo-pane" aria-label="Local demo accounts">
         <details className="pm-demo-disclosure" open={demoExpanded}
           onToggle={event => setDemoExpanded(event.currentTarget.open)}>
-          <summary>Explore 31 demo accounts</summary>
+          <summary>Explore {demoAccounts.length} demo accounts</summary>
         <section className="pm-demo-signins" aria-label="Demo accounts for local preview">
-        <div className="pm-demo-header"><div><span className="pm-demo-kicker">LOCAL DEMO</span><h2>Explore the live workspace</h2><p>Fictional rental records. Click an account to sign in instantly.</p></div><span className="pm-demo-count">31 accounts</span></div>
-        <button type="button" className="pm-demo-owner" disabled={busy}
+        <div className="pm-demo-header"><div><span className="pm-demo-kicker">LOCAL DEMO</span><h2>Explore the live workspace</h2><p>Fictional rental records. Click an account to sign in instantly.</p></div><span className="pm-demo-count">{demoAccounts.length} accounts</span></div>
+        {demoAccounts.some(account => account.key === 'landlord') && <button type="button" className="pm-demo-owner" disabled={busy}
           onClick={() => signInDemo('landlord')}>
           <span className="pm-demo-avatar" aria-hidden="true">L</span>
           <span><strong>Landlord workspace</strong><small>{demoAccounts[0]?.name}</small></span>
           <ArrowRight size={18} aria-hidden="true"/>
-        </button>
-        <div className="pm-demo-tenant-head"><label htmlFor="pm-demo-search">Tenant workspaces</label><span>30 linked leases</span></div>
+        </button>}
+        <div className="pm-demo-tenant-head"><label htmlFor="pm-demo-search">Tenant workspaces</label><span>{demoAccounts.filter(account => account.role === 'TENANT').length} tenant profiles</span></div>
         <input id="pm-demo-search" className="pm-demo-search" type="search" value={demoSearch}
           onChange={event => setDemoSearch(event.target.value)} placeholder="Find a demo tenant…" autoComplete="off"/>
         <div className="pm-demo-tenant-list" role="group" aria-label="Sign in as a demo tenant">
