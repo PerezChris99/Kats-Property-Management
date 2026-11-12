@@ -23,8 +23,8 @@ are available. From **Terminal → Run Task**, choose:
 
 **KATS: Start Dev (Frontend + Backend)**
 
-This task now **seeds the local database exactly once**, then launches two
-live integrated terminals in parallel. A routine restart does not rebuild
+This task now **seeds the local database exactly once**, then opens two
+integrated terminals with backend readiness gating the frontend. A routine restart does not rebuild
 React, reapply migrations, reseed permissions, or rewrite rent/tenant data.
 
 1. **First run:** Check Python and npm dependencies, build React, detect local
@@ -43,8 +43,10 @@ React, reapply migrations, reseed permissions, or rewrite rent/tenant data.
    once. Later starts also reuse SQLite without reseeding. If your already
    configured PostgreSQL instance is offline, startup **fails visibly**
    rather than silently switching to a different database.
-4. **VS Code terminals:** Flask/backend (port 8000) and Vite/React (port
-   5173) start in parallel. Cold Windows Flask startup now emits explicit
+4. **VS Code terminals:** Flask/backend (port 8000) starts **first**;
+   only after SQL-backed `/readyz` is successful does Vite/React start on
+   port 5173 in a second split terminal. This avoids startup-time Vite
+   `ECONNREFUSED` proxy errors. Cold Windows Flask startup emits explicit
    `[boot]` stages and verifies an actual PostgreSQL `SELECT 1`, allowing
    sufficient time for a slow Python import. React shows a visible local
    connection state and automatically retries demo-account discovery while
@@ -148,7 +150,7 @@ Use **KATS: Stop (preserve database)** to stop both native launchers.
 Previous KATS task definitions used an invalid VS Code problem matcher
 (`regexp: "a^"` with no file/line/message captures), and older startup
 tasks silently required Docker even when using the preview. Both defects
-are corrected. The default Start Dev task runs two independent background tasks in parallel, each with a valid VS Code problem matcher and live logs.
+are corrected. The default Start Dev task waits for the backend background task's real [READY] signal before starting the frontend task, each with a valid VS Code problem matcher and live logs.
 
 1. After pulling the updated source, run **Developer: Reload Window**
    in VS Code to discard old task definitions.
