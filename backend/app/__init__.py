@@ -150,6 +150,8 @@ def create_app(test_config=None):
     app.register_blueprint(analytics_api, url_prefix="/api/v1")
     from .workspace_analytics import workspace_analytics_api
     app.register_blueprint(workspace_analytics_api, url_prefix="/api/v1")
+    from .finance_health import finance_health_api
+    app.register_blueprint(finance_health_api, url_prefix="/api/v1")
     from .portfolio_edit import portfolio_api
     app.register_blueprint(portfolio_api, url_prefix="/api/v1")
     from .report_exports import report_api
