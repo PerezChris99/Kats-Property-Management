@@ -522,6 +522,13 @@ function Portal({ user, logout, systemReady }) {
     const nav = canOperate ? ['dashboard', 'properties', 'buildings', 'floors', 'rooms', 'room-placement', 'portfolio-editor', 'tenants', 'leases', 'proration', 'invoices', 'payments', 'utilities', 'maintenance', 'preventive-maintenance', 'disputes', 'expenses', 'expense-approvals', 'reports', 'trends', 'statements', 'receipts', 'mobile-money', 'efris', 'inspections', 'renewals', 'deposits', 'work-orders', 'documents', 'notifications', 'privacy-requests', 'security', ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' ? ['settings'] : []), ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' ? ['users', 'invitations', 'permissions', 'legal', 'audit', 'inquiries'] : []), ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' || user.role === 'MANAGER' ? ['assignments'] : [])] : user.role === 'CARETAKER' ? ['dashboard', 'rooms', 'payments', 'utilities', 'maintenance', 'preventive-maintenance', 'work-orders', 'inspections', 'documents', 'notifications', 'privacy-requests', 'security', 'receipts'] : ['dashboard', 'invoices', 'payments', 'utilities', 'statements', 'receipts', 'deposits', 'maintenance', 'disputes', 'inspections', 'documents', 'mobile-money', 'notifications', 'privacy-requests', 'security'];
     const viewResource = user.role === 'CARETAKER' ? CARETAKER_RESOURCES[page] : RESOURCES[page];
     const pageTitle = page.replaceAll('-', ' ').replace(/^./, c => c.toUpperCase());
+    const [readFailed, setReadFailed] = useState(false);
+    useEffect(() => {
+        setReadFailed(false);
+        const onFailure = () => setReadFailed(true);
+        window.addEventListener('kats:workspace-read-error', onFailure);
+        return () => window.removeEventListener('kats:workspace-read-error', onFailure);
+    }, [page]);
     return <div className="portal">
     <WorkspaceNavigation pages={nav} active={page} user={user} onLogout={logout}/>
     <div className="portal-main">
@@ -535,7 +542,12 @@ function Portal({ user, logout, systemReady }) {
           <span><strong>{user.full_name}</strong><small>{user.role.replaceAll('_', ' ')}</small></span>
         </div></div>
       </header>
-      <main className="portal-content" data-view={page} key={page}><Suspense fallback={<p className="data-loading" role="status">Opening workspace…</p>}>{page === 'more' ? <section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key => <Link key={key} to={'/' + key}>{key[0].toUpperCase() + key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section> : page === 'statements' && nav.includes(page) ? (user.role === 'TENANT' ? <TenantStatementSelfPage /> : <TenantStatementsPage />) :
+      <main className="portal-content" data-view={page} key={page}>
+        {readFailed && <div className="kats-workspace-read-alert" role="alert">
+          Some workspace records could not be loaded. Check your connection or
+          <button className="outline-button small" onClick={() => window.location.reload()}>Reload this page</button>.
+        </div>}
+        <Suspense fallback={<p className="data-loading" role="status">Opening workspace…</p>}>{page === 'more' ? <section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key => <Link key={key} to={'/' + key}>{key[0].toUpperCase() + key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section> : page === 'statements' && nav.includes(page) ? (user.role === 'TENANT' ? <TenantStatementSelfPage /> : <TenantStatementsPage />) :
             page === 'receipts' && nav.includes(page) ? <ReceiptsPage /> :
                 page === 'utilities' && nav.includes(page) ? <UtilitiesPage role={user.role}/> :
                 page === 'privacy-requests' && nav.includes(page) ? <PrivacyRequestsPage role={user.role}/> :
