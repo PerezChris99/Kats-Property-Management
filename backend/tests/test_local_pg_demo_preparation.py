@@ -50,3 +50,16 @@ def test_configured_marker_failure_blocks_all_changes(monkeypatch,tmp_path):
     monkeypatch.setattr(pg,"run",lambda *_a,**_kw:pytest.fail("Unsafe migration attempted"))
     with pytest.raises(RuntimeError,match="marker mismatch"):
         pg.prepare()
+
+
+def test_interrupted_first_setup_can_resume_through_safe_bootstrap(monkeypatch,tmp_path):
+    config=tmp_path/".env.pg-demo"
+    config.write_text("preallocated-first-run-config",encoding="utf-8")
+    monkeypatch.setattr(pg,"CONFIG",config)
+    monkeypatch.setattr(pg,"load",lambda:{"KATS_DEMO_INSTANCE":"x"*32})
+    monkeypatch.setattr(pg,"marker",lambda *_a,**_kw: (_ for _ in ()).throw(
+        pg.psycopg.OperationalError("role missing after incomplete local setup")))
+    calls=[]
+    monkeypatch.setattr(pg,"setup",lambda:calls.append("guarded-setup"))
+    pg.prepare()
+    assert calls==["guarded-setup"]
