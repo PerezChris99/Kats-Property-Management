@@ -333,3 +333,18 @@
   .portal .kats-section-tab { min-height:38px; }
   .portal .kats-section-tabs-heading small { display:none; }
 }
+
+/* Secure global search results: predictable density and keyboard focus. */
+.portal .kats-record-search-label { display:grid;gap:var(--space-2);font-weight:var(--weight-semibold);max-width:650px; }
+.portal .kats-record-search-label input {width:100%;min-height:40px;}
+.portal .kats-search-results {list-style:none;margin:var(--space-4) 0;padding:0;display:grid;gap:var(--space-2);}
+.portal .kats-search-results li {margin:0;}
+.portal .kats-search-results a {display:grid;grid-template-columns:110px minmax(0,1fr) minmax(0,.75fr);align-items:center;gap:var(--space-3);padding:var(--space-3);border:1px solid #d7e4ec;border-radius:var(--radius-md);background:#fff;text-decoration:none;color:#153c59;}
+.portal .kats-search-results a:hover,.portal .kats-search-results a:focus-visible {border-color:#1476a5;background:#eef7fc;outline-offset:2px;}
+.portal .kats-search-results strong {font-size:var(--font-size-base);overflow-wrap:anywhere;}
+.portal .kats-search-results small {color:#536c80;font-size:var(--font-size-sm);overflow-wrap:anywhere;}
+.portal .kats-search-type {font-size:var(--font-size-xs);font-weight:var(--weight-semibold);text-transform:uppercase;letter-spacing:.06em;}
+@media(max-width:640px) {
+ .portal .kats-search-results a {grid-template-columns:minmax(0,1fr);gap:var(--space-1);}
+ .portal .portal-header-tools > a {display:none;}
+}
