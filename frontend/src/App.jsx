@@ -1,5 +1,5 @@
 import { api } from './lib/api';
-import { WorkspaceNavigation } from './WorkspaceNavigation';
+import { WorkspaceNavigation, WorkspaceSectionTabs } from './WorkspaceNavigation';
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 const LandlordAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.LandlordAnalytics})));
 const TenantAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.TenantAnalytics})));
@@ -547,6 +547,7 @@ function Portal({ user, logout, systemReady }) {
           Some workspace records could not be loaded. Check your connection or
           <button className="outline-button small" onClick={() => window.location.reload()}>Reload this page</button>.
         </div>}
+        {page !== "dashboard" && page !== "more" && <WorkspaceSectionTabs pages={nav} active={page} role={user.role}/>}
         <Suspense fallback={<p className="data-loading" role="status">Opening workspace…</p>}>{page === 'more' ? <section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key => <Link key={key} to={'/' + key}>{key[0].toUpperCase() + key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section> : page === 'statements' && nav.includes(page) ? (user.role === 'TENANT' ? <TenantStatementSelfPage /> : <TenantStatementsPage />) :
             page === 'receipts' && nav.includes(page) ? <ReceiptsPage /> :
                 page === 'utilities' && nav.includes(page) ? <UtilitiesPage role={user.role}/> :
