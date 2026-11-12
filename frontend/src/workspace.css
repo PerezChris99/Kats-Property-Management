@@ -256,3 +256,26 @@
 @media (prefers-reduced-motion:reduce) {
   .portal .kats-chart-skeleton span {animation:none;}
 }
+
+
+/* Global recovery UI remains visible even if a route subtree throws before
+ * a workspace shell can mount. */
+.kats-fatal-page {
+  min-height:60svh;display:grid;place-items:center;
+  padding:32px 16px;background:#f3f8fb;color:#0b2541;
+}
+.kats-fatal-inner {
+  max-width:600px;width:100%;
+  border:1px solid #cbdde9;border-radius:8px;
+  padding:clamp(20px,4vw,36px);background:#fff;
+}
+.kats-fatal-inner h1 {font-size:24px;line-height:1.3;margin:8px 0 12px;}
+.kats-fatal-inner p {font-size:14px;line-height:1.5;color:#4a6076;}
+.kats-fatal-inner .kats-error-actions {display:flex;flex-wrap:wrap;gap:12px;margin-top:20px;}
+.kats-fatal-inner .kats-error-actions :is(a,button) {
+  padding:8px 14px;min-height:34px;font-size:13px;
+}
+.portal .kats-report-year {max-width:205px;display:grid;gap:6px;font-size:12px;font-weight:650;margin:12px 0 18px;}
+.portal .kats-report-year input {max-width:205px;}
+.portal .kats-chart-card > h2 {font-size:16px;margin:0 0 12px;}
+.portal .kats-chart-card > .kats-chart-svg {max-height:260px;}
