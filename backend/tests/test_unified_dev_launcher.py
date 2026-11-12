@@ -111,7 +111,7 @@ def test_pg_demo_runtime_uses_only_restricted_local_user_and_disables_real_provi
 
 def test_vscode_main_task_prepares_then_splits_services_without_additional_process_count():
     root=Path(__file__).resolve().parents[2]
-    tasks=json.loads((root/".vscode/tasks.json").read_text())["tasks"]
+    tasks=json.loads((root/".vscode/tasks.json").read_text(encoding="utf-8"))["tasks"]
     by_name={task["label"]:task for task in tasks}
     start=by_name["KATS: Start Dev (Frontend + Backend)"]
     assert start["dependsOrder"]=="sequence"
