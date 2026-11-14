@@ -4,9 +4,9 @@
 
 **Weekly:** restore an encrypted offsite backup into an isolated staging database and verify record counts and invoice/ledger totals. Review dependencies, API and access events, and provider reconciliation.
 
-**Encrypted backup command:** set AGE_RECIPIENT to an approved public encryption recipient key, then run bash ops/backup-postgres.sh. Requires Docker Compose and age installed. Result is an encrypted local archive; copy independently offsite and verify retention. Do not leave the only backup on the VPS.
+**Encrypted backup command:** set KATS_BACKUP_DATABASE_URL (a dedicated managed-PostgreSQL backup role), AGE_RECIPIENT and optionally BACKUP_S3_URI, then run bash ops/backup-postgres.sh. Requires PostgreSQL pg_dump/pg_restore, age, and Python 3.12+. It no longer targets a nonexistent Compose db. Never leave the only backup on the VPS. See docs/MANAGED_POSTGRES_RECOVERY.md.
 
-**Destructive staging restore:** set AGE_IDENTITY to the private key path and APP_ENV=staging, then execute bash ops/restore-staging.sh --confirm path/to/backup.dump.age. It intentionally refuses production. Confirm isolation, database compatibility and verified backup integrity before executing.
+**Destructive staging restore:** set AGE_IDENTITY, RESTORE_DATABASE_URL for a dedicated *_staging or *_restore database and APP_ENV=staging, then execute bash ops/restore-staging.sh --confirm path/to/backup.dump.age. This tool refuses production, primary database names and matching source/target identities. Confirm isolated credentials and backup integrity before executing.
 
 **Payment incident:** suspend settlement if replay/signature failures appear, preserve event evidence and DB snapshot, reconcile against verified payment-provider statements, post authorized financial reversals, and document remediation. An accounting reversal does not send money back to payer.
 
