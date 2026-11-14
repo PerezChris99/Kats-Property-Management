@@ -115,6 +115,14 @@ def test_postgres_proposed_bank_match_cannot_be_deleted():
         db.session.add(match)
         db.session.commit()
         match_id = match.id
+        # Source balance/account evidence cannot be edited after import,
+        # including while a statement is pending reconciliation.
+        with pytest.raises(DBAPIError):
+            db.session.execute(text(
+                "UPDATE bank_statements SET closing_ugx=999999 WHERE id=:id"),
+                {"id": statement.id})
+            db.session.commit()
+        db.session.rollback()
         with pytest.raises(DBAPIError):
             db.session.execute(text(
                 "DELETE FROM bank_reconciliation_matches WHERE id=:id"),

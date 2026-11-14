@@ -423,3 +423,31 @@
   .portal .kats-recharts-frame {height:var(--chart-height);}
   .portal .kats-upset-table {min-width:370px;}
 }
+
+
+/* Evidence-first finance controls: quiet paper surfaces, compact 14px type. */
+.portal .kats-finance-page {min-width:0;max-width:100%;font-size:var(--font-size-base);}
+.portal .kats-finance-mode {display:flex;flex-wrap:wrap;gap:var(--space-2);margin:var(--space-3) 0 var(--space-4);}
+.portal .kats-finance-mode .button,.portal .kats-finance-mode .outline-button {min-height:36px;}
+.portal .kats-finance-controls {display:flex;flex-wrap:wrap;align-items:end;gap:var(--space-3);margin:var(--space-3) 0 var(--space-4);}
+.portal .kats-finance-controls > label {display:grid;gap:var(--space-1);flex:1 1 180px;min-width:155px;max-width:100%;font-weight:var(--weight-medium);font-size:var(--font-size-sm);}
+.portal .kats-finance-controls :is(input,select) {width:100%;max-width:100%;min-height:38px;font-size:var(--font-size-base);}
+.portal .kats-finance-workflows {margin:var(--space-5) 0;padding:var(--space-4);background:#fff;border:1px solid #dce6ee;border-radius:6px;box-shadow:none;}
+.portal .kats-finance-workflows h2 {margin:0 0 var(--space-2);font-size:var(--font-size-xl);color:#0b1b3d;}
+.portal .kats-finance-workflows h3 {margin:var(--space-4) 0 var(--space-2);font-size:var(--font-size-lg);color:#0b1b3d;}
+.portal .kats-finance-workflows > form {display:grid;gap:var(--space-3);}
+.portal .kats-finance-workflows > form > label {display:grid;gap:var(--space-2);font-size:var(--font-size-sm);font-weight:var(--weight-medium);}
+.portal .kats-finance-page textarea {width:100%;max-width:100%;resize:vertical;min-height:84px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:var(--font-size-sm);line-height:var(--line-height-normal);}
+.portal .kats-finance-actions {display:flex;flex-wrap:wrap;gap:var(--space-2);}
+.portal .kats-finance-page .data-table-wrap {width:100%;min-width:0;overflow-x:auto;}
+.portal .kats-finance-page .data-table-wrap table {min-width:650px;font-size:var(--font-size-sm);}
+.portal .kats-finance-page .data-table-wrap td,.portal .kats-finance-page .data-table-wrap th {padding:var(--space-2) var(--space-3);vertical-align:top;}
+.portal .kats-finance-page .stat-grid {margin:var(--space-3) 0 var(--space-4);}
+.portal .kats-finance-page .stat {min-width:0;}
+.portal .kats-finance-page .stat strong {overflow-wrap:anywhere;font-size:var(--font-size-lg);}
+@media(max-width:640px) {
+  .portal .kats-finance-workflows {padding:var(--space-3);}
+  .portal .kats-finance-controls {display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);}
+  .portal .kats-finance-controls > label {min-width:0;}
+  .portal .kats-finance-page .stat-grid > * {grid-column:span 12;}
+}

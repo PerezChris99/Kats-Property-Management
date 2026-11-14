@@ -124,3 +124,20 @@ This conservative consistency choice reduces peak parallel ledger write
 throughput. Measure posting latency and batch queue depth on representative
 production-sized datasets before changing the locking strategy. No test result
 constitutes authorization to issue fiscal receipts or recognize bank settlement.
+
+## Bank evidence integrity and one-account guard (November 14, 2026)
+
+The first bank reconciliation workflow imports strict integer-UGX statement
+CSV and requires separate importer/proposer/checker roles. Imported rows and
+reviewed matches are retained as audit evidence; forward migration 0035 also
+prevents SQL-level rewriting or deletion of bank statement headers and balances.
+A statement may transition to RECONCILED only through its single reviewed close.
+
+The initial chart of accounts has only **one** BANK control account without
+bank-account dimension. To avoid false per-account reconciliation, imports now
+reject a second masked bank account. Multi-bank support requires a dedicated
+bank-account register, per-account GL postings and balance calculations before
+that guard can be relaxed. Imported files are not bank-authenticated; human
+verification against the issuing financial institution and legal/provider
+settlement evidence remain mandatory before go-live. No operational banking
+transfers occur through this workflow.

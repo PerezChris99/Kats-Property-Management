@@ -212,3 +212,77 @@ def close_period_api(user, period):
         return fail(str(exc), 409)
     return jsonify(period=period,status="CLOSED",
                    warning="Closed GL periods refuse backdated postings; accountant review required.")
+
+
+@gl_api.get("/finance/gl/<report_kind>.<file_type>")
+@roles(*READERS)
+def export_financial_report(_user, report_kind, file_type):
+    """Bounded, role-protected accountant exports; never imply fiscal approval."""
+    from io import BytesIO
+    import xlsxwriter
+    from ..report_exports import pdf_document, file_response
+    if file_type not in ("pdf", "xlsx") or report_kind not in (
+            "trial-balance", "balance-sheet", "income-statement"):
+        abort(404)
+    start,end=dates()
+    property_id=optional_property()
+    if report_kind=="trial-balance":
+        report=trial_balance(through=end, property_id=property_id)
+        headers=["Account","Name","Kind","Debit UGX","Credit UGX"]
+        rows=[[item["code"],item["name"],item["kind"],
+               item["debit_ugx"],item["credit_ugx"]] for item in report["accounts"]]
+        rows.append(["TOTAL","","",report["debit_ugx"],report["credit_ugx"]])
+        title="KATS General Ledger - Trial Balance"
+    elif report_kind=="income-statement":
+        report=income_statement(from_date=start,through=end,property_id=property_id)
+        headers=["Account","Name","Classification","Amount UGX"]
+        rows=[[item["code"],item["name"], "REVENUE",item["amount_ugx"]]
+              for item in report["revenues"]]
+        rows += [[item["code"],item["name"], "EXPENSE",item["amount_ugx"]]
+                 for item in report["expenses"]]
+        rows.append(["NET INCOME","","",report["net_income_ugx"]])
+        title="KATS General Ledger - Income Statement"
+    else:
+        report=balance_sheet(through=end,property_id=property_id)
+        headers=["Measure","Amount UGX"]
+        rows=[[name,report[key]] for name,key in [
+            ("Assets","assets_ugx"),("Liabilities","liabilities_ugx"),
+            ("Equity","equity_ugx"),("Unclosed profit","unclosed_profit_ugx"),
+            ("Difference","difference_ugx")]]
+        title="KATS General Ledger - Balance Sheet"
+    notice=("NEW GENERAL LEDGER EVENTS ONLY. Historical opening balances must "
+            "be approved by an independent accountant. Not a URA fiscal document.")
+    summary=["Currency: Uganda shillings (UGX)",notice,
+             "Property: "+(property_id or "company-wide"),
+             "Through: "+(end.isoformat() if end else "all posted events")]
+    if file_type=="pdf":
+        value=pdf_document(title,summary,
+            headers=headers,rows=rows,
+            footer="Internal accounting report, NOT proof of bank settlement or taxation.")
+        return file_response(value,"application/pdf","kats-gl-"+report_kind+".pdf")
+    stream=BytesIO()
+    workbook=xlsxwriter.Workbook(stream, {"in_memory":True})
+    worksheet=workbook.add_worksheet("KATS GL")
+    heading=workbook.add_format({"bold":True,"bg_color":"#0B1B3D",
+                                  "font_color":"#FFFFFF"})
+    numeric=workbook.add_format({"num_format":"#,##0;[Red](#,##0)"})
+    worksheet.write_string(0,0,title)
+    for j,line in enumerate(summary,1):
+        worksheet.write_string(j,0,line)
+    header_row=len(summary)+2
+    for col,label in enumerate(headers):
+        worksheet.write_string(header_row,col,label,heading)
+    for index,row in enumerate(rows,header_row+1):
+        for col,value in enumerate(row):
+            if type(value) is int:
+                worksheet.write_number(index,col,value,numeric)
+            else:
+                worksheet.write_string(index,col,str(value))
+    worksheet.freeze_panes(header_row+1,0)
+    worksheet.set_column(0,1,24)
+    worksheet.set_column(2,len(headers)-1,19)
+    workbook.close()
+    return file_response(
+        stream.getvalue(),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "kats-gl-"+report_kind+".xlsx")
