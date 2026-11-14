@@ -653,6 +653,8 @@ def add_invoice(user):
             for kind, description, qty, price, amount in prepared
         ])
         db.session.add(LedgerEntry(invoice_id=invoice.id, event="INVOICE_ISSUED", amount_ugx=total))
+        from .finance.ledger import post_invoice
+        post_invoice(invoice, [(kind, amount) for kind, _, _, _, amount in prepared], actor_id=user.id)
         audit(user, "invoice.issue", "invoice", invoice.id)
         db.session.commit()
     except IntegrityError:
@@ -741,6 +743,8 @@ def approve_payment(user, payment_id):
                                event="PAYMENT_RECEIVED", amount_ugx=payment.amount_ugx))
     from .journal import post_receipt_journal
     post_receipt_journal(payment)
+    from .finance.ledger import post_payment
+    post_payment(payment, invoice, actor_id=user.id)
     audit(user, "payment.approve", "payment", payment.id)
     db.session.commit()
     return jsonify(payment=serialize(payment, "id", "status"), invoice=serialize(invoice, "id", "status", "paid_ugx"))
@@ -885,6 +889,9 @@ def review_expense(user,expense_id):
         event="APPROVED" if decision=="APPROVE" else "REJECTED",
         amount_ugx=expense.amount_ugx if decision=="APPROVE" else 0,
         actor_id=user.id,reason=reason))
+    if decision=="APPROVE":
+        from .finance.ledger import post_expense
+        post_expense(expense, actor_id=user.id)
     audit(user,"expense.review","expense",expense.id,decision=decision,reason=reason)
     db.session.commit()
     return jsonify(expense=serialize(expense,"id","amount_ugx","status","reviewed_by"),
@@ -908,6 +915,8 @@ def reverse_expense(user,expense_id):
     db.session.add(ExpenseEvent(expense_id=expense.id,event="REVERSED",
                                 amount_ugx=-expense.amount_ugx,
                                 actor_id=user.id,reason=reason))
+    from .finance.ledger import post_expense
+    post_expense(expense, reverse=True, actor_id=user.id)
     audit(user,"expense.reverse","expense",expense.id,reason=reason)
     db.session.commit()
     return jsonify(expense=serialize(expense,"id","status"),
@@ -1258,6 +1267,9 @@ def reverse_payment(user, payment_id):
     ))
     from .journal import post_receipt_journal
     post_receipt_journal(payment, reverse=True)
+    from .finance.ledger import reverse_posted
+    reverse_posted("payment:" + payment.id, "payment-reverse:" + payment.id,
+                   "RECEIPT_REVERSAL", actor_id=user.id)
     audit(user, "payment.reverse", "payment", payment.id,
           reason=reason, amount_ugx=payment.amount_ugx)
     db.session.commit()
@@ -1282,6 +1294,9 @@ def void_invoice(user, invoice_id):
     db.session.add(LedgerEntry(
         invoice_id=invoice.id, event="INVOICE_VOIDED", amount_ugx=-invoice.total_ugx
     ))
+    from .finance.ledger import reverse_posted
+    reverse_posted("invoice:" + invoice.id, "invoice-void:" + invoice.id,
+                   "INVOICE_VOID", actor_id=user.id)
     audit(user, "invoice.void", "invoice", invoice.id, reason=reason)
     db.session.commit()
     return jsonify(invoice=serialize(invoice, "id", "status"))
@@ -1621,6 +1636,8 @@ def apply_invoice_credit(user, invoice_id):
         db.session.flush()
         db.session.add(LedgerEntry(invoice_id=invoice.id, event="CREDIT_NOTE_ISSUED",
                                    amount_ugx=-amount))
+        from .finance.ledger import post_credit
+        post_credit(note, invoice, actor_id=user.id)
         audit(user, "invoice.credit_note", "invoice", invoice.id,
               credit_note_id=note.id, amount_ugx=amount, reason=reason)
         db.session.commit()
