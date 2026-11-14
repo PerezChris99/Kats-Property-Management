@@ -60,10 +60,8 @@ export default function BankReconciliationPage({ user }) {
     return ()=>controller.abort();
   },[selected,lineId,refresh]);
 
-  const eligibleLine = useMemo(
-    () => statement?.exceptions?.find(x => x.id === lineId),
-    [statement, lineId]
-  );
+  const exceptions = useMemo(() => statement?.exceptions || [], [statement]);
+  const eligibleLine = useMemo(() => exceptions.find(x => x.id === lineId), [exceptions, lineId]);
   const candidate = useMemo(()=>candidates.find(x=>x.id===eventId),[candidates,eventId]);
 
   const transaction = useCallback(async (path,payload,message)=>{
