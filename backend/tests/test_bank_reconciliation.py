@@ -135,3 +135,21 @@ def test_unmatched_bank_debit_requires_real_bank_gl_credit_before_matching(app):
         f"/api/v1/finance/bank-statements/{bank_id}/candidates/{line_id}")
     assert candidates.status_code == 200 and candidates.json["items"] == []
     assert not report["can_close"]
+
+
+def test_second_bank_account_cannot_use_first_accounts_gl_balance(app):
+    """The single BANK GL account cannot prove separate financial balances."""
+    owner, _, _ = users(app)
+    client = auth_client(app, owner)
+    def upload(mask):
+        return client.post("/api/v1/finance/bank-statements", json={
+            "bank_label": "Test bank", "account_mask": mask,
+            "start_date": "2025-02-01", "end_date": "2025-02-28",
+            "opening_ugx": 0, "closing_ugx": 1000, "csv_text": SOURCE,
+        }, headers=csrf(client))
+    first = upload("****1234")
+    assert first.status_code == 201, first.get_json()
+    second = upload("****9999")
+    assert second.status_code == 400, second.get_json()
+    assert "Only one bank account" in second.get_json()["error"]["message"]
+    assert db.session.query(BankStatement).count() == 1
