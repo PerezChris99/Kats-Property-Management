@@ -196,12 +196,11 @@ def approve_opening(user, batch_id):
 @roles(*READERS)
 def close_period_api(user, period):
     reason = required_string(data(), "reason", 500)
-    # Never close months with unresolved proposed opening balances.
+    # Incomplete historical opening records make reported balances unreliable.
+    # Conservatively block ALL closes until their independent review.
     if db.session.query(GLOpeningBatch.id).filter(
-        GLOpeningBatch.status == "PENDING",
-        GLOpeningBatch.effective_on < date.fromisoformat(period + "-01")
-    ).first() if len(period) == 7 and period[4] == "-" else False:
-        return fail("Resolve pending historical opening batches before period close", 409)
+        GLOpeningBatch.status == "PENDING").first():
+        return fail("Resolve pending opening balance imports before closing periods", 409)
     try:
         created = close_period(period, actor_id=user.id)
         if not created:
