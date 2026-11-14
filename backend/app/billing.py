@@ -116,6 +116,8 @@ def generate_monthly_rent(target_month: date, actor: User | None = None):
                                        charge_type="RENT", quantity=1,
                                        unit_price_ugx=invoice.total_ugx, amount_ugx=invoice.total_ugx))
             db.session.add(LedgerEntry(invoice_id=invoice.id, event="INVOICE_ISSUED", amount_ugx=invoice.total_ugx))
+            from .finance.ledger import post_invoice
+            post_invoice(invoice, [("RENT", invoice.total_ugx)], actor_id=actor.id)
             db.session.add(AuditLog(
                 actor_id=actor.id, action="billing.monthly_invoice_issued",
                 target_type="invoice", target_id=invoice.id,
