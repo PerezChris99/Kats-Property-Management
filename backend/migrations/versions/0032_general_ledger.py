@@ -97,7 +97,11 @@ def upgrade():
             LANGUAGE plpgsql AS $gl_balanced$
             DECLARE target_id text; amount_dr bigint; amount_cr bigint; line_count integer;
             BEGIN
-              target_id := CASE WHEN TG_TABLE_NAME = 'gl_events' THEN NEW.id ELSE NEW.event_id END;
+              IF TG_TABLE_NAME = 'gl_events' THEN
+                target_id := NEW.id;
+              ELSE
+                target_id := NEW.event_id;
+              END IF;
               SELECT count(*),coalesce(sum(debit_ugx),0),coalesce(sum(credit_ugx),0)
                 INTO line_count,amount_dr,amount_cr FROM gl_lines WHERE event_id=target_id;
               IF line_count < 2 OR amount_dr <> amount_cr OR amount_dr <= 0 THEN
