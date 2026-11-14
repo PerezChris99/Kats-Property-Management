@@ -13,7 +13,7 @@ import re
 from datetime import date, timedelta
 from sqlalchemy import func, or_
 from ..extensions import db
-from .ledger import GLPostingError, post_event
+from .ledger import GLPostingError, period_lock, post_event
 from .gl_models import GLEvent, GLLine
 from .bank_models import BankStatement, BankStatementLine, BankMatch
 
@@ -82,6 +82,16 @@ def import_statement(*, bank_label: str, account_mask: str, start: date, end: da
     if start > end:
         raise BankEvidenceError("Bank statement start cannot exceed end")
     rows = parse_bank_csv(csv_text, start, end)
+    # The canonical GL has one BANK control account, not a bank-account
+    # subledger. A different account could otherwise borrow an unrelated
+    # bank's book balance and be marked reconciled. Fail closed until the
+    # accounting model supports separately identified bank accounts.
+    period_lock("bank-account")
+    existing_mask = db.session.query(BankStatement.account_mask).limit(1).scalar()
+    if existing_mask is not None and existing_mask != account_mask:
+        raise BankEvidenceError(
+            "Only one bank account can be reconciled to the current BANK ledger; "
+            "separate per-account accounting is required")
     if opening + sum(row[-1] for row in rows) != closing:
         raise BankEvidenceError("Statement inflow/outflow totals do not reconcile to closing balance")
     fingerprint = hashlib.sha256(
