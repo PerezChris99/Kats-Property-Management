@@ -66,6 +66,8 @@ def verify_and_post(payment_id):
                                        event="PAYMENT_RECEIVED", amount_ugx=payment.amount_ugx))
             from .journal import post_receipt_journal
             post_receipt_journal(payment)
+            from .finance.ledger import post_payment
+            post_payment(payment, invoice)
             db.session.add(AuditLog(actor_id=system_actor().id, action="provider.payment_verified",
                                     target_type="payment", target_id=payment.id,
                                     details={"provider":attempt.provider,

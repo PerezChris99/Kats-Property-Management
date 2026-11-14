@@ -154,6 +154,8 @@ def bill_reading(user,reading_id):
     invoice.total_ugx+=reading.charge_ugx
     db.session.add(LedgerEntry(invoice_id=invoice.id,event="INVOICE_UTILITY_ADDED",
                                amount_ugx=reading.charge_ugx))
+    from .finance.ledger import post_utility
+    post_utility(reading, invoice, actor_id=user.id)
     audit(user,"utility.reading_billed","utility_reading",reading.id,
           invoice_id=invoice.id,amount_ugx=reading.charge_ugx)
     db.session.commit()

@@ -88,6 +88,11 @@ jobs:
         env:
           APP_ENV: testing
           TEST_POSTGRES_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
+      - name: PostgreSQL enforced double-entry and append-only general ledger
+        run: python -m pytest -q tests/test_postgres_gl.py
+        env:
+          APP_ENV: testing
+          TEST_POSTGRES_URL: postgresql+psycopg://kats_ci:ci_only_password@localhost:5432/kats_ci
       - name: Configure restricted row-security test user
         run: |
           python - <<'PY'

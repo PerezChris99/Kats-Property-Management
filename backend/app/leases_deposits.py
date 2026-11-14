@@ -245,6 +245,9 @@ def review_deposit(user,movement_id):
     movement.status="APPROVED" if decision=="APPROVE" else "REJECTED"
     movement.reviewed_by=user.id
     movement.reviewed_at=datetime.now(timezone.utc)
+    if decision=="APPROVE":
+        from .finance.ledger import post_deposit
+        post_deposit(movement, actor_id=user.id)
     audit(user,"deposit.review","deposit_movement",movement.id,decision=decision,reason=reason)
     db.session.commit()
     return jsonify(movement=serialize(movement,"id","kind","amount_ugx","status"),
