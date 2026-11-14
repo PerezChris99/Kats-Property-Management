@@ -83,6 +83,11 @@ def upgrade():
             CREATE FUNCTION kats_guard_bank_match_review() RETURNS trigger
             LANGUAGE plpgsql AS $bank_match$
             BEGIN
+                -- A proposed match is financial audit evidence too. It must
+                -- be explicitly rejected, never erased from the database.
+                IF TG_OP = 'DELETE' THEN
+                    RAISE EXCEPTION 'Bank match deletion is prohibited';
+                END IF;
                 IF OLD.state IN ('APPROVED','REJECTED') THEN
                     RAISE EXCEPTION 'Bank match decision is immutable';
                 END IF;
