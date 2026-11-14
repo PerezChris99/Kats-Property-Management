@@ -73,8 +73,8 @@ jobs:
         env:
           APP_ENV: testing
       - run: python -m compileall -q app
-      - name: Compile optional browser and test database harness
-        run: cd .. && python -m py_compile ops/test_browser_e2e.py ops/run_windows.py ops/test_windows.py ops/test_pg_demo_live.py backend/local_dev_server.py backend/tests/prepare_postgres.py backend/tests/seed_e2e.py
+      - name: Compile optional browser, backup and test database harness
+        run: cd .. && python -m py_compile ops/managed_postgres.py ops/test_browser_e2e.py ops/run_windows.py ops/test_windows.py ops/test_pg_demo_live.py backend/local_dev_server.py backend/tests/prepare_postgres.py backend/tests/seed_e2e.py
       - run: python -m flask --app wsgi db upgrade
         env:
           APP_ENV: testing
@@ -195,10 +195,17 @@ jobs:
         run: |
           cd ..
           KATS_ENV_FILE=ops/production.env.sample docker compose --env-file ops/production.env.sample -f compose.production.yml config --quiet
-      - name: Validate Hostwares multi-service deployment contract with example env
+      - name: Validate Hostwares deployment with configured trusted edge
         run: |
           cd ..
-          docker compose --env-file ops/production.env.sample -f compose.hostwares.yml config --quiet
+          HOSTWARES_TRUSTED_PROXY_CIDR=127.0.0.1/32 docker compose --env-file ops/production.env.sample -f compose.hostwares.yml config --quiet
+      - name: Validate trusted-edge Nginx template via container entrypoint
+        run: |
+          docker run --rm --add-host api:127.0.0.1 \
+            -e KATS_TRUSTED_EDGE_CIDR=127.0.0.1/32 \
+            -e NGINX_ENVSUBST_FILTER=^KATS_TRUSTED_EDGE_CIDR \
+            -v "$PWD/nginx.hostwares.conf.template:/etc/nginx/templates/default.conf.template:ro" \
+            nginx:stable-alpine nginx -t
       - name: Validate PowerShell developer commands (no Docker execution)
         shell: pwsh
         run: |

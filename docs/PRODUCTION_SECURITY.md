@@ -23,3 +23,16 @@
 
 ## Explicit remaining work
 Provider-specific fiscal integration, bank disbursements/refunds, external file-malware scanning, complete document signatures, SMS provider delivery, infrastructure TLS/monitoring, load and penetration tests and real customer UAT remain acceptance blockers. No finite code change can guarantee 100% security or performance.
+
+## 2026-11 release hardening: trusted Hostwares edge
+
+The Hostwares-only nginx template accepts forwarded IP and scheme only after
+the originating proxy matches an explicitly configured `HOSTWARES_TRUSTED_PROXY_CIDR`.
+Its public listener binds to loopback by default, and nginx emits HSTS.
+An operator must test the live Hostwares topology and real client-IP
+distribution before changing any bind address. The default Caddy-based
+production configuration is unchanged.
+
+Provisioning a privileged backup role is separate from the restricted
+application PostgreSQL role; see
+[Managed PostgreSQL recovery](MANAGED_POSTGRES_RECOVERY.md).

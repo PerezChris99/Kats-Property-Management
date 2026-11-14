@@ -119,3 +119,39 @@ verified public origin and certificate, actual API/database smoke results,
 MFA sign-in and recovery, offsite restore demonstration, worker/Redis task
 recovery, real physical-device signoff and any real payment/fiscal provider
 transactions. Do not mark them complete based solely on GitHub Actions.
+
+## Required Hostwares trusted proxy and HTTPS forwarding
+
+The Hostwares-specific container now mounts
+`frontend/nginx.hostwares.conf.template`. The nginx entrypoint substitutes
+only `KATS_TRUSTED_EDGE_CIDR` (using `NGINX_ENVSUBST_FILTER`) and leaves
+ordinary nginx variables such as `$scheme` untouched.
+
+**Before deployment**, obtain the actual ingress load balancer's *source
+CIDR* and set `HOSTWARES_TRUSTED_PROXY_CIDR` in Hostwares secrets. Never
+guess, use `0.0.0.0/0`, or trust arbitrary forwarded user headers. The
+template only accepts a forwarded client IP and the forwarded original HTTPS
+scheme when nginx's real-IP module has recognized a trusted edge. Untrusted
+direct callers are treated as HTTP clients from their actual source. Flask
+then trusts exactly one sanitized nginx hop.
+
+Host-local TLS termination uses `HOSTWARES_BIND_ADDRESS=127.0.0.1` and
+`HOSTWARES_PORT=8080` by default. If Hostwares runs ingress in a different
+container or requires another bind address, the operator must explicitly
+configure a private-only address with a verified network/firewall policy.
+A provider-specific load balancer CIDR and port configuration are **external
+Hostwares details**, not values that can be safely guessed in source code.
+
+Test the actual public HTTPS site, secure cookies, `X-Forwarded-Proto`,
+real client IP rate limits, HSTS headers and refused direct-access ports
+before marking ingress complete. `nginx -t` proves syntax, not real
+trust-boundary behavior.
+
+## Managed PostgreSQL recovery
+
+Production and Hostwares have **no** Compose `db` service.
+`ops/backup-postgres.sh` and `ops/restore-staging.sh` now call the managed
+PostgreSQL recovery tool. Provision a separate authorized backup role,
+an offsite encrypted archive destination, and a separate staging restore
+database. Read [MANAGED_POSTGRES_RECOVERY.md](MANAGED_POSTGRES_RECOVERY.md).
+Do not confuse an untested provider snapshot with a witnessed restore.

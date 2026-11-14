@@ -80,7 +80,16 @@ services:
   web:
     build: ./frontend
     restart: unless-stopped
-    ports: ["${HOSTWARES_PORT:-8080}:80"]
+    # Required: one verified Hostwares reverse-proxy source network. Never
+    # automatically trust private ranges, all proxies, or user headers.
+    environment:
+      KATS_TRUSTED_EDGE_CIDR: ${HOSTWARES_TRUSTED_PROXY_CIDR:?Required verified Hostwares ingress proxy source CIDR}
+      NGINX_ENVSUBST_FILTER: "^KATS_TRUSTED_EDGE_CIDR$"
+    volumes:
+      - ./frontend/nginx.hostwares.conf.template:/etc/nginx/templates/default.conf.template:ro
+    # Loopback by default for a host-local TLS edge. Set a different bind
+    # address ONLY when Hostwares documents and firewalls its private ingress.
+    ports: ["${HOSTWARES_BIND_ADDRESS:-127.0.0.1}:${HOSTWARES_PORT:-8080}:80"]
     depends_on:
       api:
         condition: service_healthy
