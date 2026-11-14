@@ -223,7 +223,7 @@ def main(argv=None) -> int:
     try:
         os.umask(0o077)
         if args.mode == "backup":
-            backup(database_url=os.getenv("DATABASE_URL", ""),
+            backup(database_url=os.getenv("KATS_BACKUP_DATABASE_URL") or os.getenv("DATABASE_URL", ""),
                    recipient=os.getenv("AGE_RECIPIENT", ""),
                    destination=args.directory, s3_uri=os.getenv("BACKUP_S3_URI", ""))
         elif args.mode == "verify":
