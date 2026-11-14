@@ -86,6 +86,22 @@ def get_statement(_user, statement_id):
     return jsonify(reconcile_report(statement_query(statement_id)))
 
 
+@bank_api.get("/finance/bank-statements/<statement_id>/matches")
+@roles(*REVIEWERS)
+def list_matches(_user, statement_id):
+    statement_query(statement_id)
+    rows = db.session.query(BankMatch).join(
+        BankStatementLine, BankStatementLine.id == BankMatch.statement_line_id
+    ).filter(BankStatementLine.statement_id == statement_id).order_by(
+        BankMatch.created_at.desc()).limit(500).all()
+    return jsonify(items=[
+        {"id":match.id,"line_id":match.statement_line_id,
+         "event_id":match.gl_event_id,"signed_ugx":match.signed_ugx,
+         "state":match.state,"proposed_by":match.proposed_by,
+         "reviewed_by":match.reviewed_by}
+        for match in rows])
+
+
 @bank_api.get("/finance/bank-statements/<statement_id>/candidates/<line_id>")
 @roles(*REVIEWERS)
 def bank_candidates(_user, statement_id, line_id):
