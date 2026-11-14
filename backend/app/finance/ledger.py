@@ -41,7 +41,7 @@ def ensure_chart():
 
 
 def period_lock(period: str):
-    if db.session.bind.dialect.name == "postgresql":
+    if db.session.get_bind().dialect.name == "postgresql":
         # Close and posting serialize on the same transaction-scoped lock.
         # Lock the company/period, never a per-user or per-property surrogate.
         db.session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
