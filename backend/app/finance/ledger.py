@@ -88,7 +88,11 @@ def post_event(event_key: str, kind: str, posted_on: date,
         return False
     period = posted_on.strftime("%Y-%m")
     period_lock(period)
-    if db.session.get(GLPeriodClose, period):
+    # Closing a later month also freezes all preceding historical months.
+    # This prevents backdating an event into an earlier month after the
+    # accountant has already signed off a subsequent period.
+    last_closed = db.session.query(func.max(GLPeriodClose.period)).scalar()
+    if last_closed is not None and period <= last_closed:
         raise GLPostingError("Posting period is closed; a separately approved current-period adjustment is required")
     ensure_chart()
     event = GLEvent(event_key=event_key, kind=kind, posted_on=posted_on,
