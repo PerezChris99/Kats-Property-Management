@@ -130,6 +130,8 @@ def issue_prorated_rent(user):
             db.session.add(line)
         db.session.add(LedgerEntry(invoice_id=invoice.id,event="INVOICE_ISSUED",
                                    amount_ugx=invoice.total_ugx))
+        from .finance.ledger import post_invoice
+        post_invoice(invoice, [("RENT", invoice.total_ugx)], actor_id=user.id)
         audit(user,"billing.proration_issued","invoice",invoice.id,
               policy=POLICY,reason=reason,month=result["month"],
               calculated_amount_ugx=result["amount_ugx"])
