@@ -41,11 +41,16 @@ def ensure_chart():
 
 
 def period_lock(period: str):
+    """Serialize ALL company postings and closures across accounting months.
+
+    A per-month advisory lock permits closing May while an April posting
+    simultaneously checks a stale last_closed value. Use one transaction-wide
+    company lock so a later close cannot race an earlier-month posting. A lock
+    is held until the caller commits or rolls back; never release it early.
+    """
     if db.session.get_bind().dialect.name == "postgresql":
-        # Close and posting serialize on the same transaction-scoped lock.
-        # Lock the company/period, never a per-user or per-property surrogate.
         db.session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
-                           {"key": "kats:gl:" + period})
+                           {"key": "kats:gl:company"})
 
 
 def validate_lines(lines: list[tuple[str, int, int]]):

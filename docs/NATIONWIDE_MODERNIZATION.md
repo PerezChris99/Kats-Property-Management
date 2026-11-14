@@ -108,3 +108,19 @@ enroll or modify any account, so administrators must enroll privileged
 users through the existing MFA workflow before requesting release approval.
 The gate is not a substitute for manual challenge/recovery testing or
 independent authentication penetration testing.
+
+## General-ledger closed-period concurrency control (November 14, 2026)
+
+The canonical general ledger is company-wide, not per property or per SaaS
+organization. Posting and accounting-period closure now acquire one PostgreSQL
+transaction-scoped advisory lock for **all months** before checking the latest
+closed period. This deliberately serializes ledger write transactions; it stops
+a later-period close from racing a backdated posting into an earlier calendar
+month. PostgreSQL integration tests exercise the real lock from an independent
+connection. The application still requires actual accountant review of opening
+balances, external bank statement reconciliation and real settlement evidence.
+
+This conservative consistency choice reduces peak parallel ledger write
+throughput. Measure posting latency and batch queue depth on representative
+production-sized datasets before changing the locking strategy. No test result
+constitutes authorization to issue fiscal receipts or recognize bank settlement.
