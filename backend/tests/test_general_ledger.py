@@ -89,6 +89,12 @@ def test_closed_period_rejects_backdated_financial_events(app):
     with pytest.raises(GLPostingError, match="closed"):
         post_event("backdated:1", "INVOICE", date(2025, 4, 12), [
             ("RENT_RECEIVABLE", 200, 0), ("RENTAL_INCOME", 0, 200)])
+    # A later signed-off period also freezes every earlier open calendar
+    # month. It must never be possible to change historical totals by
+    # posting into March after April was closed.
+    with pytest.raises(GLPostingError, match="closed"):
+        post_event("backdated:march", "INVOICE", date(2025, 3, 12), [
+            ("RENT_RECEIVABLE", 200, 0), ("RENTAL_INCOME", 0, 200)])
     assert not close_period("2025-04", actor_id=user.id)
     with pytest.raises(GLPostingError, match="Current or future"):
         close_period("2099-01", actor_id=user.id)
