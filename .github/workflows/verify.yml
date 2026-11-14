@@ -203,7 +203,10 @@ jobs:
         run: |
           docker run --rm --add-host api:127.0.0.1 \
             -e KATS_TRUSTED_EDGE_CIDR=127.0.0.1/32 \
-            -e NGINX_ENVSUBST_FILTER='^KATS_TRUSTED_EDGE_CIDR      - name: Validate PowerShell developer commands (no Docker execution)
+            -e NGINX_ENVSUBST_FILTER=^KATS_TRUSTED_EDGE_CIDR \
+            -v "$PWD/nginx.hostwares.conf.template:/etc/nginx/templates/default.conf.template:ro" \
+            nginx:stable-alpine nginx -t
+      - name: Validate PowerShell developer commands (no Docker execution)
         shell: pwsh
         run: |
           $tokens = $null
