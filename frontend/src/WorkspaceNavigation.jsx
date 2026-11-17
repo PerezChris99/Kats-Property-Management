@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, Bell, BookOpen, Building2, CalendarRange, ChartColumnIncreasing, ChevronRight, ClipboardCheck, CreditCard, Gauge, FileCheck2, FileClock, FileText, FolderLock, House, KeyRound, LayoutDashboard, LogOut, Mail, Menu, ReceiptText, Search, Settings2, ShieldCheck, Smartphone, Users, Wallet, Wrench, X } from 'lucide-react';
+import { Activity, Bell, BookOpen, Building2, CalendarRange, ChartColumnIncreasing, ChevronRight, ClipboardCheck, CreditCard, Gauge, FileCheck2, FileClock, FileText, FolderLock, House, KeyRound, LayoutDashboard, LogOut, Mail, Menu, ReceiptText, Settings2, ShieldCheck, Smartphone, Users, Wallet, Wrench, X } from 'lucide-react';
 export const COMPACT_GROUPS = [
     { title: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard, pages: ['dashboard'] },
     { title: 'Portfolio', label: 'Portfolio', icon: Building2, pages: ['properties','buildings','floors','rooms','room-placement','portfolio-editor'] },
@@ -33,13 +33,17 @@ export function WorkspaceSectionTabs({ pages, active, role }) {
     return <nav className="kats-section-tabs" aria-label={group.label + ' subpages'}>
       <div className="kats-section-tabs-heading"><span>{group.label}</span><small>Choose a section</small></div>
       <div className="kats-section-tabs-list">
-        {group.pages.map((page,index) => <Link key={page} to={'/'+page}
+        {group.pages.map(page => <Link key={page} to={'/'+page}
             aria-current={page===active ? 'page':undefined}
             className={'kats-section-tab'+(page===active?' is-active':'')}>
-          {(() => {const Icon = PAGE_META[page]?.icon || ChevronRight; return <Icon size={15} aria-hidden="true" strokeWidth={1.9}/>;})()}{labelFor(page)}
+          <PageIcon page={page}/>{labelFor(page)}
         </Link>)}
       </div>
     </nav>;
+}
+function PageIcon({page}) {
+    const Icon = PAGE_META[page]?.icon ?? ChevronRight;
+    return <Icon size={15} aria-hidden="true" strokeWidth={1.9}/>;
 }
 export const PAGE_META = {
     dashboard: { label: 'Dashboard', icon: LayoutDashboard },
