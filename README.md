@@ -122,7 +122,7 @@ Start with the existing single-business architecture. Scale API/worker replicas 
 
 - **[Architecture](docs/ARCHITECTURE.md)** · **[Development](docs/NATIVE_DEVELOPMENT.md)** · **[Testing](tests/README.md)**
 - **[Production deployment](docs/PRODUCTION_DEPLOYMENT.md)** · **[Hostwares runbook](docs/HOSTWARES_DEPLOYMENT.md)** · **[Security & performance](docs/PRODUCTION_PERFORMANCE.md)**
-- **[Delivery status](docs/DELIVERY_STATUS.md)** · **[Operations](docs/OPERATIONS.md)** · **[Go-live checklist](docs/GO_LIVE_CHECKLIST.md)**
+- **[Delivery status](docs/DELIVERY_STATUS.md)** · **[Operations](docs/OPERATIONS.md)** · **[Go-live checklist](docs/GO_LIVE_CHECKLIST.md)** · **[Presentation acceptance](docs/PRESENTATION_ACCEPTANCE.md)**
 
 ## Ownership & license
 
