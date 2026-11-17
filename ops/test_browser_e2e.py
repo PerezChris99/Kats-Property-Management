@@ -1016,7 +1016,7 @@ def test_public_floating_mega_navigation_and_halftone(browser, width, height):
         expect(page.get_by_role("heading", name=re.compile("From rent due"))).to_be_visible()
         expect(page.get_by_role("heading", name=re.compile("Less chasing"))).to_have_count(1)
         if width > 1100:
-            page.get_by_role("button", name="Platform", exact=True).click()
+            page.get_by_role("button", name="Operations", exact=True).click()
             menu = page.locator(".pm-mega-panel")
             expect(menu).to_be_visible()
             columns=menu.locator(".pm-mega-columns > *")
@@ -1028,12 +1028,18 @@ def test_public_floating_mega_navigation_and_halftone(browser, width, height):
             menu.get_by_role("link", name=re.compile("Rent & verified payments")).hover()
             expect(menu.locator(".pm-mega-support strong")).to_have_text(
                 "Rent & verified payments")
+            photo = menu.locator(".pm-mega-support-photo img")
+            expect(photo).to_have_attribute("src", re.compile(r"https://(?:thumb|upload)\\.wikimedia\\.org/"))
+            expect(photo).to_have_attribute("alt", re.compile("illustrative photography"))
+            assert menu.locator(".pm-mega-support-art, .pm-mega-support-orbit").count() == 0
+            border = header.evaluate("""el => getComputedStyle(el).borderTopColor""")
+            assert border == "rgba(226, 240, 249, 0.17)", border
             page.keyboard.press("Escape")
             expect(menu).to_have_count(0)
         else:
             page.get_by_role("button", name="Open navigation").click()
             expect(page.get_by_role("navigation", name="Main navigation")).to_be_visible()
-            page.get_by_role("button", name="Platform", exact=True).click()
+            page.get_by_role("button", name="Operations", exact=True).click()
             menu=page.locator(".pm-mega-panel")
             expect(menu).to_be_visible()
             expect(menu.get_by_role("link", name=re.compile("Rent & verified payments"))).to_be_visible()
