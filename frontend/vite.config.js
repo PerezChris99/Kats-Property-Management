@@ -25,7 +25,7 @@ const versionAsset = {
   generateBundle() {
     this.emitFile({
       type: 'asset', fileName: 'app-version.json',
-      source: JSON.stringify({version:releaseId}) + '\\n'
+      source: JSON.stringify({version:releaseId})
     });
   }
 };
