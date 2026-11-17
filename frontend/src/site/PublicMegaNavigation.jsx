@@ -118,7 +118,7 @@ export function MarketingNavigation({ user, logout, brand }) {
           aria-expanded={menu===item.id} aria-haspopup="true"
           aria-controls={menu===item.id?'pm-mega-panel':undefined}
           onClick={()=>toggle(item.id)}
-          onMouseEnter={()=>{if(window.matchMedia('(min-width:1101px)').matches){setMenu(item.id);setHighlight(null);}}}>
+>
           {item.label}<ChevronDown size={15} aria-hidden="true"/>
         </button>)}
         <Link to="/#workflow" onClick={dismiss} className="pm-workflow-link">How it works</Link>
