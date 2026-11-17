@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { ArrowRight, Command, Search, X } from 'lucide-react';
 import { api } from './lib/api';
 import { PAGE_META, labelFor } from './WorkspaceNavigation';
@@ -146,7 +147,7 @@ export function QuickActionsPalette({ pages }) {
       <span>Search or jump to…</span>
       <kbd>Ctrl / ⌘ K</kbd>
     </button>
-    {open && <div className="kats-command-backdrop"
+    {open && createPortal(<div className="kats-command-backdrop"
       onMouseDown={event => {if (event.target === event.currentTarget) setOpen(false);}}>
       <section ref={panel} role="dialog" aria-modal="true"
         aria-label="Quick actions and authorized workspace search"
@@ -196,6 +197,6 @@ export function QuickActionsPalette({ pages }) {
         <footer className="kats-command-foot">↑ ↓ to navigate · Enter to open · Esc to close
           <span>Results follow your account permissions</span></footer>
       </section>
-    </div>}
+    </div>, document.body)}
   </>;
 }
