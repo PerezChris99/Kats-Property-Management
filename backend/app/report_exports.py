@@ -5,7 +5,7 @@ This module never asserts that a document is a URA EFRIS tax receipt.
 from datetime import datetime
 from html import escape
 from io import BytesIO
-from flask import Blueprint, Response, abort
+from flask import Blueprint, Response, abort, request
 from flask_jwt_extended import jwt_required
 from sqlalchemy import func
 from reportlab.lib import colors
@@ -219,3 +219,125 @@ def export_invoice_xlsx(user):
     return file_response(output.getvalue(),
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "kats-invoices.xlsx")
+
+
+@report_api.get("/reports/export/period-summary.pdf")
+@roles("OWNER", "MANAGER", "ACCOUNTANT", "SUPER_ADMIN", "TENANT")
+def export_period_summary_pdf(user):
+    """Printable source-of-truth management/tenant summary, never a fiscal receipt."""
+    from .presentation_analytics import period_payload
+    from .api import fail
+    try:
+        report = period_payload(user, request.args)
+    except ValueError as error:
+        return fail(str(error), 400)
+    metrics = report["metrics"]
+    lines = [
+        f"Report: {report['start_month']} to {report['end_month']}",
+        f"Previous comparison starts: {report['previous_start_month']}",
+        f"Generated (UTC): {report['generated_at']}",
+        "All financial amounts in Uganda shillings (UGX).",
+    ]
+    for metric in metrics.values():
+        change = metric["change_percent"]
+        lines.append(
+            f"{metric['label']}: {money(metric['current'])}; "
+            f"previous equal-length window: {money(metric['previous'])}; "
+            f"change: {change if change is not None else 'not comparable'}"
+            + ("%" if change is not None else ""))
+    columns = ["Period", "Settled", "Invoiced"]
+    if user.role == "TENANT":
+        columns.append("Applied")
+    else:
+        columns.append("Expenses")
+    rows = []
+    for row in report["points"]:
+        rows.append([
+            row["name"], money(row["verified_collections_ugx"]),
+            money(row["net_invoiced_ugx"]),
+            money(row["applied_payments_ugx"] if user.role == "TENANT"
+                  else row["approved_expenses_ugx"]),
+        ])
+    content = pdf_document(
+        "KATS | Verified monthly financial performance",
+        lines, headers=columns, rows=rows,
+        footer=report["method"] + " Internal management information only. "
+               "Not a tax invoice or independently audited statement.")
+    return file_response(content, "application/pdf", "kats-period-performance.pdf")
+
+
+@report_api.get("/reports/export/period-summary.xlsx")
+@roles("OWNER", "MANAGER", "ACCOUNTANT", "SUPER_ADMIN", "TENANT")
+def export_period_summary_xlsx(user):
+    """Native Excel line chart plus exact, server-verified chart source and KPIs."""
+    from .presentation_analytics import period_payload
+    from .api import fail
+    try:
+        report = period_payload(user, request.args)
+    except ValueError as error:
+        return fail(str(error), 400)
+    output = BytesIO()
+    book = xlsxwriter.Workbook(
+        output, {"in_memory": True, "strings_to_formulas": False,
+                 "strings_to_urls": False})
+    header = book.add_format({"bold": True, "font_color": "#FFFFFF",
+                              "bg_color": "#0B1B3D"})
+    integer = book.add_format({"num_format": "#,##0"})
+    ws = book.add_worksheet("Monthly results")
+    ws.set_column("A:A", 16)
+    ws.set_column("B:E", 23)
+    ws.freeze_panes(1, 0)
+    final_title = "Applied to invoice" if user.role == "TENANT" else "Approved expenses"
+    headers = ("Period", "Verified collections UGX", "Net invoices UGX",
+               final_title + " UGX")
+    for col, title in enumerate(headers):
+        ws.write_string(0, col, title, header)
+    for i, point in enumerate(report["points"], start=1):
+        ws.write_string(i, 0, point["name"])
+        for col, key in enumerate((
+            "verified_collections_ugx", "net_invoiced_ugx",
+            "applied_payments_ugx" if user.role == "TENANT"
+            else "approved_expenses_ugx"), start=1):
+            ws.write_number(i, col, int(point[key]), integer)
+    ws.autofilter(0, 0, len(report["points"]), 3)
+    chart = book.add_chart({"type": "line"})
+    for col, color in ((1, "#1277A8"), (2, "#D8A42E")):
+        chart.add_series({
+            "name": ["Monthly results", 0, col],
+            "categories": ["Monthly results", 1, 0, len(report["points"]), 0],
+            "values": ["Monthly results", 1, col, len(report["points"]), col],
+            "line": {"color": color, "width": 2.5},
+            "marker": {"type": "circle", "size": 4},
+        })
+    chart.set_title({"name": "Settled collections versus invoiced rent"})
+    chart.set_x_axis({"name": "Billing or settlement month"})
+    chart.set_y_axis({"name": "UGX", "num_format": "#,##0"})
+    chart.set_style(10)
+    ws.insert_chart("F2", chart, {"x_scale": 1.3, "y_scale": 1.3})
+    summary = book.add_worksheet("Method and comparison")
+    summary.set_column("A:A", 29)
+    summary.set_column("B:D", 26)
+    for col, title in enumerate(("Metric", "Current period", "Previous period", "Change %")):
+        summary.write_string(0, col, title, header)
+    for index, metric in enumerate(report["metrics"].values(), 1):
+        summary.write_string(index, 0, metric["label"])
+        summary.write_number(index, 1, metric["current"], integer)
+        summary.write_number(index, 2, metric["previous"], integer)
+        if metric["change_percent"] is not None:
+            summary.write_number(index, 3, metric["change_percent"])
+        else:
+            summary.write_string(index, 3, "N/A (no prior data)")
+    row = len(report["metrics"]) + 3
+    for line in (
+        "Report: " + report["start_month"] + " to " + report["end_month"],
+        "Generated UTC: " + report["generated_at"],
+        report["method"],
+        "Internal management report only; not a URA fiscal document or audited P&L.",
+    ):
+        summary.write_string(row, 0, line)
+        row += 1
+    book.close()
+    return file_response(
+        output.getvalue(),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "kats-period-performance.xlsx")
