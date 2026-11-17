@@ -31,7 +31,7 @@
   --control-height-sm: 28px;
   --card-padding: 16px;
   --table-height: 42px;
-  --chart-height: 240px;
+  --chart-height: 310px;
   --content-max: 1392px;
   font-size:var(--font-size-base);
   line-height:var(--line-height-normal);
@@ -187,10 +187,13 @@
 .portal .kats-chart-header {display:flex;justify-content:space-between;align-items:center;gap:var(--space-2);min-height:28px;}
 .portal .kats-chart-header h3 {margin:0;font-size:var(--font-size-lg);line-height:var(--line-height-tight);}
 .portal .kats-chart-content {margin-top:var(--space-3);min-width:0;}
-.portal :is(.kats-chart-svg,.kats-chart-donut,.kats-chart-venn,.kats-chart-radar) {
+/* Chart surfaces must inherit the measured Recharts container height.
+   SVG height:auto collapses Cartesian plots into miniature circles. */
+.portal .kats-recharts-frame .recharts-wrapper,
+.portal .kats-recharts-frame svg.recharts-surface {
   width:100%;
-  height:auto;
-  max-height:var(--chart-height);
+  height:100%;
+  max-height:none;
   overflow:visible;
   display:block;
 }
@@ -369,7 +372,7 @@
 .portal .kats-report-toolbar .kats-report-year {max-width:280px;margin:0;}
 .portal .kats-report-toolbar .outline-button {min-height:var(--control-height);}
 .portal .kats-chart-content {width:100%;min-width:0;}
-.portal :is(.kats-chart-svg,.kats-chart-venn,.kats-chart-radar) {display:block;width:100%;height:auto;max-width:100%;}
+/* Recharts owns the plot's internal SVG dimensions. Do not override them. */
 .portal .page :is(a,button,input,select,textarea):focus-visible {outline:2px solid #0072b2;outline-offset:2px;}
 @media (max-width:1024px) {
   .portal .kats-portfolio-summary .stat-grid > * {grid-column:span 6;}
@@ -450,4 +453,145 @@
   .portal .kats-finance-controls {display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);}
   .portal .kats-finance-controls > label {min-width:0;}
   .portal .kats-finance-page .stat-grid > * {grid-column:span 12;}
+}
+
+
+/* Presentation-grade live analytics: shared for staff/admin and tenant views. */
+.portal .kats-chart-card {
+  box-shadow:0 7px 24px rgba(11, 27, 61, .045);
+  border:1px solid #dce6ed;
+  border-radius:10px;
+  padding:18px;
+  min-width:0;
+}
+.portal .kats-chart-card.kats-chart-wide {--chart-height:350px;}
+.portal .kats-chart-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:12px;
+  margin-bottom:12px;
+}
+.portal .kats-chart-header h3,
+.portal .kats-chart-header h2 {
+  margin:0;
+  color:#0b1b3d;
+  font-size:16px;
+  line-height:1.4;
+  letter-spacing:-.01em;
+}
+.portal .kats-chart-subtitle {
+  display:block;
+  color:#637689;
+  font-size:11px;
+  margin-top:4px;
+}
+.portal .kats-chart-controls {
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  align-items:end;
+  border-top:1px solid #e5edf1;
+  padding-top:12px;
+  margin-bottom:8px;
+}
+.portal .kats-chart-controls label,
+.portal .kats-chart-header label,
+.portal .kats-report-toolbar label,
+.portal .kats-chart-selector {
+  display:grid;
+  gap:5px;
+  color:#44596b;
+  font-size:12px;
+  font-weight:650;
+}
+.portal :is(.kats-chart-controls,.kats-chart-header,.kats-report-toolbar,.kats-performance-layout) select {
+  min-height:36px;
+  border:1px solid #c8d9e3;
+  border-radius:6px;
+  background:#fff;
+  padding:6px 11px;
+  color:#0b1b3d;
+  max-width:100%;
+  font:inherit;
+}
+.portal .kats-recharts-frame {
+  width:100%;
+  height:var(--chart-height);
+  min-width:0;
+  min-height:var(--chart-height);
+  max-width:100%;
+  overflow:hidden;
+}
+.portal .kats-recharts-frame > .recharts-responsive-container {
+  width:100%;
+  height:100%;
+  min-height:0;
+  min-width:0;
+}
+.portal .kats-recharts-frame .recharts-wrapper,
+.portal .kats-recharts-frame svg.recharts-surface {
+  display:block;
+  max-height:none;
+  width:100%;
+  height:100%;
+}
+.portal .kats-chart-donut-layout {
+  display:grid;
+  grid-template-columns:minmax(170px,.9fr) minmax(0,1fr);
+  gap:14px;
+  align-items:center;
+  min-width:0;
+}
+.portal .kats-chart-donut-layout .kats-donut-frame {
+  max-width:100%;
+  --chart-height:260px;
+}
+.portal .kats-chart-legend {
+  min-width:0;
+  gap:9px;
+}
+.portal .kats-chart-legend li {min-width:0;gap:9px;}
+.portal .kats-chart-legend li strong {font-variant-numeric:tabular-nums;}
+.portal .kats-chart-legend li small {color:#647687;font-size:11px;}
+.portal .kats-chart-empty {
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  text-align:center;
+  height:170px;
+  border:1px dashed #cfdee8;
+  border-radius:8px;
+  color:#516b7d;
+  font-size:13px;
+}
+.portal .kats-performance-layout {display:grid;gap:10px;min-width:0;}
+.portal .kats-chart-selector select {max-width:370px;}
+.portal .kats-performance-values {
+  display:flex;
+  gap:8px 18px;
+  flex-wrap:wrap;
+  align-items:center;
+  color:#40566b;
+  font-size:12px;
+}
+.portal .kats-performance-values > span {display:inline-flex;align-items:center;gap:7px;}
+.portal .kats-performance-values strong {color:#0b1b3d;font-variant-numeric:tabular-nums;}
+.portal .kats-performance-values small {flex:1 1 100%;color:#657789;}
+.portal .kats-chart-swatch {display:inline-block;flex-shrink:0;width:10px;height:10px;border-radius:2px;}
+.portal .kats-chart-method {margin-top:12px;line-height:1.5;}
+.portal .kats-report-toolbar {display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:12px 0 20px;}
+.portal .kats-report-toolbar select {min-width:155px;}
+@media (max-width:1024px) {
+  .portal .kats-chart-donut-layout {grid-template-columns:1fr;}
+  .portal .kats-donut-frame {margin-inline:auto;}
+}
+@media (max-width:640px) {
+  .portal {--chart-height:285px;}
+  .portal .kats-chart-card.kats-chart-wide {--chart-height:305px;}
+  .portal .kats-chart-card {padding:12px;}
+  .portal .kats-chart-donut-layout .kats-donut-frame {--chart-height:250px;}
+  .portal .kats-chart-controls {align-items:stretch;}
+  .portal .kats-chart-header label select {min-width:124px;}
 }
