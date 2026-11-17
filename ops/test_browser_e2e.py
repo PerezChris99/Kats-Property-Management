@@ -627,8 +627,7 @@ def test_live_account_analytics_render_without_blanks(browser,role,expected,widt
         # A new verified-settlement chart may correctly render an empty state
         # when the disposable demo has no trusted settlement timestamps.
         charts_or_empty = page.locator(
-            ".kats-chart-svg, .kats-chart-donut, .kats-chart-venn, .kats-chart-radar, "
-            ".kats-chart-zero"
+            ".kats-recharts-frame svg.recharts-surface, .kats-chart-zero"
         )
         assert charts_or_empty.count() >= expected
         metrics=page.evaluate("""() => ({
@@ -639,6 +638,56 @@ def test_live_account_analytics_render_without_blanks(browser,role,expected,widt
         })""")
         assert metrics["scroll"]<=metrics["client"]+2,metrics
         assert all(0<=r["left"] and r["right"]<=width+2 for r in metrics["chartWidths"]),metrics
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("role", ["OWNER", "TENANT"])
+def test_live_chart_geometry_and_mode_switches(browser, role):
+    """Real Chromium SVG geometry and interactive chart-mode regression."""
+    context = browser.new_context(viewport={"width": 1280, "height": 850},
+                                  reduced_motion="reduce")
+    page = context.new_page()
+    try:
+        page.goto(BASE + "/login", wait_until="domcontentloaded")
+        probe = page.request.get(BASE + "/api/v1/auth/demo-accounts")
+        if probe.status != 200 or not probe.json().get("enabled"):
+            pytest.skip("Requires the isolated seeded local demo")
+        expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=15000)
+        if role == "OWNER":
+            page.locator(".pm-demo-owner").click()
+        else:
+            page.locator(".pm-demo-search").fill("Sarah Namusoke")
+            page.locator(".pm-demo-tenant-list button").first.click()
+        expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
+        expect(page.locator(".kats-chart-skeleton")).to_have_count(0, timeout=20000)
+        assert page.locator(".kats-chart-feedback[role='alert']").count() == 0
+
+        # An SVG with nonzero page width/height is a graph, not a decorative ring.
+        actual = page.evaluate("""() => [...document.querySelectorAll(
+          '.kats-recharts-frame svg.recharts-surface')].map(svg => {
+          const r = svg.getBoundingClientRect();
+          return {width:r.width, height:r.height};
+        })""")
+        assert len(actual) >= 3, (role, actual)
+        assert all(x["width"] >= 170 and x["height"] >= 200 for x in actual), (role, actual)
+
+        if role == "OWNER":
+            panel = page.locator(".kats-chart-card").filter(
+                has_text="Invoicing and verified collections")
+            expect(panel.locator(".recharts-line-curve")).to_have_count(2)
+            panel.locator(".kats-chart-controls select").first.select_option("compare")
+            expect(panel.locator(".recharts-bar-rectangles").first).to_be_visible()
+            performance = page.locator(".kats-chart-card").filter(
+                has_text="Property performance by metric")
+            expect(performance.locator(".recharts-bar-rectangles").first).to_be_visible()
+        else:
+            status = page.locator(".kats-chart-card").filter(has_text="Invoice payment status")
+            status.locator(".kats-chart-controls select").first.select_option("pie")
+            assert status.locator(".recharts-pie-sector").count() >= 1
+            balance = page.locator(".kats-chart-card").filter(
+                has_text="Cumulative outstanding balance")
+            assert balance.locator(".recharts-line-curve").count() >= 1
     finally:
         context.close()
 
