@@ -74,7 +74,7 @@ function chartAxes({ unit, vertical = false, points = [] }) {
   ];
 }
 
-function DistributionChart({ points, unit, title, donut }) {
+function DistributionChart({ points, unit, title, donut, onSelect }) {
   if (!points?.length || !points.some(row => positive(row.value) > 0))
     return <EmptyChart/>;
   const values = points.map(item => ({ ...item, value: positive(item.value) }));
@@ -86,7 +86,8 @@ function DistributionChart({ points, unit, title, donut }) {
         <Pie data={values} dataKey="value" nameKey="name"
           innerRadius={donut ? '53%' : 0} outerRadius="80%"
           paddingAngle={values.length > 1 ? 2 : 0}
-          stroke="#fff" strokeWidth={2} isAnimationActive={false}>
+          stroke="#fff" strokeWidth={2} isAnimationActive={false}
+          onClick={entry => onSelect?.(entry)}>
           {values.map((item, i) => <Cell key={item.name + i}
             fill={PALETTE[i % PALETTE.length]}/>)}
         </Pie>
@@ -103,18 +104,20 @@ function DistributionChart({ points, unit, title, donut }) {
     </ul>
   </div>;
 }
-export function DonutChart({ points, unit = 'rooms', title = 'Distribution' }) {
-  return <DistributionChart points={points} unit={unit} title={title} donut/>;
+export function DonutChart({ points, unit = 'rooms', title = 'Distribution', onSelect }) {
+  return <DistributionChart points={points} unit={unit} title={title} donut onSelect={onSelect}/>;
 }
-export function PieChart({ points, unit = 'rooms', title = 'Distribution' }) {
-  return <DistributionChart points={points} unit={unit} title={title} donut={false}/>;
+export function PieChart({ points, unit = 'rooms', title = 'Distribution', onSelect }) {
+  return <DistributionChart points={points} unit={unit} title={title} donut={false} onSelect={onSelect}/>;
 }
 
-export function BarChart({ points, unit = 'UGX', title = 'Values', horizontal = false }) {
+export function BarChart({ points, unit = 'UGX', title = 'Values', horizontal = false, onSelect }) {
   if (!points?.length) return <EmptyChart/>;
   const values = normalise(points);
   return <ChartFrame title={title}>
     <RechartsBarChart data={values} layout={horizontal ? 'vertical' : 'horizontal'}
+      onClick={event => { if (event?.activePayload?.[0]?.payload)
+        onSelect?.(event.activePayload[0].payload); }}
       accessibilityLayer margin={horizontal
         ? { top: 8, right: 20, bottom: 12, left: 6 }
         : { top: 8, right: 15, bottom: 12, left: 0 }}>
@@ -129,11 +132,13 @@ export function BarChart({ points, unit = 'UGX', title = 'Values', horizontal = 
 }
 
 /** Two genuine independent accounting series displayed side by side, never stacked. */
-export function ComparisonBarChart({ points, unit = 'UGX', title = 'Collection and invoicing' }) {
+export function ComparisonBarChart({ points, unit = 'UGX', title = 'Collection and invoicing', onSelect }) {
   if (!points?.length) return <EmptyChart/>;
   const values = normalise(points);
   return <ChartFrame title={title}>
     <RechartsBarChart data={values} accessibilityLayer
+      onClick={event => { if (event?.activePayload?.[0]?.payload)
+        onSelect?.(event.activePayload[0].payload); }}
       margin={{ top: 12, right: 18, bottom: 14, left: 0 }}>
       {chartAxes({ points: values, unit })}
       <Tooltip formatter={tooltip(unit)} cursor={{ fill: '#eef5f9' }}/>
@@ -146,11 +151,13 @@ export function ComparisonBarChart({ points, unit = 'UGX', title = 'Collection a
   </ChartFrame>;
 }
 
-export function LineChart({ points, unit = 'UGX', title = 'Trend', secondary = false }) {
+export function LineChart({ points, unit = 'UGX', title = 'Trend', secondary = false, onSelect }) {
   if (!points?.length) return <EmptyChart/>;
   const values = normalise(points);
   return <ChartFrame title={title}>
     <RechartsLineChart data={values} accessibilityLayer
+      onClick={event => { if (event?.activePayload?.[0]?.payload)
+        onSelect?.(event.activePayload[0].payload); }}
       margin={{ top: 12, right: 20, bottom: 14, left: 0 }}>
       {chartAxes({ points: values, unit })}
       <Tooltip formatter={tooltip(unit)}/>
@@ -167,10 +174,12 @@ export function LineChart({ points, unit = 'UGX', title = 'Trend', secondary = f
   </ChartFrame>;
 }
 
-export function AreaChart({ points, unit = 'UGX', title = 'Trend' }) {
+export function AreaChart({ points, unit = 'UGX', title = 'Trend', onSelect }) {
   if (!points?.length) return <EmptyChart/>;
   return <ChartFrame title={title}>
     <RechartsAreaChart data={normalise(points)} accessibilityLayer
+      onClick={event => { if (event?.activePayload?.[0]?.payload)
+        onSelect?.(event.activePayload[0].payload); }}
       margin={{ top: 12, right: 20, bottom: 14, left: 0 }}>
       <defs><linearGradient id="kats-collection-area" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor={PALETTE[0]} stopOpacity={0.32}/>
@@ -187,7 +196,7 @@ export function AreaChart({ points, unit = 'UGX', title = 'Trend' }) {
 }
 
 /** Comparable rates share the same 0–100% axis; no misleading round radar. */
-export function PropertyPerformanceChart({ points, title = 'Property performance' }) {
+export function PropertyPerformanceChart({ points, title = 'Property performance', onSelect }) {
   const [selected, setSelected] = useState('');
   if (!points?.length) return <EmptyChart label="No property performance data yet."/>;
   const property = points.find(row => String(row.id ?? row.name) === selected) || points[0];
@@ -206,6 +215,7 @@ export function PropertyPerformanceChart({ points, title = 'Property performance
     </label>
     <ChartFrame title={title + ': ' + property.name}>
       <RechartsBarChart data={values} layout="vertical" accessibilityLayer
+        onClick={event => { if (event?.activePayload?.length) onSelect?.({ name: property.name }); }}
         margin={{ top: 6, right: 28, bottom: 9, left: 16 }}>
         <CartesianGrid stroke="#e3eaf0" horizontal={false} strokeDasharray="3 5"/>
         <XAxis type="number" domain={[0, 100]} ticks={[0, 25, 50, 75, 100]}
@@ -230,7 +240,7 @@ export function PropertyPerformanceChart({ points, title = 'Property performance
 }
 
 /** Exact mutually exclusive groups, rather than an inaccurate overlapping-circle diagram. */
-export function VennChart({ data }) {
+export function VennChart({ data, onSelect }) {
   const current = positive(data.current), maintenance = positive(data.maintenance);
   const both = positive(data.both), total = positive(data.total);
   if (!total) return <EmptyChart label="No active tenancy records."/>;
@@ -241,7 +251,7 @@ export function VennChart({ data }) {
     { name: 'Neither', value: Math.max(0, total - current - maintenance + both), rent: false, maintenance: false },
   ];
   return <div className="kats-upset-layout">
-    <BarChart points={intersections} unit="tenants" title="Rent and maintenance intersections" horizontal/>
+    <BarChart points={intersections} unit="tenants" title="Rent and maintenance intersections" horizontal onSelect={onSelect}/>
     <div className="data-table-wrap"><table className="kats-upset-table">
       <caption>Exact set membership, by active tenancy</caption>
       <thead><tr><th>Intersection</th><th>Rent current</th><th>Open maintenance</th><th>Tenants</th></tr></thead>

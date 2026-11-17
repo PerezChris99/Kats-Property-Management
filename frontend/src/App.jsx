@@ -1,5 +1,6 @@
 import { api } from './lib/api';
 import { WorkspaceNavigation, WorkspaceSectionTabs } from './WorkspaceNavigation';
+import { PresentationTour } from './PresentationTour';
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 const LandlordAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.LandlordAnalytics})));
 const TenantAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.TenantAnalytics})));
@@ -485,6 +486,7 @@ function Dashboard({ user }) {
     const expected = Number(summary?.expected_ugx || 0);
     const collection = expected > 0 ? Math.min(100, Math.max(0, Math.round(100 * collected / expected))) : null;
     return <section className="page kats-overview">
+      <PresentationTour role={user.role}/>
       <div className="kats-overview-head">
         <div><span className="eyebrow">YOUR PORTFOLIO, AT A GLANCE</span>
           <h1>Welcome back, {user.full_name.split(' ')[0]}.</h1>
@@ -602,6 +604,7 @@ function TenantHome() {
         return () => { active = false; };
     }, [reload]);
     return <section className="page"><span className="eyebrow">TENANT PORTAL</span><h1>My rental account</h1><p>Your current lease and recorded rent activity.</p>
+    <PresentationTour role="TENANT"/>
     {error && <p role="alert" className="error">{error}</p>}
     {summary ? <div className="stat-grid"><div className="stat"><small>Invoiced</small><strong>UGX {summary.total_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Paid</small><strong>UGX {summary.paid_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Outstanding</small><strong>UGX {summary.outstanding_ugx.toLocaleString('en-UG')}</strong></div></div> : !error ? <p role="status">Loading rent summary…</p> : <p role="alert">Unable to load rental summary. Check the API and reload.</p>}
     <Suspense fallback={<p className="data-loading" role="status">Loading rental charts…</p>}><TenantAnalytics /></Suspense>
@@ -613,6 +616,7 @@ function CaretakerHome() {
     const [error, setError] = useState('');
     useEffect(() => { api('caretaker/dashboard').then(setSummary).catch(err => setError(String(err))); }, []);
     return <section className="page"><span className="eyebrow">CARETAKER PORTAL</span><h1>My assigned rooms</h1><p>Only assigned rooms and their tasks are visible.</p>
+    <PresentationTour role="CARETAKER"/>
     {error && <p role="alert" className="error">{error}</p>}
     {summary ? <div className="stat-grid">
       <div className="stat"><small>Assigned rooms</small><strong>{summary.assigned_rooms}</strong></div>

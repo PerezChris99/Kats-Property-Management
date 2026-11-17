@@ -171,6 +171,8 @@ def create_app(test_config=None):
     app.register_blueprint(analytics_api, url_prefix="/api/v1")
     from .workspace_analytics import workspace_analytics_api
     app.register_blueprint(workspace_analytics_api, url_prefix="/api/v1")
+    from .presentation_analytics import presentation_api
+    app.register_blueprint(presentation_api, url_prefix="/api/v1")
     from .finance_health import finance_health_api
     app.register_blueprint(finance_health_api, url_prefix="/api/v1")
     from .arrears import arrears_api

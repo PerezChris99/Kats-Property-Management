@@ -4,6 +4,7 @@
 // KATS_STAGING_BASE_URL=https://staging.example.com
 // KATS_STAGING_COOKIE="access_token_cookie=..."
 // KATS_STAGING_ROLE=TENANT or OWNER
+// KATS_STAGING_PROFILE=presentation KATS_STAGING_VUS=50 (or 100)
 // k6 run ops/load-workspace.js
 //
 // Cookie must belong to an isolated test account, never a real tenant.
@@ -14,10 +15,15 @@ import { check, sleep } from 'k6';
 const base = (__ENV.KATS_STAGING_BASE_URL || '').replace(/\/+$/, '');
 const cookie = __ENV.KATS_STAGING_COOKIE || '';
 const role = __ENV.KATS_STAGING_ROLE || 'TENANT';
+const profile = __ENV.KATS_STAGING_PROFILE || 'baseline';
+const maxVUs = Number(__ENV.KATS_STAGING_VUS || 25);
 if (__ENV.KATS_LOAD_TEST_APPROVED !== 'yes'
   || !/^https:\/\/[a-z0-9.-]*?(staging|test)[a-z0-9.-]*(?::\d+)?$/i.test(base)
   || !/^access_token_cookie=[A-Za-z0-9_.=-]+(?:;[ ]*[a-z_]+=[A-Za-z0-9_.=-]+)*$/.test(cookie)
-  || !['OWNER','TENANT'].includes(role)) {
+  || !['OWNER','TENANT'].includes(role)
+  || !['baseline','presentation'].includes(profile)
+  || ![25,50,100].includes(maxVUs)
+  || (profile === 'baseline' && maxVUs !== 25)) {
   throw new Error('Use approved HTTPS staging, isolated test cookies and an explicit test role.');
 }
 
@@ -25,9 +31,9 @@ export const options = {
   scenarios: { authorizedRead: {
     executor: 'ramping-vus', startVUs: 0,
     stages: [
-      { duration: '30s', target: 5 },
-      { duration: '60s', target: 15 },
-      { duration: '60s', target: 25 },
+      { duration: '30s', target: profile === 'presentation' ? 10 : 5 },
+      { duration: '60s', target: profile === 'presentation' ? 25 : 15 },
+      { duration: '60s', target: maxVUs },
       { duration: '30s', target: 0 }
     ],
     gracefulRampDown: '10s'
@@ -46,10 +52,16 @@ export default function () {
   const urls = role === 'OWNER'
     ? ['/api/v1/dashboard','/api/v1/properties?page=1&page_size=25',
        '/api/v1/invoices?page=1&page_size=25',
-       '/api/v1/operations/maintenance-aging']
+       '/api/v1/operations/maintenance-aging',
+       '/api/v1/analytics/period-summary?months=6',
+       '/api/v1/analytics/landlord/occupancy',
+       '/api/v1/analytics/landlord/monthly']
     : ['/api/v1/tenant/dashboard','/api/v1/tenant/lease',
        '/api/v1/invoices?page=1&page_size=25',
-       '/api/v1/maintenance?page=1&page_size=25'];
+       '/api/v1/maintenance?page=1&page_size=25',
+       '/api/v1/analytics/period-summary?months=6',
+       '/api/v1/analytics/tenant/payment-status',
+       '/api/v1/analytics/tenant/payment-history'];
 
   const selected = urls[Math.floor(Math.random()*urls.length)];
   const response = http.get(base+selected,requestOptions);

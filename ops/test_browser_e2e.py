@@ -699,7 +699,7 @@ def test_live_chart_geometry_and_mode_switches(browser, role):
             status.locator(".kats-chart-controls select").first.select_option("pie")
             assert status.locator(".recharts-pie-sector").count() >= 1
             balance = page.locator(".kats-chart-card").filter(
-                has_text="Cumulative outstanding balance")
+                has_text="Current outstanding debt by selected billing period")
             assert balance.locator(".recharts-line-curve").count() >= 1
     finally:
         context.close()
@@ -838,3 +838,46 @@ def test_local_demo_logins_reappear_after_transient_flask_connection_failure(pag
     expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=18000)
     assert attempts["count"] >= 2
     expect(page.locator(".pm-demo-status-pane")).to_have_count(0)
+
+
+@pytest.mark.parametrize("role", ["OWNER", "TENANT"])
+def test_presentation_reporting_filter_exports_and_authorized_drilldown(browser, role):
+    """True browser acceptance: unified periods, role scoped records and downloads."""
+    context = browser.new_context(viewport={"width": 1200, "height": 900},
+                                  reduced_motion="reduce")
+    page = context.new_page()
+    try:
+        page.goto(BASE + "/login", wait_until="domcontentloaded")
+        probe = page.request.get(BASE + "/api/v1/auth/demo-accounts")
+        if probe.status != 200 or not probe.json().get("enabled"):
+            pytest.skip("Requires isolated fictional local demo")
+        expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=15000)
+        if role == "OWNER":
+            page.locator(".pm-demo-owner").click()
+        else:
+            page.locator(".pm-demo-search").fill("Sarah Namusoke")
+            page.locator(".pm-demo-tenant-list button").first.click()
+        expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
+        summary = page.locator(".kats-period-panel")
+        expect(summary).to_have_count(1, timeout=20000)
+        expect(summary.locator(".kats-period-metrics .stat")).to_have_count(3, timeout=15000)
+        expect(summary.locator(".kats-chart-skeleton")).to_have_count(0, timeout=20000)
+        summary.locator(".kats-period-controls select").first.select_option("3")
+        expect(summary.locator(".kats-period-metrics .stat")).to_have_count(3, timeout=20000)
+        expect(summary.get_by_text("Report generated:", exact=False)).to_be_visible()
+        report = summary.get_by_role("link", name="Export Excel + charts")
+        assert "months=3" in report.get_attribute("href")
+        assert "end_month=" in report.get_attribute("href")
+        response = page.request.get(BASE + report.get_attribute("href"))
+        assert response.status == 200
+        assert response.body().startswith(b"PK")
+        if role == "OWNER":
+            card = page.locator(".kats-chart-card").filter(has_text="Portfolio occupancy")
+        else:
+            card = page.locator(".kats-chart-card").filter(has_text="Invoice payment status")
+        expect(card).to_be_visible()
+        card.get_by_role("button", name="View underlying records").click()
+        expect(card.locator(".kats-drill-results")).to_be_visible(timeout=15000)
+        assert card.locator(".kats-drill-results [role='alert']").count() == 0
+    finally:
+        context.close()

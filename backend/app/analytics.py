@@ -32,7 +32,7 @@ def annual_trends(user):
 
     pmonth=func.extract("month",Payment.settled_at)
     collections=db.session.query(pmonth,func.sum(Payment.amount_ugx)).filter(
-        Payment.status=="RECONCILED",
+        Payment.status=="RECONCILED", Payment.reversed_at.is_(None),
         Payment.settled_at>=start_datetime,
         Payment.settled_at<end_datetime).group_by(pmonth).all()
 
@@ -58,9 +58,10 @@ def annual_trends(user):
             "approved_expenses_incurred_ugx":costs.get(index,0),
         })
     legacy=db.session.query(func.coalesce(func.sum(Payment.amount_ugx),0)).filter(
-        Payment.status=="RECONCILED",Payment.settled_at.is_(None)).scalar() or 0
+        Payment.status=="RECONCILED",Payment.reversed_at.is_(None),Payment.settled_at.is_(None)).scalar() or 0
     return jsonify(
         year=year,points=points,
+        generated_at=datetime.now(timezone.utc).isoformat(),
         totals={"verified_collections_ugx":sum(payments.values()),
                 "net_invoiced_ugx":sum(bills.values()),
                 "approved_expenses_incurred_ugx":sum(costs.values())},

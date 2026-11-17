@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import {
   DonutChart, PieChart, BarChart, LineChart, AreaChart, ComparisonBarChart,
   VennChart, PropertyPerformanceChart, formatUGX,
 } from './ChartKit';
 import { MetricTile, SectionHeading, DataStatus } from '../components/WorkspacePrimitives';
+import { PeriodDashboard, financialChartData } from './PresentationControls';
 
 const MODE_OPTIONS = {
   donut: [['donut', 'Doughnut'], ['pie', 'Pie']],
@@ -16,6 +18,27 @@ const MODE_OPTIONS = {
   performance: [['performance', 'Percentage bars']],
 };
 const TIME_SERIES = new Set(['bar', 'line', 'monthly-line']);
+
+const DRILL_METRIC = {
+  'analytics/landlord/occupancy': 'occupancy',
+  'analytics/landlord/collections-by-property': 'property_collections',
+  'analytics/landlord/monthly': 'verified_collections',
+  'analytics/landlord/tenant-overlap': 'overlap',
+  'analytics/landlord/property-scores': 'property_rooms',
+  'analytics/tenant/payment-status': 'payment_status',
+  'analytics/tenant/applied-payments': 'applied_payments',
+  'analytics/tenant/payment-history': 'verified_collections',
+  'analytics/tenant/balance-trend': 'net_invoiced',
+};
+const VENN_GROUPS = ['Current rent only', 'Both', 'Maintenance only', 'Neither'];
+const RECORD_ROUTES = new Set(['rooms', 'tenants', 'invoices', 'payments', 'expenses']);
+const readableTime = iso => {
+  if (!iso) return null;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null
+    : date.toLocaleString('en-UG', { dateStyle: 'medium', timeStyle: 'short' });
+};
+
 
 function PointsTable({ points, unit, kind }) {
   if (kind === 'venn' || kind === 'performance' || !points?.length) return null;
@@ -46,19 +69,26 @@ function validResponse(data, kind) {
         (kind !== 'monthly-line' || Number.isFinite(Number(point.secondary)))));
 }
 
-export function ChartPanel({ title, endpoint, kind, className = '' }) {
+export function ChartPanel({ title, endpoint, kind, className = '', periodView, onPeriodRefresh }) {
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState({ status: 'loading', data: null, error: '' });
+  const [selected, setSelected] = useState('');
+  const [drillSeries, setDrillSeries] = useState('verified_collections');
+  const [details, setDetails] = useState({ status: 'idle', items: [], error: '' });
+  const drillRequest = useRef(0);
+  const chartRoot = useRef(null);
+  const external = periodView !== undefined;
   const options = MODE_OPTIONS[kind] || MODE_OPTIONS.bar;
   const [mode, setMode] = useState(options[0][0]);
   const [range, setRange] = useState('12');
   useEffect(() => {
+    if (external) return undefined;
     const controller = new AbortController();
     setState({ status: 'loading', data: null, error: '' });
     api(endpoint,{signal:controller.signal})
       .then(data => {
         if (!validResponse(data, kind)) throw new Error('The analytics response is invalid. Please retry.');
-        if (!controller.signal.aborted) setState({ status: 'ready', data, error: '' });
+        if (!controller.signal.aborted) setState({ status: 'ready', data, error: '', receivedAt: new Date().toISOString() });
       })
       .catch(error => {
         if (!controller.signal.aborted) setState({
@@ -67,30 +97,89 @@ export function ChartPanel({ title, endpoint, kind, className = '' }) {
         });
       });
     return () => controller.abort();
-  }, [endpoint, revision, kind]);
+  }, [endpoint, revision, kind, external]);
 
-  const data = state.data;
+  const active = external
+    ? { status: periodView.status, error: periodView.error,
+        data: financialChartData(endpoint, periodView.data),
+        receivedAt: periodView.data?.generated_at }
+    : state;
+  const data = active.data;
   const points = data?.points || [];
   const plotted = TIME_SERIES.has(kind) && range !== 'all'
     ? points.slice(-Number(range)) : points;
   const empty = kind === 'venn' ? !data?.total : !points.length;
   const unit = data?.unit || 'UGX';
+  const categories = kind === 'venn' ? VENN_GROUPS
+    : [...new Set(points.map(row => row.name))];
+  const selectedName = categories.includes(selected) ? selected : (categories[0] || '');
+  const reportMetric = endpoint === 'analytics/landlord/monthly'
+    ? drillSeries : DRILL_METRIC[endpoint];
+  const inspect = (point, metricOverride) => {
+    const name = point?.name || selectedName;
+    if (!name || !reportMetric) return;
+    const metric = metricOverride || reportMetric;
+    const query = new URLSearchParams({ metric });
+    if (/^20\d\d-(0[1-9]|1[0-2])$/.test(name)) query.set('month', name);
+    else query.set('category', name);
+    const id = ++drillRequest.current;
+    setSelected(name);
+    setDetails({ status: 'loading', items: [], error: '' });
+    api('analytics/drilldown?' + query.toString())
+      .then(response => {
+        if (id === drillRequest.current) setDetails({
+          status: 'ready', items: response.items || [],
+          error: '', truncated: response.truncated === true, name,
+        });
+      })
+      .catch(reason => {
+        if (id === drillRequest.current) setDetails({
+          status: 'error', items: [], error: reason.message || 'Unable to show source records',
+        });
+      });
+  };
+  const downloadSvg = () => {
+    const source = chartRoot.current?.querySelector('.recharts-wrapper > svg.recharts-surface');
+    if (!source) return;
+    const svg = source.cloneNode(true);
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', title);
+    const file = new Blob([new XMLSerializer().serializeToString(svg)], {
+      type: 'image/svg+xml;charset=utf-8',
+    });
+    const url = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'kats-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.svg';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  };
+  const refresh = () => {
+    setDetails({ status: 'idle', items: [], error: '' });
+    if (external) onPeriodRefresh?.();
+    else setRevision(v=>v+1);
+  };
 
-  return <article className={'kats-chart-card ' + className} aria-label={title}>
+  return <article ref={chartRoot} className={'kats-chart-card ' + className} aria-label={title}>
     <header className="kats-chart-header">
       <div><h3>{title}</h3><span className="kats-chart-subtitle">From live, role-authorized records</span></div>
-      <button className="outline-button small" type="button"
-        disabled={state.status === 'loading'} onClick={() => setRevision(v=>v+1)}>
-        Refresh
-      </button>
+      <div className="kats-chart-actions">
+        {active.status === 'ready' && !empty && <button className="outline-button small"
+          type="button" onClick={downloadSvg}>Download SVG</button>}
+        <button className="outline-button small" type="button"
+          disabled={active.status === 'loading'} onClick={refresh}>Refresh</button>
+      </div>
     </header>
-    {state.status === 'ready' && !empty && <div className="kats-chart-controls">
+    {active.status === 'ready' && !empty && <div className="kats-chart-controls">
       {options.length > 1 && <label>Chart type
         <select value={mode} onChange={event => setMode(event.target.value)}>
           {options.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
         </select>
       </label>}
-      {TIME_SERIES.has(kind) && points.length > 6 && <label>Period
+      {TIME_SERIES.has(kind) && !external && points.length > 6 && <label>Period
         <select value={range} onChange={event => setRange(event.target.value)}>
           <option value="6">Latest 6 months</option>
           <option value="12">Latest 12 months</option>
@@ -98,29 +187,71 @@ export function ChartPanel({ title, endpoint, kind, className = '' }) {
         </select>
       </label>}
     </div>}
-    {state.status === 'loading' && <div className="kats-chart-skeleton"
+    {active.status === 'loading' && <div className="kats-chart-skeleton"
       role="status" aria-label={'Loading ' + title}><span/><span/><span/></div>}
-    {state.status === 'error' && <div className="kats-chart-feedback" role="alert">
-      <p>{state.error}</p><p>Other dashboard information remains available.</p>
+    {active.status === 'error' && <div className="kats-chart-feedback" role="alert">
+      <p>{active.error}</p><p>Other dashboard information remains available.</p>
       <button className="outline-button small" type="button"
-        onClick={() => setRevision(v=>v+1)}>Retry chart</button>
+        onClick={refresh}>Retry chart</button>
     </div>}
-    {state.status === 'ready' && (empty
+    {active.status === 'ready' && (empty
       ? <div className="kats-chart-feedback kats-chart-zero" role="status">
           No source records are available for this chart yet.
         </div>
       : <div className="kats-chart-content">
-        {mode === 'donut' && <DonutChart points={plotted} unit={unit} title={title}/>}
-        {mode === 'pie' && <PieChart points={plotted} unit={unit} title={title}/>}
+        {mode === 'donut' && <DonutChart points={plotted} unit={unit} title={title} onSelect={inspect}/>}
+        {mode === 'pie' && <PieChart points={plotted} unit={unit} title={title} onSelect={inspect}/>}
         {(mode === 'bar' || mode === 'horizontal') && <BarChart
-          points={plotted} unit={unit} title={title} horizontal={mode === 'horizontal'}/>}
+          points={plotted} unit={unit} title={title} horizontal={mode === 'horizontal'} onSelect={inspect}/>}
         {mode === 'line' && <LineChart points={plotted} unit={unit} title={title}
-          secondary={kind === 'monthly-line'}/>}
-        {mode === 'area' && <AreaChart points={plotted} unit={unit} title={title}/>}
-        {mode === 'compare' && <ComparisonBarChart points={plotted} unit={unit} title={title}/>}
-        {mode === 'venn' && <VennChart data={data}/>}
-        {mode === 'performance' && <PropertyPerformanceChart points={plotted} title={title}/>}
+          secondary={kind === 'monthly-line'} onSelect={inspect}/>}
+        {mode === 'area' && <AreaChart points={plotted} unit={unit} title={title} onSelect={inspect}/>}
+        {mode === 'compare' && <ComparisonBarChart points={plotted} unit={unit} title={title} onSelect={inspect}/>}
+        {mode === 'venn' && <VennChart data={data} onSelect={inspect}/>}
+        {mode === 'performance' && <PropertyPerformanceChart points={plotted} title={title} onSelect={inspect}/>}
         <PointsTable points={plotted} unit={unit} kind={kind}/>
+        {reportMetric && categories.length > 0 && <div className="kats-drill-controls">
+          <label>Explore source records
+            <select value={selectedName} onChange={event => setSelected(event.target.value)}>
+              {categories.map(name => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </label>
+          {endpoint === 'analytics/landlord/monthly' && <label>Record type
+            <select value={drillSeries} onChange={event => setDrillSeries(event.target.value)}>
+              <option value="verified_collections">Verified receipts</option>
+              <option value="net_invoiced">Net invoices</option>
+            </select>
+          </label>}
+          <button className="outline-button small" type="button"
+            onClick={() => inspect({name:selectedName})}>View underlying records</button>
+        </div>}
+        {details.status === 'loading' && <p role="status">Loading authorized records…</p>}
+        {details.status === 'error' && <p role="alert">{details.error}</p>}
+        {details.status === 'ready' && <section className="kats-drill-results"
+          aria-label={'Source records for ' + details.name}>
+          <div className="kats-chart-header">
+            <h4>Underlying records · {details.name}</h4>
+            <button className="outline-button small" type="button"
+              onClick={() => setDetails({status:'idle',items:[],error:''})}>Close</button>
+          </div>
+          {!details.items.length ? <p>No matching authorized records.</p>
+            : <div className="data-table-wrap" role="region" tabIndex={0}
+              aria-label="Scrollable chart source records"><table>
+                <thead><tr><th>Record</th><th>Details</th><th>Recorded amount</th></tr></thead>
+                <tbody>{details.items.map((row, index) => <tr key={row.title + index}>
+                  <th scope="row">{RECORD_ROUTES.has(row.resource)
+                    ? <Link to={'/' + row.resource + '?q=' + encodeURIComponent(row.query || '')}>{row.title}</Link>
+                    : row.title}</th>
+                  <td>{row.subtitle}</td>
+                  <td>{row.amount_ugx === undefined ? '—' : formatUGX(row.amount_ugx)}</td>
+                </tr>)}</tbody>
+              </table></div>}
+          {details.truncated && <p className="caption">Showing the latest 25 records. Open the source workspace for more.</p>}
+        </section>}
+        {readableTime(data.generated_at || active.receivedAt) && <p className="kats-chart-timestamp">
+          Retrieved: <time dateTime={data.generated_at || active.receivedAt}>
+            {readableTime(data.generated_at || active.receivedAt)}</time>
+        </p>}
         {data.method && <p className="kats-chart-method">{data.method}</p>}
       </div>)}
   </article>;
@@ -172,24 +303,40 @@ function PortfolioMetrics() {
 export function LandlordAnalytics() {
   return <section className="kats-analytics" aria-label="Live portfolio analytics">
     <PortfolioMetrics/>
-    <SectionHeading title="Portfolio analytics" description="Live operational data from aggregated database queries."/>
-    <div className="kats-chart-grid">
-      <ChartPanel title="Portfolio occupancy" endpoint="analytics/landlord/occupancy" kind="donut"/>
-      <ChartPanel title="Collections by property" endpoint="analytics/landlord/collections-by-property" kind="category-bar"/>
-      <ChartPanel title="Invoicing and verified collections" endpoint="analytics/landlord/monthly" kind="monthly-line" className="kats-chart-wide"/>
-      <ChartPanel title="Current rent and maintenance overlap" endpoint="analytics/landlord/tenant-overlap" kind="venn"/>
-      <ChartPanel title="Property performance by metric" endpoint="analytics/landlord/property-scores" kind="performance"/>
-    </div>
+    <PeriodDashboard>{(view, refresh) => <>
+      <SectionHeading title="Portfolio analytics"
+        description="Current occupancy and membership; financial plots share the chosen reporting period."/>
+      <div className="kats-chart-grid">
+        <ChartPanel title="Portfolio occupancy" endpoint="analytics/landlord/occupancy" kind="donut"/>
+        <ChartPanel title="Collections by property (all recorded settlements)"
+          endpoint="analytics/landlord/collections-by-property" kind="category-bar"/>
+        <ChartPanel title="Invoicing and verified collections"
+          endpoint="analytics/landlord/monthly" kind="monthly-line"
+          className="kats-chart-wide" periodView={view} onPeriodRefresh={refresh}/>
+        <ChartPanel title="Current rent and maintenance overlap"
+          endpoint="analytics/landlord/tenant-overlap" kind="venn"/>
+        <ChartPanel title="Property performance by metric (all recorded)"
+          endpoint="analytics/landlord/property-scores" kind="performance"/>
+      </div>
+    </>}</PeriodDashboard>
   </section>;
 }
 export function TenantAnalytics() {
   return <section className="kats-analytics" aria-label="Live rental analytics">
-    <SectionHeading title="My rental activity" description="Only invoices and verified payments connected to your signed-in rental profile."/>
-    <div className="kats-chart-grid">
-      <ChartPanel title="Invoice payment status" endpoint="analytics/tenant/payment-status" kind="donut"/>
-      <ChartPanel title="Payments applied by rent period" endpoint="analytics/tenant/applied-payments" kind="bar"/>
-      <ChartPanel title="Verified payment history" endpoint="analytics/tenant/payment-history" kind="line"/>
-      <ChartPanel title="Cumulative outstanding balance" endpoint="analytics/tenant/balance-trend" kind="line" className="kats-chart-wide"/>
-    </div>
+    <SectionHeading title="My rental activity"
+      description="Only invoices and verified payments connected to your signed-in rental profile."/>
+    <PeriodDashboard>{(view, refresh) => <div className="kats-chart-grid">
+      <ChartPanel title="Invoice payment status (current)"
+        endpoint="analytics/tenant/payment-status" kind="donut"/>
+      <ChartPanel title="Payments applied by rent period"
+        endpoint="analytics/tenant/applied-payments" kind="bar"
+        periodView={view} onPeriodRefresh={refresh}/>
+      <ChartPanel title="Verified payment history"
+        endpoint="analytics/tenant/payment-history" kind="line"
+        periodView={view} onPeriodRefresh={refresh}/>
+      <ChartPanel title="Current outstanding debt by selected billing period"
+        endpoint="analytics/tenant/balance-trend" kind="line"
+        className="kats-chart-wide" periodView={view} onPeriodRefresh={refresh}/>
+    </div>}</PeriodDashboard>
   </section>;
 }

@@ -136,6 +136,14 @@ async function performApi(path, options, method) {
         error.httpStatus = response.status;
         throw error;
     }
+    // All dashboard aggregates bypass completed-data caching. A successful
+    // account mutation invalidates visible summaries in this browser tab;
+    // never optimistic-update a financial total before server acceptance.
+    if (method !== 'GET' && method !== 'HEAD' && !path.startsWith('auth/') &&
+        typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' &&
+        typeof Event !== 'undefined') {
+        window.dispatchEvent(new Event('kats:data-updated'));
+    }
     return payload;
 }
 function reportWorkspaceReadError(task) {
