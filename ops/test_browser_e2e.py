@@ -660,8 +660,14 @@ def test_live_chart_geometry_and_mode_switches(browser, role):
             page.locator(".pm-demo-search").fill("Sarah Namusoke")
             page.locator(".pm-demo-tenant-list button").first.click()
         expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
+        # Lazy dashboard mounts asynchronously. An absent skeleton before mount
+        # is NOT proof that the chart has finished rendering.
+        expect(page.locator(".kats-chart-card")).to_have_count(
+            5 if role == "OWNER" else 4, timeout=20000)
         expect(page.locator(".kats-chart-skeleton")).to_have_count(0, timeout=20000)
         assert page.locator(".kats-chart-feedback[role='alert']").count() == 0
+        expect(page.locator(".kats-recharts-frame svg.recharts-surface").first).to_be_visible(
+            timeout=15000)
 
         # An SVG with nonzero page width/height is a graph, not a decorative ring.
         actual = page.evaluate("""() => [...document.querySelectorAll(
