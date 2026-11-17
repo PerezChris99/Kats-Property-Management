@@ -13,7 +13,7 @@ KATS is **one private property-management system belonging to Kats Properties**.
 - Public pages explain Kats Properties' own property operations; they must not solicit independent landlords, advertise SaaS plans, trials or external customer onboarding.
 - The public **Request access** form is an administrator-reviewed request for people already associated with Kats Properties. It does not self-register a new business, property company or independently provision an account.
 - Multiple properties, rooms, leases, user roles and access boundaries are internal business records. Preserve privacy and permission controls; do not interpret them as authorization to build SaaS tenant onboarding.
-- Supporting property photos on public pages are **illustrative only**: no claim that photographed buildings belong to or are managed by Kats Properties. Retain all external photo licences and credits in the existing [image attributions](/image-attributions) page; do not add intrusive photo-credit banners to the navigation.
+- Supporting property photos on public pages are **illustrative only**: no claim that photographed buildings belong to or are managed by Kats Properties. Retain all external photo licences and credits in the existing application's **Image attributions** page (`/image-attributions`); do not add intrusive photo-credit banners to the navigation.
 
 ## What it does
 
