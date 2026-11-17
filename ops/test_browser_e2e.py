@@ -627,7 +627,7 @@ def test_live_account_analytics_render_without_blanks(browser,role,expected,widt
         # A new verified-settlement chart may correctly render an empty state
         # when the disposable demo has no trusted settlement timestamps.
         charts_or_empty = page.locator(
-            ".kats-recharts-frame svg.recharts-surface, .kats-chart-zero"
+            ".kats-recharts-frame .recharts-wrapper > svg.recharts-surface, .kats-chart-zero"
         )
         assert charts_or_empty.count() >= expected
         metrics=page.evaluate("""() => ({
@@ -671,7 +671,7 @@ def test_live_chart_geometry_and_mode_switches(browser, role):
         page.evaluate("""() => document.querySelector(
           '.kats-recharts-frame')?.scrollIntoView({block:'center'})""")
         actual = page.evaluate("""() => [...document.querySelectorAll(
-          '.kats-recharts-frame svg.recharts-surface')].map(svg => {
+          '.kats-recharts-frame .recharts-wrapper > svg.recharts-surface')].map(svg => {
           const r = svg.getBoundingClientRect();
           const frame = svg.closest('.kats-recharts-frame');
           const f = frame.getBoundingClientRect();
