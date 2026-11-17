@@ -911,7 +911,8 @@ def test_workspace_command_palette_and_collapsible_navigation(browser, role):
             page.locator(".pm-demo-tenant-list button").first.click()
         expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
         assert page.locator(".kats-presentation-tour").count() == 0
-        assert page.locator(".kats-dash-hero").count() == 1
+        # Protected dashboard and its lazy children may mount a tick after URL navigation.
+        expect(page.locator(".kats-dash-hero")).to_have_count(1, timeout=15000)
         expect(page.locator(".kats-chart-card")).to_have_count(2, timeout=20000)
         expect(page.get_by_role("button", name="Search pages, records and quick actions")).to_be_visible()
         page.keyboard.press("Control+k")
