@@ -43,6 +43,9 @@ test('release metadata and SW are private-data-safe and never cached as immutabl
   assert.ok(sw.includes("url.pathname === '/app-version.json'"));
   assert.ok(sw.includes("url.pathname.startsWith('/api/')"));
   assert.ok(sw.includes("request.mode === 'navigate'"));
+  assert.ok(sw.includes("'/offline-reconnect.js'"), 'offline recovery script is in the static-only cache');
+  assert.ok(read('public/offline.html').includes('defer src="/offline-reconnect.js"'));
+  assert.ok(read('public/offline-reconnect.js').includes("window.addEventListener('online', reconnect)"));
   assert.ok(nginx.includes('location = /app-version.json'));
   assert.ok(nginx.includes('add_header Cache-Control "no-store, max-age=0" always;'));
   assert.ok([vercel,vercelRoot].every(v =>
