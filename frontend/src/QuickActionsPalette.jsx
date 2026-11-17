@@ -37,6 +37,7 @@ export function QuickActionsPalette({ pages }) {
   useEffect(() => {
     if (!open) return undefined;
     const previouslyFocused = document.activeElement;
+    const triggerNode = trigger.current;
     const oldOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     requestAnimationFrame(() => input.current?.focus());
@@ -63,7 +64,7 @@ export function QuickActionsPalette({ pages }) {
       document.body.style.overflow = oldOverflow;
       document.removeEventListener('keydown', keys);
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
-      else trigger.current?.focus();
+      else triggerNode?.focus();
     };
   }, [open]);
   useEffect(() => {
