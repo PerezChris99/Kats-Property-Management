@@ -1,0 +1,70 @@
+/* A release notification that works in browser tabs and installed desktop PWAs.
+   It is global but rendered only when a real deployed update is detected or a
+   manual check returns a status. It never overlays the primary form controls. */
+.kats-update-notice {
+  position:fixed;z-index:12000;
+  right:clamp(12px,2.6vw,32px);
+  bottom:max(15px,env(safe-area-inset-bottom));
+  display:flex;align-items:flex-start;gap:12px;
+  width:min(420px,calc(100vw - 25px));
+  padding:17px;
+  color:#12334f;
+  border:1px solid rgba(144,193,220,.59);
+  border-radius:13px;
+  background:rgba(250,253,255,.96);
+  box-shadow:0 22px 64px rgba(4,28,54,.2);
+  -webkit-backdrop-filter:blur(22px) saturate(140%);
+  backdrop-filter:blur(22px) saturate(140%);
+  font-family:'IBM Plex Sans','Segoe UI',sans-serif;
+}
+.kats-update-mark {
+  display:grid;place-items:center;flex:none;
+  height:36px;width:36px;border-radius:9px;
+  background:#dff3fd;color:#096f9e;
+}
+.kats-update-notice>div {min-width:0;flex:1;}
+.kats-update-notice strong {
+  display:block;color:#0b2948;
+  font-weight:750;font-size:14px;line-height:1.35;
+}
+.kats-update-notice p {
+  margin:5px 0 13px;color:#506d7f;font-size:12px;line-height:1.6;
+}
+.kats-update-actions {display:flex;flex-wrap:wrap;gap:9px;align-items:center;}
+.kats-update-actions button {
+  min-height:37px;padding:8px 12px;
+  border-radius:8px;font:inherit;font-size:12px;font-weight:750;cursor:pointer;
+}
+.kats-update-apply {
+  display:inline-flex;align-items:center;gap:8px;
+  border:1px solid #096b9a;background:#087caf;color:#fff;
+}
+.kats-update-apply:hover:not(:disabled) {background:#0b638f;}
+.kats-update-recheck {
+  border:1px solid #c1d6e2;background:#fff;color:#2e5770;
+}
+.kats-update-notice button:disabled {opacity:.62;cursor:wait;}
+.kats-update-notice>span:not(.kats-update-mark) {
+  flex:1;line-height:1.6;font-size:12px;
+}
+.kats-update-dismiss {
+  display:grid;place-items:center;min-width:30px;min-height:30px;
+  border:1px solid #ccdde7;border-radius:7px;color:#405f76;
+  background:rgba(255,255,255,.9);cursor:pointer;
+}
+.portal .kats-check-updates {
+  width:34px;height:34px;flex:none;display:grid;place-items:center;
+  border:1px solid #cadae5;border-radius:8px;
+  background:rgba(255,255,255,.72);color:#40627b;cursor:pointer;
+}
+.portal .kats-check-updates:hover,
+.portal .kats-check-updates:focus-visible {
+  background:#e9f6fd;color:#0c6c9b;
+}
+@media(max-width:768px) {
+  .kats-update-notice {bottom:max(89px,calc(68px + env(safe-area-inset-bottom)));}
+  .portal .kats-check-updates {width:34px;}
+}
+@media (prefers-reduced-transparency:reduce),(prefers-contrast:more) {
+  .kats-update-notice {background:#fff;border-color:#4f7088;}
+}
