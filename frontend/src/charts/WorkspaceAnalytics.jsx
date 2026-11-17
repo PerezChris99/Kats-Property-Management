@@ -28,7 +28,7 @@ const DRILL_METRIC = {
   'analytics/tenant/payment-status': 'payment_status',
   'analytics/tenant/applied-payments': 'applied_payments',
   'analytics/tenant/payment-history': 'verified_collections',
-  'analytics/tenant/balance-trend': 'net_invoiced',
+  'analytics/tenant/balance-trend': 'open_invoices',
 };
 const VENN_GROUPS = ['Current rent only', 'Both', 'Maintenance only', 'Neither'];
 const RECORD_ROUTES = new Set(['rooms', 'tenants', 'invoices', 'payments', 'expenses']);

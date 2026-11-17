@@ -114,19 +114,19 @@ def period_payload(user, args):
         names["applied_payments"] = _metric("Applied to rent invoices", applied, count, last)
     else:
         names["approved_expenses"] = _metric("Approved incurred expenses", expenses, count, last)
-    running_open = 0
     points = []
     for index in range(last - count + 1, last + 1):
         value = invoiced.get(index, 0)
-        # Historical invoice periods shown at today's recorded state, not as-of snapshots.
-        running_open += value - applied.get(index, 0)
+        # Current remaining balance for THIS invoice period, not a cumulative
+        # or historically reconstructed account balance.
+        current_open = value - applied.get(index, 0)
         points.append({
             "name": month_at(index).strftime("%Y-%m"),
             "verified_collections_ugx": paid.get(index, 0),
             "net_invoiced_ugx": value,
             "applied_payments_ugx": applied.get(index, 0) if is_tenant else 0,
             "approved_expenses_ugx": expenses.get(index, 0) if not is_tenant else 0,
-            "current_open_invoice_balance_ugx": running_open if is_tenant else 0,
+            "current_open_invoice_balance_ugx": current_open if is_tenant else 0,
         })
     return {
         "months": count,
@@ -179,13 +179,14 @@ def analytics_drilldown(user):
     month = request.args.get("month", "")
     category = request.args.get("category", "")
     if metric not in ("verified_collections", "net_invoiced", "applied_payments",
+                      "open_invoices",
                       "approved_expenses", "occupancy", "payment_status", "property_collections",
                       "property_rooms", "overlap"):
         return fail("Unsupported drill-down metric", 400)
     if metric in ("approved_expenses", "occupancy", "property_collections",
                   "property_rooms", "overlap") and user.role == "TENANT":
         return fail("Not authorized", 403)
-    if metric in ("applied_payments", "payment_status") and user.role != "TENANT":
+    if metric in ("applied_payments", "payment_status", "open_invoices") and user.role != "TENANT":
         return fail("Not authorized", 403)
     try:
         if metric not in ("occupancy", "payment_status", "property_collections",
@@ -296,6 +297,8 @@ def analytics_drilldown(user):
         items = [
             {"title": inv.invoice_number, "subtitle": inv.period_start.isoformat(),
              "amount_ugx": int(inv.paid_ugx if metric == "applied_payments"
+                               else inv.total_ugx - inv.credit_ugx - inv.paid_ugx
+                               if metric == "open_invoices"
                                else inv.total_ugx - inv.credit_ugx),
              "resource": "invoices", "query": inv.invoice_number}
             for inv in query.order_by(Invoice.period_start.desc(), Invoice.id).limit(25)]
