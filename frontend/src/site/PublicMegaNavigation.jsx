@@ -1,22 +1,45 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
+import { PHOTOS } from './media';
 import {
   ArrowRight, BookOpen, Building2, ChartNoAxesCombined, ChevronDown,
   CheckCircle2, CreditCard, FileCheck2, FileText, House, KeyRound,
   Layers3, Menu, RefreshCw, ShieldCheck, Users, Wallet, Wrench, X
 } from 'lucide-react';
 
-/* Public destinations point only at actual routes or IDs on the home page.
- * The fourth column is a contextual illustration, not fabricated analytics. */
+/* Single-business internal property workspace for Kats Properties.
+ * Public destinations lead to existing routes and sections only.
+ * Supporting photos are illustrative, not depictions of managed KATS properties.
+ * Existing /image-attributions covers their open licences without visual clutter. */
+const SUPPORT_PHOTOS = {
+  '/#feature-properties': PHOTOS[0],
+  '/#feature-leases': PHOTOS[3],
+  '/#feature-rent': PHOTOS[1],
+  '/#feature-reports': PHOTOS[4],
+  '/#feature-maintenance': PHOTOS[2],
+  '/#feature-access': PHOTOS[0],
+  '/#role-owners': PHOTOS[0],
+  '/#role-managers': PHOTOS[3],
+  '/#role-accountants': PHOTOS[4],
+  '/#role-tenants': PHOTOS[1],
+  '/#role-caretakers': PHOTOS[2],
+  '/#outcomes': PHOTOS[3],
+  '/#workflow': PHOTOS[4],
+  '/request-access': PHOTOS[0],
+  '/login': PHOTOS[1],
+  '/data-protection': PHOTOS[2],
+  '/privacy': PHOTOS[3],
+  '/image-attributions': PHOTOS[4]
+};
 export const PUBLIC_MENUS = [
-  {id:'platform',label:'Platform',columns:[
+  {id:'platform',label:'Operations',columns:[
     {title:'Properties & people',links:[
       {title:'Property portfolio',detail:'Buildings, rooms and occupancy',href:'/#feature-properties',icon:Building2},
       {title:'Tenancies & leases',detail:'Stay on top of agreements',href:'/#feature-leases',icon:KeyRound}
     ]},
     {title:'Money & records',links:[
       {title:'Rent & verified payments',detail:'Invoices, collections and receipts',href:'/#feature-rent',icon:CreditCard},
-      {title:'Financial reporting',detail:'Understand the position of your portfolio',href:'/#feature-reports',icon:ChartNoAxesCombined}
+      {title:'Financial reporting',detail:'Review the Kats Properties portfolio',href:'/#feature-reports',icon:ChartNoAxesCombined}
     ]},
     {title:'Day-to-day work',links:[
       {title:'Maintenance',detail:'Requests, work orders and follow-up',href:'/#feature-maintenance',icon:Wrench},
@@ -43,7 +66,7 @@ export const PUBLIC_MENUS = [
       {title:'See the workflow',detail:'From property setup to reporting',href:'/#workflow',icon:ChartNoAxesCombined}
     ]},
     {title:'Get access',links:[
-      {title:'Request access',detail:'Start a conversation about your portfolio',href:'/request-access',icon:ArrowRight},
+      {title:'Request access',detail:'For authorized Kats Properties staff and tenants',href:'/request-access',icon:ArrowRight},
       {title:'Sign in',detail:'Continue to your workspace',href:'/login',icon:KeyRound}
     ]},
     {title:'Transparency',links:[
@@ -65,6 +88,7 @@ export function MarketingNavigation({ user, logout, brand }) {
   const firstLink = selected?.columns[0]?.links[0];
   const focus = highlight && selected?.columns.some(col=>col.links.includes(highlight))
     ? highlight : firstLink;
+  const supportPhoto = SUPPORT_PHOTOS[focus?.href] || PHOTOS[0];
   useEffect(()=>{
     setMenu(null);setMobileOpen(false);setHighlight(null);
   },[pathname,hash]);
@@ -154,13 +178,14 @@ export function MarketingNavigation({ user, logout, brand }) {
           </div>)}
           <aside className="pm-mega-support" aria-live="off">
             <span className="pm-mega-support-kicker">IN FOCUS</span>
-            <div className="pm-mega-support-art" aria-hidden="true">
-              <div className="pm-mega-support-orbit"/>
-              {focus && <focus.icon size={63} strokeWidth={1.2}/>}
+            <div className="pm-mega-support-photo">
+              <img src={supportPhoto.url}
+                alt={supportPhoto.alt + ' — illustrative photography, not a managed Kats Properties site'}
+                loading="lazy" decoding="async"/>
             </div>
             {focus && <>
               <strong>{focus.title}</strong><p>{focus.detail}. See how the
-                KATS workspace brings this part of property operations together.</p>
+                Kats Properties workspace keeps this part of the business organized.</p>
               <Link to={focus.href} onClick={dismiss}>Explore this area
                 <ArrowRight size={16} aria-hidden="true"/></Link>
             </>}

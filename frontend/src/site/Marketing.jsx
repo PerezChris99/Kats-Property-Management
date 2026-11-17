@@ -69,7 +69,7 @@ function PublicFooter() {
     <div className="pm-footer-body">
       <div className="pm-footer-brand">
         <Brand compact/>
-        <p>A clear view of your properties, rent and maintenance.</p>
+        <p>The private property operations workspace for Kats Properties, our team and residents.</p>
       </div>
       <nav className="pm-footer-links" aria-label="Footer navigation">
         <div className="pm-footer-group">
@@ -138,8 +138,8 @@ function SectionTitle({ eyebrow, title, text, center = false }) {
   return <div className={'pm-section-title' + (center ? ' is-centered' : '')}><span className="pm-kicker">{eyebrow}</span><h2>{title}</h2>{text && <p>{text}</p>}</div>;
 }
 function AccessCallout({ user }) {
-  const title = 'Everything your property team needs. One workspace.';
-  const description = 'Less chasing records. More time managing properties.';
+  const title = 'One business. One clear property workspace.';
+  const description = 'Access is reserved for Kats Properties staff and tenants, with administrator approval.';
   return <section className="pm-endcap" aria-label="Get started with KATS">
     <div className="pm-container pm-endcap-inner">
       <div className="pm-endcap-copy">
@@ -263,14 +263,14 @@ function HeroCarousel({ user }) {
   return <section ref={heroRef} className="pm-hero" aria-label="Property management introduction" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) setPaused(false); }}>
     <div className="pm-hero-images" aria-hidden="true">{PHOTOS.map((item, n) => <div className={'pm-slide' + (n === index ? ' is-current' : '')} key={item.url} style={ready.has(n) ? { backgroundImage: 'url("' + item.url + '")' } : undefined}/>)}</div>
     <div className="pm-hero-shade"/>
-    <div className="pm-hero-inner"><div className="pm-hero-copy"><span className="pm-kicker pm-kicker-light"><span className="pm-spark" /> ONE CLEAR VIEW OF YOUR RENTALS</span><h1>From rent due to repairs done. <em>Know what comes next.</em></h1><p>Stop piecing together spreadsheets, payments and maintenance messages. KATS connects your properties, leases, verified rent collections and repairs so your team can act with clarity.</p><div className="pm-hero-actions"><Link className="pm-cta pm-cta-yellow" to={user ? '/dashboard' : '/request-access'}>{user ? 'Open workspace' : 'Request access'} <ArrowRight size={18}/></Link><Link className="pm-cta pm-cta-ghost" to="/#workflow">How it works</Link></div><div className="pm-hero-points"><span><Check size={15}/> Know what is owed</span><span><Check size={15}/> Follow each repair</span><span><Check size={15}/> One accountable team</span></div></div></div>
+    <div className="pm-hero-inner"><div className="pm-hero-copy"><span className="pm-kicker pm-kicker-light"><span className="pm-spark" /> KATS PROPERTIES · ONE BUSINESS, ONE WORKSPACE</span><h1>From rent due to repairs done. <em>Know what comes next.</em></h1><p>KATS brings our property records, leases, verified rent collections and repairs into one private workspace for Kats Properties staff and tenants. No scattered records, no guessing what comes next.</p><div className="pm-hero-actions"><Link className="pm-cta pm-cta-yellow" to={user ? '/dashboard' : '/request-access'}>{user ? 'Open workspace' : 'Request access'} <ArrowRight size={18}/></Link><Link className="pm-cta pm-cta-ghost" to="/#workflow">How it works</Link></div><div className="pm-hero-points"><span><Check size={15}/> Know what is owed</span><span><Check size={15}/> Follow each repair</span><span><Check size={15}/> One accountable team</span></div></div></div>
     <div className="pm-carousel-bottom"><div className="pm-carousel-controls"><button onClick={() => move(-1)} aria-label="Previous residential photo"><ChevronLeft/></button><span className="pm-carousel-count">0{index + 1} / 0{PHOTOS.length}</span><button onClick={() => move(1)} aria-label="Next residential photo"><ChevronRight/></button></div><div className="pm-carousel-dots" aria-label="Choose a residential photo">{PHOTOS.map((p, n) => <button type="button" key={p.credit} aria-label={'Show photo ' + (n + 1)} aria-current={index === n ? 'true' : undefined} onClick={() => { if (ready.has(n)) setIndex(n); }} disabled={!ready.has(n)} className={index === n ? 'is-current' : ''}/>)}</div><a className="pm-hero-credit" href={PHOTOS[index].credit} target="_blank" rel="noopener noreferrer">{PHOTOS[index].location} · {PHOTOS[index].author}</a></div>
   </section>;
 }
 
 function TrustBand() {
   return <section id="about" className="pm-role-strip" aria-label="About KATS">
-    <div className="pm-container"><span>Built for Ugandan rental operations, with UGX records and role-specific access.</span>
+    <div className="pm-container"><span>Kats Properties' dedicated Ugandan property workspace, with UGX records and role-specific access.</span>
       <div>{PRINCIPLES.map(({ title }) => <span id={'role-'+title.toLowerCase()} key={title}>{title}</span>)}</div>
     </div>
   </section>;
@@ -281,8 +281,8 @@ function OutcomesStrip() {
       <div className="pm-outcomes-intro">
         <span className="pm-kicker">THE PROBLEM, MADE MANAGEABLE</span>
         <h2>Less chasing.<br/><em>More knowing.</em></h2>
-        <p>Property management gets difficult when the records you need
-          live in different places. KATS brings the next decision into focus.</p>
+        <p>Managing Kats Properties gets difficult when the records our team needs
+          live in different places. This private system brings the next decision into focus.</p>
       </div>
       <div className="pm-outcomes-list">
         <article><span>01 / RENT</span><h3>What's outstanding?</h3>
@@ -298,7 +298,7 @@ function OutcomesStrip() {
 function CoreCapabilities() {
   return <section id="capabilities" className="pm-section pm-core" aria-label="KATS capabilities">
     <div className="pm-container">
-      <SectionTitle eyebrow="THE WORKSPACE" title="Manage the essentials." text="One connected place for your daily property work."/>
+      <SectionTitle eyebrow="THE WORKSPACE" title="Manage the essentials." text="One connected place for Kats Properties' daily property operations."/>
       <div className="pm-feature-grid pm-core-grid">
         {FEATURES.map(({icon:Icon,anchor,eyebrow,title,body}) => <article className="pm-feature-card" id={anchor} key={title}>
           <Icon size={25} aria-hidden="true"/>
@@ -383,7 +383,7 @@ export function RequestAccessPage() {
     <section className="pm-section pm-request-section" aria-labelledby="pm-request-heading"><div className="pm-container pm-request-layout">
       <div className="pm-contact-form">
         <div className="pm-request-form-head"><span className="pm-form-index">01 / REQUEST</span><span className="pm-request-security"><ShieldCheck size={15} aria-hidden="true"/> Reviewed by an administrator</span></div>
-        <div className="pm-section-title"><span className="pm-kicker">REQUEST ACCESS</span><h1 id="pm-request-heading">Request your workspace.</h1><p>Share a few details. An administrator reviews your request before any account is created.</p></div>
+        <div className="pm-section-title"><span className="pm-kicker">REQUEST ACCESS</span><h1 id="pm-request-heading">Request your workspace.</h1><p>For staff and tenants connected to Kats Properties only. An administrator verifies your relationship before approving an account.</p></div>
         {success && <p role="status" className="pm-form-success"><CheckCircle2 size={20}/>{success}</p>}
         {error && <p role="alert" className="error">{error}</p>}
         <form onSubmit={submit}>
@@ -394,7 +394,7 @@ export function RequestAccessPage() {
             <label>Phone (optional)<input type="tel" maxLength="30" autoComplete="tel" value={values.phone} onChange={e => change('phone', e.target.value)}/></label>
           </div>
           <label>Property or building (optional)<input maxLength="120" value={values.portfolio} onChange={e => change('portfolio', e.target.value)}/></label>
-          <label>Why do you need access?<textarea required minLength="10" maxLength="2000" rows="3" value={values.message} onChange={e => change('message', e.target.value)} placeholder="Your property or team and the work you manage"/></label>
+          <label>Why do you need access?<textarea required minLength="10" maxLength="2000" rows="3" value={values.message} onChange={e => change('message', e.target.value)} placeholder="Your connection to Kats Properties and why you need access"/></label>
           <label className="pm-consent"><input type="checkbox" checked={values.consent} required onChange={e => change('consent', e.target.checked)}/><span>I agree to the handling of this request under the <Link to="/privacy">Privacy policy</Link>.</span></label>
           <input className="pm-honeypot" aria-hidden="true" tabIndex={-1} autoComplete="off" name="website" value={values.website} onChange={e => change('website', e.target.value)}/>
           <div className="pm-form-submit"><button className="pm-cta pm-cta-yellow" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Submit request'} <ArrowRight size={17}/></button><small>Submitting does not create an account.</small></div>
@@ -405,8 +405,8 @@ export function RequestAccessPage() {
         <div className="pm-guide-mark" aria-hidden="true"><ShieldCheck size={29} strokeWidth={1.5}/></div>
         <span className="pm-kicker">WHAT HAPPENS NEXT</span>
         <h2>Secure access, without the friction.</h2>
-        <p className="pm-guide-intro">Your property records stay private. Every new account is reviewed before access is granted.</p>
-        <ol><li><strong>Submit details</strong><span>Tell us your role and property.</span></li><li><strong>Administrator review</strong><span>Your request is checked for the correct permissions.</span></li><li><strong>Account invitation</strong><span>If approved, you’ll receive instructions to sign in.</span></li></ol>
+        <p className="pm-guide-intro">Kats Properties' records stay private. Access is available only to verified staff and residents.</p>
+        <ol><li><strong>Submit details</strong><span>Tell us your role and connection to Kats Properties.</span></li><li><strong>Administrator review</strong><span>Your request is checked for the correct permissions.</span></li><li><strong>Account invitation</strong><span>If approved, you’ll receive instructions to sign in.</span></li></ol>
         <div className="pm-guide-footer"><span>ALREADY REGISTERED?</span><Link to="/login" className="pm-text-link">Sign in <ArrowRight size={16}/></Link></div>
       </aside>
     </div></section>

@@ -6,6 +6,15 @@ Manage a single business's properties, tenants, leases, rent, maintenance and fi
 
 > **Release status:** The source has automated CI coverage, including PostgreSQL, browser and Windows launcher checks. **Production deployment, bank/payment integrations, data migration, live-device testing and client acceptance are not yet signed off.** CI success does not certify production readiness or authorize real-money or fiscal operations.
 
+## Product boundary
+
+KATS is **one private property-management system belonging to Kats Properties**. Its owner, authorized staff, caretakers and tenants use it to operate the business's buildings and rental units. It is **not software-as-a-service**, not a multi-organization landlord marketplace, and not a subscription product marketed to other property businesses.
+
+- Public pages explain Kats Properties' own property operations; they must not solicit independent landlords, advertise SaaS plans, trials or external customer onboarding.
+- The public **Request access** form is an administrator-reviewed request for people already associated with Kats Properties. It does not self-register a new business, property company or independently provision an account.
+- Multiple properties, rooms, leases, user roles and access boundaries are internal business records. Preserve privacy and permission controls; do not interpret them as authorization to build SaaS tenant onboarding.
+- Supporting property photos on public pages are **illustrative only**: no claim that photographed buildings belong to or are managed by Kats Properties. Retain all external photo licences and credits in the existing application's **Image attributions** page (`/image-attributions`); do not add intrusive photo-credit banners to the navigation.
+
 ## What it does
 
 | Workspace | Core functionality |
