@@ -699,7 +699,7 @@ def test_live_chart_geometry_and_mode_switches(browser, role):
             status.locator(".kats-chart-controls select").first.select_option("pie")
             assert status.locator(".recharts-pie-sector").count() >= 1
             balance = page.locator(".kats-chart-card").filter(
-                has_text="Cumulative outstanding balance")
+                has_text="Current outstanding debt by selected billing period")
             assert balance.locator(".recharts-line-curve").count() >= 1
     finally:
         context.close()
