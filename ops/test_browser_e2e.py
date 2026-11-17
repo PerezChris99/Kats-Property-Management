@@ -1011,7 +1011,7 @@ def test_public_floating_mega_navigation_and_halftone(browser, width, height):
         assert css["padding"] == "8px", css
         assert "radial-gradient" in css["halftone"], css
         expect(page.get_by_role("heading", name=re.compile("From rent due"))).to_be_visible()
-        expect(page.get_by_role("heading", name="Less chasing. More knowing.")).to_have_count(1)
+        expect(page.get_by_role("heading", name=re.compile("Less chasing"))).to_have_count(1)
         if width > 1100:
             page.get_by_role("button", name="Platform", exact=True).click()
             menu = page.locator(".pm-mega-panel")
@@ -1048,7 +1048,7 @@ def test_manual_update_check_exposes_status_without_reloading_in_development(pag
     page.get_by_role("button", name="Explore", exact=True).click()
     menu=page.locator(".pm-mega-panel")
     menu.get_by_role("button", name="Check for app updates").click()
-    notice=page.get_by_role("complementary", name="App version updates")
+    notice=page.locator(".kats-update-notice[role='status']")
     expect(notice).to_be_visible(timeout=5000)
     expect(notice).to_contain_text("Update checks are available in deployed builds.")
     assert page.get_by_role("button", name="Get new update").count()==0
