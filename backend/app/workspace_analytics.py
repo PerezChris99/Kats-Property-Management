@@ -27,6 +27,14 @@ def _month(value):
     return value.strftime("%Y-%m") if hasattr(value, "strftime") else str(value)[:7]
 
 
+def _months_ending(last_month, count=12):
+    """Continuous calendar buckets; zero represents no event, not an estimated transaction."""
+    year, month = (int(value) for value in last_month.split("-"))
+    last_index = year * 12 + month - 1
+    return [f"{index // 12:04d}-{index % 12 + 1:02d}"
+            for index in range(last_index - count + 1, last_index + 1)]
+
+
 def _tenant_id(user):
     return db.session.query(Tenant.id).filter(Tenant.user_id == user.id).scalar()
 
@@ -74,12 +82,14 @@ def landlord_monthly(_user):
               .group_by(billed_month).all())
     paid = {_month(month): int(amount) for month, amount in collections}
     invoices = {_month(month): int(amount) for month, amount in billed}
-    months = sorted(set(paid) | set(invoices))[-12:]
+    observed = sorted(set(paid) | set(invoices))
+    months = _months_ending(observed[-1]) if observed else []
     return jsonify(points=[{"name":month, "value":paid.get(month, 0),
                             "secondary":invoices.get(month, 0)} for month in months],
                    unit="UGX",
                    method=("Reconciled unreversed payments grouped by actual settlement month. "
-                           "Invoices grouped by rent period; these are different accounting events."))
+                           "Invoices grouped by rent period; these are different accounting events. "
+                           "Missing months within the latest 12-month window contain zero recorded events."))
 
 
 @workspace_analytics_api.get("/analytics/landlord/tenant-overlap")
@@ -174,9 +184,12 @@ def tenant_applied_payments(user):
     rows = (db.session.query(month, func.sum(Invoice.paid_ugx))
             .filter(Invoice.tenant_id == tenant_id, Invoice.status != "VOID")
             .group_by(month).order_by(month).all())
-    return jsonify(points=[{"name":_month(month), "value":int(value)} for month,value in rows],
+    observed = {_month(period): int(value) for period, value in rows}
+    months = _months_ending(max(observed)) if observed else []
+    return jsonify(points=[{"name":period, "value":observed.get(period, 0)} for period in months],
                    unit="UGX",
-                   method="Payments applied to invoices by billed rent period, not necessarily the cash settlement date.")
+                   method=("Payments applied to invoices by billed rent period, not necessarily "
+                           "cash settlement. Zero months contain no applied invoice payments."))
 
 
 @workspace_analytics_api.get("/analytics/tenant/balance-trend")
@@ -237,7 +250,10 @@ def tenant_payment_history(user):
                     Payment.reversed_at.is_(None),
                     Payment.settled_at.isnot(None))
             .group_by(month).order_by(month).all())
-    return jsonify(points=[{"name": _month(period), "value": int(value)}
-                           for period, value in rows], unit="UGX",
+    observed = {_month(period): int(value) for period, value in rows}
+    months = _months_ending(max(observed)) if observed else []
+    return jsonify(points=[{"name": period, "value": observed.get(period, 0)}
+                           for period in months], unit="UGX",
                    method=("Verified unreversed receipts by actual settlement month. "
-                           "Legacy payments without a verified settlement date are excluded."))
+                           "Legacy payments without a verified settlement date are excluded. "
+                           "Missing months in this 12-month window contain no verified receipts."))
