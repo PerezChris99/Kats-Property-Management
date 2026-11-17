@@ -49,7 +49,7 @@ test('tokenized portal sizing, shared states and actual no-blank route recovery 
     '--font-size-xs:', '--font-size-sm:', '--font-size-base: 14px',
     '--font-size-lg:', '--font-size-xl:', '--font-size-2xl:',
     '--control-height: 32px','--control-height-sm: 28px',
-    '--content-max: 1392px','--chart-height: 240px'
+    '--content-max: 1392px','--chart-height: 310px'
   ]) assert.ok(css.includes(token), token);
   for (let step=1;step<=8;step++) assert.ok(css.includes('--space-'+step+': '+(step*4)+'px'));
   for (const breakpoint of ['640','768','1024','1280'])

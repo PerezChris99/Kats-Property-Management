@@ -3,185 +3,254 @@ import {
   ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell,
   BarChart as RechartsBarChart, Bar,
   LineChart as RechartsLineChart, Line,
-  RadarChart as RechartsRadarChart, Radar,
+  AreaChart as RechartsAreaChart, Area,
   CartesianGrid, XAxis, YAxis, Tooltip, Legend,
-  PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts';
 
-/** One charting library: Recharts 3.10.x, loaded only in account analytics routes.
- * Server-provided aggregates are the ONLY source of production chart values.
- * The chart container sets an explicit height to prevent ResizeObserver loops.
+/**
+ * Responsive chart primitives used by OWNER/MANAGER/ACCOUNTANT and TENANT.
+ * Values come solely from authenticated SQL-backed analytics endpoints.
+ * Do not turn missing measurements into invented growth or financial data.
  */
-const PALETTE = ['#0072B2', '#D55E00', '#009E73', '#CC79A7', '#8559A5', '#6D6574'];
-const safe = value => Math.max(0, Number(value) || 0);
-export const formatUGX = value => 'UGX ' + Number(value || 0).toLocaleString('en-UG');
-const formatted = (value, unit) =>
-  unit === 'UGX' ? formatUGX(value) : Number(value || 0).toLocaleString('en-UG') +
-    (unit === 'percent' ? '%' : '');
-const tip = (unit) => value => formatted(value, unit);
-const axisNumber = value => {
-  const number = Number(value) || 0;
-  if (Math.abs(number) >= 1000000) return (number / 1000000).toFixed(1) + 'm';
-  if (Math.abs(number) >= 1000) return Math.round(number / 1000) + 'k';
-  return number.toLocaleString('en-UG');
+const PALETTE = ['#1277A8', '#D8A42E', '#168777', '#976FC1', '#CA654C', '#52768F', '#78845A'];
+const number = value => Number.isFinite(Number(value)) ? Number(value) : 0;
+const positive = value => Math.max(0, number(value));
+export const formatUGX = value => 'UGX ' + number(value).toLocaleString('en-UG');
+const formatValue = (value, unit) => unit === 'UGX'
+  ? formatUGX(value)
+  : number(value).toLocaleString('en-UG') + (unit === 'percent' ? '%' : '');
+const compact = value => {
+  const amount = number(value);
+  const abs = Math.abs(amount);
+  if (abs >= 1_000_000_000) return (amount / 1_000_000_000).toFixed(1) + 'b';
+  if (abs >= 1_000_000) return (amount / 1_000_000).toFixed(1) + 'm';
+  if (abs >= 1_000) return (amount / 1_000).toFixed(1) + 'k';
+  return amount.toLocaleString('en-UG');
 };
-const prepared = points => points.map(point => ({
-  ...point, value: safe(point.value),
-  ...(point.secondary === undefined ? {} : { secondary: safe(point.secondary) }),
+const normalise = points => points.map(item => ({
+  ...item,
+  value: number(item.value),
+  ...(item.secondary === undefined ? {} : { secondary: number(item.secondary) }),
 }));
+const shortLabel = value => {
+  const label = String(value ?? '');
+  return label.length > 14 ? label.slice(0, 13) + '…' : label;
+};
+const tooltip = unit => (value, name) => [formatValue(value, unit), name];
 
+function EmptyChart({ label = 'No recorded values for this period.' }) {
+  return <div className="kats-chart-empty" role="status">{label}</div>;
+}
+
+/** The container, not the SVG, owns sizing; never apply a max-height to Recharts SVG. */
 function ChartFrame({ title, className = '', children }) {
-  return <div className={'kats-recharts-frame ' + className}
-    role="group" aria-label={title} aria-description="Values are available in an exact-data table.">
+  return <div className={'kats-recharts-frame ' + className} role="group"
+    aria-label={title} aria-description="The exact values are available in a data table.">
     <ResponsiveContainer width="100%" height="100%" minWidth={0}
-      initialDimension={{width: 580, height: 240}}>
+      initialDimension={{ width: 560, height: 300 }}>
       {children}
     </ResponsiveContainer>
   </div>;
 }
+/** Keep chart axes as direct Recharts children; custom React wrapper components
+ * can be invisible to Recharts axis/series discovery.
+ */
+function chartAxes({ unit, vertical = false, points = [] }) {
+  if (vertical) return [
+    <CartesianGrid key="grid" stroke="#e3eaf0" strokeDasharray="3 5" horizontal={false}/>,
+    <XAxis key="x" type="number" tickFormatter={compact} tick={{ fontSize: 11 }}
+      allowDecimals={unit === 'UGX' || unit === 'percent'}/>,
+    <YAxis key="y" type="category" dataKey="name" width={112} tick={{ fontSize: 11 }}
+      tickFormatter={shortLabel} interval={0}/>,
+  ];
+  return [
+    <CartesianGrid key="grid" stroke="#e3eaf0" strokeDasharray="3 5" vertical={false}/>,
+    <XAxis key="x" dataKey="name" tick={{ fontSize: 11 }} tickLine={false}
+      interval={points.length > 10 ? 'preserveStartEnd' : 0}
+      minTickGap={8} tickFormatter={shortLabel}/>,
+    <YAxis key="y" tickFormatter={compact} tick={{ fontSize: 11 }} tickLine={false}
+      axisLine={false} width={55}
+      allowDecimals={unit === 'UGX' || unit === 'percent'}/>,
+  ];
+}
 
-export function DonutChart({ points, unit = 'rooms', title = 'Distribution' }) {
-  if (!points.length || !points.some(point => safe(point.value) > 0))
-    return <p className="kats-chart-empty" role="status">No recorded values for this period.</p>;
-  const values = prepared(points);
+function DistributionChart({ points, unit, title, donut }) {
+  if (!points?.length || !points.some(row => positive(row.value) > 0))
+    return <EmptyChart/>;
+  const values = points.map(item => ({ ...item, value: positive(item.value) }));
+  const total = values.reduce((sum, item) => sum + item.value, 0);
   return <div className="kats-chart-donut-layout">
     <ChartFrame title={title} className="kats-donut-frame">
-      <RechartsPieChart className="kats-chart-donut" accessibilityLayer>
-        <Tooltip formatter={tip(unit)} />
-        <Pie data={values} dataKey="value" nameKey="name" innerRadius="57%"
-          outerRadius="85%" paddingAngle={1} isAnimationActive={false}>
-          {values.map((item, index) =>
-            <Cell key={item.name + index} fill={PALETTE[index % PALETTE.length]} />)}
+      <RechartsPieChart accessibilityLayer>
+        <Tooltip formatter={tooltip(unit)}/>
+        <Pie data={values} dataKey="value" nameKey="name"
+          innerRadius={donut ? '53%' : 0} outerRadius="80%"
+          paddingAngle={values.length > 1 ? 2 : 0}
+          stroke="#fff" strokeWidth={2} isAnimationActive={false}>
+          {values.map((item, i) => <Cell key={item.name + i}
+            fill={PALETTE[i % PALETTE.length]}/>)}
         </Pie>
       </RechartsPieChart>
     </ChartFrame>
-    <ul className="kats-chart-legend" aria-label={title + ' exact values'}>
-      {values.map((point, index) => <li key={point.name + index}>
+    <ul className="kats-chart-legend" aria-label={title + ' recorded values'}>
+      {values.map((item, i) => <li key={item.name + i}>
         <span className="kats-chart-swatch" aria-hidden="true"
-          style={{ backgroundColor: PALETTE[index % PALETTE.length] }}/>
-        <span className="kats-chart-name">{point.name}</span>
-        <strong>{formatted(point.value, unit)}</strong>
+          style={{ backgroundColor: PALETTE[i % PALETTE.length] }}/>
+        <span className="kats-chart-name">{item.name}
+          <small> ({(item.value * 100 / total).toFixed(1)}%)</small></span>
+        <strong>{formatValue(item.value, unit)}</strong>
       </li>)}
     </ul>
   </div>;
 }
+export function DonutChart({ points, unit = 'rooms', title = 'Distribution' }) {
+  return <DistributionChart points={points} unit={unit} title={title} donut/>;
+}
+export function PieChart({ points, unit = 'rooms', title = 'Distribution' }) {
+  return <DistributionChart points={points} unit={unit} title={title} donut={false}/>;
+}
 
-export function BarChart({ points, unit = 'UGX', title = 'Monthly values' }) {
-  if (!points.length) return <p className="kats-chart-empty" role="status">No recorded values for this period.</p>;
-  const values = prepared(points);
+export function BarChart({ points, unit = 'UGX', title = 'Values', horizontal = false }) {
+  if (!points?.length) return <EmptyChart/>;
+  const values = normalise(points);
   return <ChartFrame title={title}>
-    <RechartsBarChart data={values} className="kats-chart-svg" accessibilityLayer
-      margin={{top: 10, right: 12, left: 4, bottom: 18}}>
-      <CartesianGrid stroke="#dbe5eb" strokeDasharray="3 5" vertical={false}/>
-      <XAxis dataKey="name" tick={{fontSize: 11}} angle={values.length > 7 ? -27 : 0}
-        textAnchor={values.length > 7 ? 'end' : 'middle'} interval="preserveStartEnd"
-        tickFormatter={value => String(value).length > 14 ? String(value).slice(0, 13) + '…' : value}/>
-      <YAxis tick={{fontSize: 11}} width={46} tickFormatter={axisNumber}/>
-      <Tooltip formatter={tip(unit)}/>
-      <Legend verticalAlign="top" height={30}/>
-      <Bar name={unit === 'UGX' ? 'Amount (UGX)' : 'Count'}
-        dataKey="value" fill={PALETTE[0]} maxBarSize={52}
+    <RechartsBarChart data={values} layout={horizontal ? 'vertical' : 'horizontal'}
+      accessibilityLayer margin={horizontal
+        ? { top: 8, right: 20, bottom: 12, left: 6 }
+        : { top: 8, right: 15, bottom: 12, left: 0 }}>
+      {chartAxes({ points: values, unit, vertical: horizontal })}
+      <Tooltip formatter={tooltip(unit)} cursor={{ fill: '#eef5f9' }}/>
+      <Legend verticalAlign="top" height={32}/>
+      <Bar name={unit === 'UGX' ? 'Recorded amount' : unit === 'percent' ? 'Rate' : 'Recorded count'}
+        dataKey="value" fill={PALETTE[0]} maxBarSize={56} radius={horizontal ? [0, 5, 5, 0] : [5, 5, 0, 0]}
         isAnimationActive={false}/>
     </RechartsBarChart>
   </ChartFrame>;
 }
 
-export function LineChart({ points, unit = 'UGX', title = 'Monthly trend', secondary = false }) {
-  if (!points.length) return <p className="kats-chart-empty" role="status">No recorded values for this period.</p>;
+/** Two genuine independent accounting series displayed side by side, never stacked. */
+export function ComparisonBarChart({ points, unit = 'UGX', title = 'Collection and invoicing' }) {
+  if (!points?.length) return <EmptyChart/>;
+  const values = normalise(points);
   return <ChartFrame title={title}>
-    <RechartsLineChart data={prepared(points)} className="kats-chart-svg"
-      accessibilityLayer margin={{top: 8, right: 14, left: 6, bottom: 12}}>
-      <CartesianGrid stroke="#dbe5eb" strokeDasharray="3 5"/>
-      <XAxis dataKey="name" tick={{fontSize: 11}} interval="preserveStartEnd"/>
-      <YAxis tick={{fontSize: 11}} width={48} tickFormatter={axisNumber}/>
-      <Tooltip formatter={tip(unit)}/>
-      <Legend verticalAlign="top" height={30}/>
-      <Line dataKey="value" name={secondary ? 'Verified collections' : 'Value'}
-        type="monotone" stroke={PALETTE[0]} strokeWidth={2.5} dot={{r: 3.5}}
-        isAnimationActive={false}/>
-      {secondary && <Line dataKey="secondary" name="Net invoiced" type="monotone"
-        stroke={PALETTE[1]} strokeWidth={2.5} strokeDasharray="5 4"
-        dot={{r: 3}} isAnimationActive={false}/>}
+    <RechartsBarChart data={values} accessibilityLayer
+      margin={{ top: 12, right: 18, bottom: 14, left: 0 }}>
+      {chartAxes({ points: values, unit })}
+      <Tooltip formatter={tooltip(unit)} cursor={{ fill: '#eef5f9' }}/>
+      <Legend verticalAlign="top" height={32}/>
+      <Bar name="Verified collections" dataKey="value" fill={PALETTE[0]}
+        maxBarSize={32} radius={[4, 4, 0, 0]} isAnimationActive={false}/>
+      <Bar name="Net invoiced" dataKey="secondary" fill={PALETTE[1]}
+        maxBarSize={32} radius={[4, 4, 0, 0]} isAnimationActive={false}/>
+    </RechartsBarChart>
+  </ChartFrame>;
+}
+
+export function LineChart({ points, unit = 'UGX', title = 'Trend', secondary = false }) {
+  if (!points?.length) return <EmptyChart/>;
+  const values = normalise(points);
+  return <ChartFrame title={title}>
+    <RechartsLineChart data={values} accessibilityLayer
+      margin={{ top: 12, right: 20, bottom: 14, left: 0 }}>
+      {chartAxes({ points: values, unit })}
+      <Tooltip formatter={tooltip(unit)}/>
+      <Legend verticalAlign="top" height={32}/>
+      <Line type="linear" dataKey="value" name={secondary ? 'Verified collections' : 'Recorded value'}
+        stroke={PALETTE[0]} strokeWidth={3} strokeLinecap="round"
+        dot={{ r: 3.5, strokeWidth: 1.5 }} activeDot={{ r: 6 }}
+        connectNulls={false} isAnimationActive={false}/>
+      {secondary && <Line type="linear" dataKey="secondary" name="Net invoiced"
+        stroke={PALETTE[1]} strokeWidth={2.5} strokeDasharray="6 4"
+        dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls={false}
+        isAnimationActive={false}/>}
     </RechartsLineChart>
   </ChartFrame>;
 }
 
-/** An UpSet-style intersection chart instead of a misleading area-proportional
- * Venn. Recharts renders every plotted mark; the matrix exposes memberships.
- */
-export function VennChart({ data }) {
-  const current = safe(data.current), maintenance = safe(data.maintenance);
-  const both = safe(data.both), total = safe(data.total);
-  if (!total) return <p className="kats-chart-empty" role="status">No active tenancy records.</p>;
-  const intersections = [
-    {name: 'Current rent only', value: Math.max(0, current - both), rent: true, maintenance: false},
-    {name: 'Both', value: both, rent: true, maintenance: true},
-    {name: 'Maintenance only', value: Math.max(0, maintenance - both), rent: false, maintenance: true},
-    {name: 'Neither', value: Math.max(0, total - current - maintenance + both), rent: false, maintenance: false},
+export function AreaChart({ points, unit = 'UGX', title = 'Trend' }) {
+  if (!points?.length) return <EmptyChart/>;
+  return <ChartFrame title={title}>
+    <RechartsAreaChart data={normalise(points)} accessibilityLayer
+      margin={{ top: 12, right: 20, bottom: 14, left: 0 }}>
+      <defs><linearGradient id="kats-collection-area" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor={PALETTE[0]} stopOpacity={0.32}/>
+        <stop offset="100%" stopColor={PALETTE[0]} stopOpacity={0.015}/>
+      </linearGradient></defs>
+      {chartAxes({ points, unit })}
+      <Tooltip formatter={tooltip(unit)}/>
+      <Legend verticalAlign="top" height={32}/>
+      <Area type="linear" dataKey="value" name="Recorded value"
+        stroke={PALETTE[0]} strokeWidth={3} fill="url(#kats-collection-area)"
+        activeDot={{ r: 6 }} connectNulls={false} isAnimationActive={false}/>
+    </RechartsAreaChart>
+  </ChartFrame>;
+}
+
+/** Comparable rates share the same 0–100% axis; no misleading round radar. */
+export function PropertyPerformanceChart({ points, title = 'Property performance' }) {
+  const [selected, setSelected] = useState('');
+  if (!points?.length) return <EmptyChart label="No property performance data yet."/>;
+  const property = points.find(row => String(row.id ?? row.name) === selected) || points[0];
+  const values = [
+    { name: 'Occupancy', value: Math.min(100, positive(property.occupancy)) },
+    { name: 'Rent collection', value: Math.min(100, positive(property.collection)) },
+    { name: 'Ticket resolution', value: Math.min(100, positive(property.maintenance)) },
   ];
-  return <div className="kats-upset-layout">
-    <ChartFrame title="Rent-current and maintenance intersections">
-      <RechartsBarChart data={intersections} className="kats-chart-venn"
-        layout="vertical" accessibilityLayer
-        margin={{top: 12, right: 18, left: 18, bottom: 6}}>
-        <CartesianGrid stroke="#dbe5eb" strokeDasharray="3 5" horizontal={false}/>
-        <XAxis type="number" allowDecimals={false} tick={{fontSize: 11}}/>
-        <YAxis type="category" dataKey="name" width={110}
-          tick={{fontSize: 10}}/>
-        <Tooltip formatter={tip('tenants')}/>
-        <Legend verticalAlign="top" height={27}/>
-        <Bar dataKey="value" name="Active tenants" fill={PALETTE[0]}
-          maxBarSize={30} isAnimationActive={false}/>
+  return <div className="kats-performance-layout">
+    <label className="kats-chart-selector">Property
+      <select value={String(property.id ?? property.name)}
+        onChange={event => setSelected(event.target.value)}>
+        {points.map(row => <option key={row.id ?? row.name}
+          value={String(row.id ?? row.name)}>{row.name}</option>)}
+      </select>
+    </label>
+    <ChartFrame title={title + ': ' + property.name}>
+      <RechartsBarChart data={values} layout="vertical" accessibilityLayer
+        margin={{ top: 6, right: 28, bottom: 9, left: 16 }}>
+        <CartesianGrid stroke="#e3eaf0" horizontal={false} strokeDasharray="3 5"/>
+        <XAxis type="number" domain={[0, 100]} ticks={[0, 25, 50, 75, 100]}
+          unit="%" tick={{ fontSize: 11 }}/>
+        <YAxis type="category" dataKey="name" width={115} tick={{ fontSize: 11 }}/>
+        <Tooltip formatter={tooltip('percent')}/>
+        <Bar dataKey="value" name="Recorded rate" maxBarSize={35}
+          radius={[0, 5, 5, 0]} isAnimationActive={false}>
+          {values.map((row, index) => <Cell key={row.name}
+            fill={PALETTE[index % PALETTE.length]}/>)}
+        </Bar>
       </RechartsBarChart>
     </ChartFrame>
-    <div className="data-table-wrap">
-      <table className="kats-upset-table">
-        <caption>Exact set membership (UpSet)</caption>
-        <thead><tr><th>Intersection</th><th>Current rent</th><th>Open maintenance</th><th>Tenants</th></tr></thead>
-        <tbody>{intersections.map(item => <tr key={item.name}>
-          <th scope="row">{item.name}</th>
-          <td>{item.rent ? 'Yes' : 'No'}</td>
-          <td>{item.maintenance ? 'Yes' : 'No'}</td>
-          <td>{item.value}</td>
-        </tr>)}</tbody>
-      </table>
+    <div className="kats-performance-values">
+      {values.map((row, i) => <span key={row.name}>
+        <i className="kats-chart-swatch" style={{ backgroundColor: PALETTE[i] }} aria-hidden="true"/>
+        {row.name} <strong>{formatValue(row.value, 'percent')}</strong>
+      </span>)}
+      <small>Zero observations are reported as 0%; they are not inferred performance.</small>
     </div>
-    <p className="caption">Memberships count distinct active-lease tenants; groups are exact, not area approximations.</p>
   </div>;
 }
 
-export function RadarChart({ points }) {
-  const [selected, setSelected] = useState('');
-  if (!points.length) return <p className="kats-chart-empty" role="status">No property metrics available yet.</p>;
-  const point = points.find(row => (row.id || row.name) === selected) || points[0];
-  const axes = [
-    {name: 'Occupancy', value: Math.min(100, safe(point.occupancy))},
-    {name: 'Collection', value: Math.min(100, safe(point.collection))},
-    {name: 'Ticket resolution', value: Math.min(100, safe(point.maintenance))},
+/** Exact mutually exclusive groups, rather than an inaccurate overlapping-circle diagram. */
+export function VennChart({ data }) {
+  const current = positive(data.current), maintenance = positive(data.maintenance);
+  const both = positive(data.both), total = positive(data.total);
+  if (!total) return <EmptyChart label="No active tenancy records."/>;
+  const intersections = [
+    { name: 'Current rent only', value: Math.max(0, current - both), rent: true, maintenance: false },
+    { name: 'Both', value: both, rent: true, maintenance: true },
+    { name: 'Maintenance only', value: Math.max(0, maintenance - both), rent: false, maintenance: true },
+    { name: 'Neither', value: Math.max(0, total - current - maintenance + both), rent: false, maintenance: false },
   ];
-  return <div className="kats-radar-layout">
-    <ChartFrame title={'Property score for ' + point.name}>
-      <RechartsRadarChart data={axes} className="kats-chart-radar"
-        accessibilityLayer outerRadius="68%">
-        <PolarGrid stroke="#d5e2e9"/>
-        <PolarAngleAxis dataKey="name" tick={{fontSize: 11}}/>
-        <PolarRadiusAxis domain={[0, 100]} tick={{fontSize: 10}}/>
-        <Tooltip formatter={tip('percent')}/>
-        <Legend verticalAlign="top" height={25}/>
-        <Radar dataKey="value" name="Recorded rate" stroke={PALETTE[0]}
-          fill={PALETTE[0]} fillOpacity={0.2} isAnimationActive={false}/>
-      </RechartsRadarChart>
-    </ChartFrame>
-    <div className="kats-radar-metrics">
-      <label>Property
-        <select value={point.id || point.name}
-          onChange={event => setSelected(event.target.value)}>
-          {points.map(row => <option key={row.id || row.name}
-            value={row.id || row.name}>{row.name}</option>)}
-        </select>
-      </label>
-      {axes.map(axis => <div key={axis.name}><span>{axis.name}</span><strong>{axis.value}%</strong></div>)}
-      <small>No observations are represented as 0%, not inferred performance.</small>
-    </div>
+  return <div className="kats-upset-layout">
+    <BarChart points={intersections} unit="tenants" title="Rent and maintenance intersections" horizontal/>
+    <div className="data-table-wrap"><table className="kats-upset-table">
+      <caption>Exact set membership, by active tenancy</caption>
+      <thead><tr><th>Intersection</th><th>Rent current</th><th>Open maintenance</th><th>Tenants</th></tr></thead>
+      <tbody>{intersections.map(item => <tr key={item.name}>
+        <th scope="row">{item.name}</th>
+        <td>{item.rent ? 'Yes' : 'No'}</td>
+        <td>{item.maintenance ? 'Yes' : 'No'}</td>
+        <td>{item.value.toLocaleString('en-UG')}</td>
+      </tr>)}</tbody>
+    </table></div>
   </div>;
 }
