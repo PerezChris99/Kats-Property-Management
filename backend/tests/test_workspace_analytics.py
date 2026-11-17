@@ -86,3 +86,29 @@ def test_new_chart_urls_are_denied_without_authentication(client):
     for path in ("/api/v1/analytics/landlord/occupancy",
                  "/api/v1/analytics/tenant/payment-status"):
         assert client.get(path).status_code==401
+
+
+def test_monthly_collection_charts_use_twelve_consecutive_calendar_buckets(app, monkeypatch):
+    owner, tenant, other = seeded(app, monkeypatch)
+    paths = (
+        (owner, "/api/v1/analytics/landlord/monthly"),
+        (tenant, "/api/v1/analytics/tenant/applied-payments"),
+    )
+    for actor, path in paths:
+        result = actor.get(path)
+        assert result.status_code == 200, (path, result.json)
+        points = result.json["points"]
+        assert len(points) == 12, (path, points)
+        periods = [point["name"] for point in points]
+        from app.workspace_analytics import _months_ending
+        assert periods == _months_ending(periods[-1]), (path, periods)
+        assert all(isinstance(point["value"], int) for point in points)
+    assert other.get("/api/v1/analytics/landlord/monthly").status_code == 403
+
+
+def test_calendar_bucket_helper_crosses_year_boundary_without_fabricating_cash():
+    from app.workspace_analytics import _months_ending
+    assert _months_ending("2026-02", 5) == [
+        "2025-10", "2025-11", "2025-12", "2026-01", "2026-02"
+    ]
+    assert _months_ending("2026-01", 2) == ["2025-12", "2026-01"]
