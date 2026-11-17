@@ -139,7 +139,7 @@ function SectionTitle({ eyebrow, title, text, center = false }) {
 }
 function AccessCallout({ user }) {
   const title = 'One business. One clear property workspace.';
-  const description = 'For Kats Properties staff and authorized residents—not an open subscription service.';
+  const description = 'Access is reserved for Kats Properties staff and tenants, with administrator approval.';
   return <section className="pm-endcap" aria-label="Get started with KATS">
     <div className="pm-container pm-endcap-inner">
       <div className="pm-endcap-copy">
