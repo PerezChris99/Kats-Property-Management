@@ -1,7 +1,7 @@
 {
   "name": "KATS Property Management",
   "short_name": "KATS",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#F5F5F7",
   "theme_color": "#0B1B3D",
@@ -11,6 +11,27 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    }
+  ],
+  "description": "Secure property operations and tenant services for KATS.",
+  "id": "/dashboard",
+  "scope": "/",
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Overview",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
     }
   ]
 }
