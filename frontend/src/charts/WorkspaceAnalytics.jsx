@@ -178,7 +178,7 @@ export function LandlordAnalytics() {
       <ChartPanel title="Collections by property" endpoint="analytics/landlord/collections-by-property" kind="category-bar"/>
       <ChartPanel title="Invoicing and verified collections" endpoint="analytics/landlord/monthly" kind="monthly-line" className="kats-chart-wide"/>
       <ChartPanel title="Current rent and maintenance overlap" endpoint="analytics/landlord/tenant-overlap" kind="venn"/>
-      <ChartPanel title="Property performance (polar radar)" endpoint="analytics/landlord/property-scores" kind="performance"/>
+      <ChartPanel title="Property performance by metric" endpoint="analytics/landlord/property-scores" kind="performance"/>
     </div>
   </section>;
 }
@@ -187,7 +187,7 @@ export function TenantAnalytics() {
     <SectionHeading title="My rental activity" description="Only invoices and verified payments connected to your signed-in rental profile."/>
     <div className="kats-chart-grid">
       <ChartPanel title="Invoice payment status" endpoint="analytics/tenant/payment-status" kind="donut"/>
-      <ChartPanel title="Payments applied by rent period" endpoint="analytics/tenant/applied-payments" kind="time-bar"/>
+      <ChartPanel title="Payments applied by rent period" endpoint="analytics/tenant/applied-payments" kind="bar"/>
       <ChartPanel title="Verified payment history" endpoint="analytics/tenant/payment-history" kind="line"/>
       <ChartPanel title="Cumulative outstanding balance" endpoint="analytics/tenant/balance-trend" kind="line" className="kats-chart-wide"/>
     </div>
