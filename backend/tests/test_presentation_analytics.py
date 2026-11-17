@@ -38,6 +38,10 @@ def test_role_scoped_period_summary_compare_and_errors(app, monkeypatch):
     assert "approved_expenses" in owner.get(path).json["metrics"]
     assert "approved_expenses" not in tenant.get(path).json["metrics"]
     assert "applied_payments" in tenant.get(path).json["metrics"]
+    for row in tenant.get(path).json["points"]:
+        assert row["current_open_invoice_balance_ugx"] == (
+            row["net_invoiced_ugx"] - row["applied_payments_ugx"])
+        assert row["current_open_invoice_balance_ugx"] >= 0
     assert tenant.get(path).json != other.get(path).json
     for invalid in ("months=0", "months=400", "months=6&end_month=2026-99"):
         assert owner.get("/api/v1/analytics/period-summary?" + invalid).status_code == 400
@@ -49,6 +53,7 @@ def test_chart_drilldown_rejects_tenant_escalation(app, monkeypatch):
     assert tenant.get(base + "metric=occupancy&category=Occupied").status_code == 403
     assert tenant.get(base + "metric=approved_expenses&month=2026-11").status_code == 403
     assert owner.get(base + "metric=applied_payments&month=2026-11").status_code == 403
+    assert owner.get(base + "metric=open_invoices&month=2026-11").status_code == 403
     assert tenant.get(base + "metric=verified_collections&month=../../etc").status_code == 400
     assert owner.get(base + "metric=nothing&month=2026-11").status_code == 400
     response = owner.get(base + "metric=occupancy&category=Occupied")
@@ -106,3 +111,15 @@ def test_current_source_records_are_never_shared_with_other_tenants(app, monkeyp
     assert tenant.get(base + "metric=property_collections&category=Demo").status_code == 403
     assert other.get(base + "metric=overlap&category=Both").status_code == 403
     assert owner.get(base + "metric=overlap&category=Neither").status_code == 200
+
+
+def test_tenant_current_open_invoice_drilldown_matches_period_graph(app, monkeypatch):
+    owner, tenant, other = seeded(app, monkeypatch)
+    summary = tenant.get("/api/v1/analytics/period-summary?months=6&end_month=2026-11")
+    assert summary.status_code == 200
+    rows = summary.json["points"]
+    for row in rows:
+        response = tenant.get("/api/v1/analytics/drilldown?metric=open_invoices&month=" + row["name"])
+        assert response.status_code == 200
+        assert sum(item["amount_ugx"] for item in response.json["items"]) == row["current_open_invoice_balance_ugx"]
+    assert owner.get("/api/v1/analytics/drilldown?metric=open_invoices&month=2026-11").status_code == 403
