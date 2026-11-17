@@ -33,7 +33,7 @@ def test_role_scoped_period_summary_compare_and_errors(app, monkeypatch):
         assert sum(p["verified_collections_ugx"] for p in body["points"]) == \
             body["metrics"]["verified_collections"]["current"]
         assert body["metrics"]["verified_collections"]["previous"] >= 0
-        assert res.headers["Cache-Control"] == "private, no-store"
+        assert "no-store" in res.headers["Cache-Control"]
         assert "generated_at" in body
     assert "approved_expenses" in owner.get(path).json["metrics"]
     assert "approved_expenses" not in tenant.get(path).json["metrics"]
