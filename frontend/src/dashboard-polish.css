@@ -255,6 +255,22 @@
   background:linear-gradient(142deg,rgba(252,255,255,.92),rgba(221,242,253,.7));
   border-color:rgba(147,196,225,.58);
 }
+/* This spotlight uses a *light* blue glass surface. The former dark navy
+   hero left its white value / pale text inherited from worldclass.css.
+   Explicit dark ink makes every financial figure legible on light glass. */
+.portal .page .kats-spotlight-feature { color:#0b1b3d; }
+.portal .page .kats-spotlight-feature .kats-overview-label {
+  color:#155b80;
+}
+.portal .page .kats-spotlight-feature > strong {
+  color:#0b1b3d;
+}
+.portal .page .kats-spotlight-feature .kats-meter-notes {
+  color:#36556e;
+}
+.portal .page .kats-spotlight-feature .kats-meter {
+  background:rgba(11,53,86,.15);
+}
 .portal .page .kats-attention-panel {background:rgba(255,255,255,.74);}
 .portal .kats-overview-primary .kats-overview-desc {
   display:block;color:var(--dash-secondary);font-size:13px;margin:13px 0 4px;

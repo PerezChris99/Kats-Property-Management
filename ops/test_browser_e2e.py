@@ -970,6 +970,18 @@ def test_owner_dashboard_frosted_surfaces_and_send_motion(browser):
           background: getComputedStyle(el).backgroundColor
         })""")
         assert "blur(" in css["blur"], css
+        # The spotlight switched from dark navy to light frosted blue.
+        # Never inherit white income figures or pale labels from old hero CSS.
+        spotlight = page.locator(".kats-spotlight-feature")
+        expect(spotlight).to_be_visible()
+        colors = spotlight.evaluate("""el => ({
+          amount: getComputedStyle(el.querySelector(':scope > strong')).color,
+          label: getComputedStyle(el.querySelector('.kats-overview-label')).color,
+          notes: getComputedStyle(el.querySelector('.kats-meter-notes')).color
+        })""")
+        assert colors["amount"] == "rgb(11, 27, 61)", colors
+        assert colors["label"] == "rgb(21, 91, 128)", colors
+        assert colors["notes"] == "rgb(54, 85, 110)", colors
         expect(page.locator("details.kats-summary-disclosure")).to_have_count(1)
         expect(page.locator("details.kats-analytics-disclosure")).to_have_count(1)
         response = page.request.get(BASE + "/manifest.webmanifest")
