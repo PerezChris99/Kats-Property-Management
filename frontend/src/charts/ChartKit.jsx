@@ -52,23 +52,26 @@ function ChartFrame({ title, className = '', children }) {
     </ResponsiveContainer>
   </div>;
 }
-function ChartAxes({ unit, vertical = false, points = [] }) {
-  if (vertical) return <>
-    <CartesianGrid stroke="#e3eaf0" strokeDasharray="3 5" horizontal={false}/>
-    <XAxis type="number" tickFormatter={compact} tick={{ fontSize: 11 }}
-      allowDecimals={unit === 'UGX' || unit === 'percent'}/>
-    <YAxis type="category" dataKey="name" width={112} tick={{ fontSize: 11 }}
-      tickFormatter={shortLabel} interval={0}/>
-  </>;
-  return <>
-    <CartesianGrid stroke="#e3eaf0" strokeDasharray="3 5" vertical={false}/>
-    <XAxis dataKey="name" tick={{ fontSize: 11 }} tickLine={false}
+/** Keep chart axes as direct Recharts children; custom React wrapper components
+ * can be invisible to Recharts axis/series discovery.
+ */
+function chartAxes({ unit, vertical = false, points = [] }) {
+  if (vertical) return [
+    <CartesianGrid key="grid" stroke="#e3eaf0" strokeDasharray="3 5" horizontal={false}/>,
+    <XAxis key="x" type="number" tickFormatter={compact} tick={{ fontSize: 11 }}
+      allowDecimals={unit === 'UGX' || unit === 'percent'}/>,
+    <YAxis key="y" type="category" dataKey="name" width={112} tick={{ fontSize: 11 }}
+      tickFormatter={shortLabel} interval={0}/>,
+  ];
+  return [
+    <CartesianGrid key="grid" stroke="#e3eaf0" strokeDasharray="3 5" vertical={false}/>,
+    <XAxis key="x" dataKey="name" tick={{ fontSize: 11 }} tickLine={false}
       interval={points.length > 10 ? 'preserveStartEnd' : 0}
-      minTickGap={8} tickFormatter={shortLabel}/>
-    <YAxis tickFormatter={compact} tick={{ fontSize: 11 }} tickLine={false}
+      minTickGap={8} tickFormatter={shortLabel}/>,
+    <YAxis key="y" tickFormatter={compact} tick={{ fontSize: 11 }} tickLine={false}
       axisLine={false} width={55}
-      allowDecimals={unit === 'UGX' || unit === 'percent'}/>
-  </>;
+      allowDecimals={unit === 'UGX' || unit === 'percent'}/>,
+  ];
 }
 
 function DistributionChart({ points, unit, title, donut }) {
@@ -115,7 +118,7 @@ export function BarChart({ points, unit = 'UGX', title = 'Values', horizontal = 
       accessibilityLayer margin={horizontal
         ? { top: 8, right: 20, bottom: 12, left: 6 }
         : { top: 8, right: 15, bottom: 12, left: 0 }}>
-      <ChartAxes points={values} unit={unit} vertical={horizontal}/>
+      {chartAxes({ points: values, unit, vertical: horizontal })}
       <Tooltip formatter={tooltip(unit)} cursor={{ fill: '#eef5f9' }}/>
       <Legend verticalAlign="top" height={32}/>
       <Bar name={unit === 'UGX' ? 'Recorded amount' : unit === 'percent' ? 'Rate' : 'Recorded count'}
@@ -132,7 +135,7 @@ export function ComparisonBarChart({ points, unit = 'UGX', title = 'Collection a
   return <ChartFrame title={title}>
     <RechartsBarChart data={values} accessibilityLayer
       margin={{ top: 12, right: 18, bottom: 14, left: 0 }}>
-      <ChartAxes points={values} unit={unit}/>
+      {chartAxes({ points: values, unit })}
       <Tooltip formatter={tooltip(unit)} cursor={{ fill: '#eef5f9' }}/>
       <Legend verticalAlign="top" height={32}/>
       <Bar name="Verified collections" dataKey="value" fill={PALETTE[0]}
@@ -149,7 +152,7 @@ export function LineChart({ points, unit = 'UGX', title = 'Trend', secondary = f
   return <ChartFrame title={title}>
     <RechartsLineChart data={values} accessibilityLayer
       margin={{ top: 12, right: 20, bottom: 14, left: 0 }}>
-      <ChartAxes points={values} unit={unit}/>
+      {chartAxes({ points: values, unit })}
       <Tooltip formatter={tooltip(unit)}/>
       <Legend verticalAlign="top" height={32}/>
       <Line type="linear" dataKey="value" name={secondary ? 'Verified collections' : 'Recorded value'}
@@ -173,7 +176,7 @@ export function AreaChart({ points, unit = 'UGX', title = 'Trend' }) {
         <stop offset="0%" stopColor={PALETTE[0]} stopOpacity={0.32}/>
         <stop offset="100%" stopColor={PALETTE[0]} stopOpacity={0.015}/>
       </linearGradient></defs>
-      <ChartAxes points={points} unit={unit}/>
+      {chartAxes({ points, unit })}
       <Tooltip formatter={tooltip(unit)}/>
       <Legend verticalAlign="top" height={32}/>
       <Area type="linear" dataKey="value" name="Recorded value"
