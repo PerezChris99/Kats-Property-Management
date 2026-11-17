@@ -277,6 +277,12 @@
    pages, while letting the home hero scenery scroll under glass. */
 .kats-public .auth-layout {padding-top:clamp(132px,11vw,169px);}
 .kats-public .pm-request-page {padding-top:96px;}
+/* The navbar is fixed and no longer contributes its height to layout.
+   Give the standalone access page a full viewport so the footer does not
+   intrude while the primary form still fits in common screen sizes. */
+@media(min-height:651px) {
+  .kats-public .pm-request-page {min-height:100svh;}
+}
 .kats-public .pm-page-hero-inner {padding-top:clamp(150px,15vw,195px);}
 @supports not ((backdrop-filter:blur(2px)) or (-webkit-backdrop-filter:blur(2px))) {
   .kats-public .pm-header-inner.pm-floating-shell {background:rgba(9,31,57,.95);}
