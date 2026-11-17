@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import { MetricTile } from '../components/WorkspacePrimitives';
 
 const thisMonth = () => new Date().toISOString().slice(0, 7);
 const labelNumber = value => 'UGX ' + Number(value || 0).toLocaleString('en-UG');
