@@ -620,7 +620,13 @@ def test_live_account_analytics_render_without_blanks(browser,role,expected,widt
             page.locator(".pm-demo-tenant-list button").first.click()
         expect(page).to_have_url(re.compile(r"/dashboard$"),timeout=15000)
         cards=page.locator(".kats-chart-card")
-        expect(cards).to_have_count(expected,timeout=15000)
+        # Two decision-critical charts render by default. Details use
+        # progressive disclosure and do not perform hidden API requests.
+        expect(cards).to_have_count(2, timeout=15000)
+        disclosure = page.locator("details.kats-analytics-disclosure > summary")
+        expect(disclosure).to_have_count(1)
+        disclosure.click()
+        expect(cards).to_have_count(expected, timeout=15000)
         expect(page.locator(".kats-chart-skeleton")).to_have_count(0,timeout=20000)
         assert page.locator(".kats-fatal-page").count()==0
         assert page.locator(".kats-chart-feedback[role='alert']").count()==0
@@ -662,6 +668,8 @@ def test_live_chart_geometry_and_mode_switches(browser, role):
         expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
         # Lazy dashboard mounts asynchronously. An absent skeleton before mount
         # is NOT proof that the chart has finished rendering.
+        expect(page.locator(".kats-chart-card")).to_have_count(2, timeout=20000)
+        page.locator("details.kats-analytics-disclosure > summary").click()
         expect(page.locator(".kats-chart-card")).to_have_count(
             5 if role == "OWNER" else 4, timeout=20000)
         expect(page.locator(".kats-chart-skeleton")).to_have_count(0, timeout=20000)
@@ -798,6 +806,8 @@ def test_recharts_touch_device_emulation(browser, device, role, expected):
         page.on("console", lambda message: failures.append(message.text)
                 if message.type == "error" else None)
         charts = page.locator(".kats-chart-card")
+        expect(charts).to_have_count(2, timeout=15000)
+        page.locator("details.kats-analytics-disclosure > summary").click()
         expect(charts).to_have_count(expected, timeout=15000)
         expect(page.locator(".kats-chart-skeleton")).to_have_count(0, timeout=20000)
         expect(page.locator(".kats-chart-feedback[role='alert']")).to_have_count(0)
