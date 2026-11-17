@@ -666,17 +666,24 @@ def test_live_chart_geometry_and_mode_switches(browser, role):
             5 if role == "OWNER" else 4, timeout=20000)
         expect(page.locator(".kats-chart-skeleton")).to_have_count(0, timeout=20000)
         assert page.locator(".kats-chart-feedback[role='alert']").count() == 0
-        expect(page.locator(".kats-recharts-frame svg.recharts-surface").first).to_be_visible(
-            timeout=15000)
-
-        # An SVG with nonzero page width/height is a graph, not a decorative ring.
+        # The charts sit below the fold; scroll them into view so that
+        # browser geometry, not Playwright SVG "visibility" heuristics, is measured.
+        page.evaluate("""() => document.querySelector(
+          '.kats-recharts-frame')?.scrollIntoView({block:'center'})""")
         actual = page.evaluate("""() => [...document.querySelectorAll(
           '.kats-recharts-frame svg.recharts-surface')].map(svg => {
           const r = svg.getBoundingClientRect();
-          return {width:r.width, height:r.height};
+          const frame = svg.closest('.kats-recharts-frame');
+          const f = frame.getBoundingClientRect();
+          const css = getComputedStyle(svg);
+          return {width:r.width, height:r.height, frameWidth:f.width,
+            frameHeight:f.height, display:css.display, visibility:css.visibility};
         })""")
         assert len(actual) >= 3, (role, actual)
-        assert all(x["width"] >= 170 and x["height"] >= 200 for x in actual), (role, actual)
+        assert all(x["width"] >= 170 and x["height"] >= 200 and
+                   x["frameWidth"] >= 170 and x["frameHeight"] >= 200 and
+                   x["display"] != "none" and x["visibility"] != "hidden"
+                   for x in actual), (role, actual)
 
         if role == "OWNER":
             panel = page.locator(".kats-chart-card").filter(
