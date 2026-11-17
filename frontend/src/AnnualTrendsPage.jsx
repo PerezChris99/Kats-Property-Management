@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from './lib/api';
+import { Link } from 'react-router-dom';
 import { BarChart, LineChart, AreaChart, formatUGX } from './charts/ChartKit';
 
 /** Existing annual API retained. Uses the same SVG chart toolkit as the
@@ -15,6 +16,23 @@ export function AnnualTrendsPage() {
   const [billingStyle, setBillingStyle] = useState('bar');
   const [expenseStyle, setExpenseStyle] = useState('bar');
   const [monthsToShow, setMonthsToShow] = useState('12');
+  const [detail, setDetail] = useState({status:'idle',items:[],error:''});
+  const inspectMonth = (row, metric) => {
+    const labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const index = labels.indexOf(row?.name);
+    if (index < 0) return;
+    const month = String(year) + '-' + String(index + 1).padStart(2, '0');
+    setDetail({status:'loading',items:[],error:'', month,metric});
+    const params = new URLSearchParams({month,metric});
+    api('analytics/drilldown?' + params.toString())
+      .then(response => setDetail({
+        status:'ready',items:response.items || [],error:'',
+        month, metric,truncated:response.truncated === true,
+      }))
+      .catch(reason => setDetail({
+        status:'error',items:[],error:reason.message || 'Source records unavailable',
+      }));
+  };
   useEffect(() => {
     const controller=new AbortController();
     setBusy(true);setError('');setData(null);
@@ -30,6 +48,9 @@ export function AnnualTrendsPage() {
   const collected=rows.map(p=>({name:p.label,value:p.verified_collections_ugx}));
   const billed=rows.map(p=>({name:p.label,value:p.net_invoiced_ugx}));
   const expenses=rows.map(p=>({name:p.label,value:p.approved_expenses_incurred_ugx}));
+  const exportParams = new URLSearchParams({
+    months:'12',end_month:String(year) + '-12',
+  }).toString();
   return <section className="page">
     <span className="eyebrow">FINANCIAL PERFORMANCE</span>
     <h1>Annual performance trends</h1>
@@ -48,6 +69,10 @@ export function AnnualTrendsPage() {
       </label>
       <button className="outline-button small" type="button" disabled={busy}
         onClick={() => setRevision(i => i + 1)}>Refresh report</button>
+      <a className="outline-button small" target="_blank" rel="noreferrer"
+        href={'/api/v1/reports/export/period-summary.pdf?' + exportParams}>Print full-year PDF</a>
+      <a className="outline-button small"
+        href={'/api/v1/reports/export/period-summary.xlsx?' + exportParams}>Download full-year Excel chart</a>
     </div>
     {busy && <div className="kats-chart-skeleton" role="status" aria-label="Calculating report"><span/><span/><span/></div>}
     {error && <div className="empty" role="alert"><p>{error}</p>
@@ -68,9 +93,9 @@ export function AnnualTrendsPage() {
             </select>
           </label>
         </div>
-        {collectionStyle === 'line' && <LineChart title={'Verified collections for '+data.year} points={collected}/>}
-        {collectionStyle === 'area' && <AreaChart title={'Verified collections for '+data.year} points={collected}/>}
-        {collectionStyle === 'bar' && <BarChart title={'Verified collections for '+data.year} points={collected}/>}
+        {collectionStyle === 'line' && <LineChart title={'Verified collections for '+data.year} points={collected} onSelect={point => inspectMonth(point, 'verified_collections')}/>}
+        {collectionStyle === 'area' && <AreaChart title={'Verified collections for '+data.year} points={collected} onSelect={point => inspectMonth(point, 'verified_collections')}/>}
+        {collectionStyle === 'bar' && <BarChart title={'Verified collections for '+data.year} points={collected} onSelect={point => inspectMonth(point, 'verified_collections')}/>}
       </article>
       <article className="kats-chart-card">
         <div className="kats-chart-header"><h2>Net invoiced by month</h2>
@@ -80,8 +105,8 @@ export function AnnualTrendsPage() {
             </select>
           </label>
         </div>
-        {billingStyle === 'bar' ? <BarChart title={'Net invoiced for '+data.year} points={billed}/>
-          : <LineChart title={'Net invoiced for '+data.year} points={billed}/>}
+        {billingStyle === 'bar' ? <BarChart title={'Net invoiced for '+data.year} points={billed} onSelect={point => inspectMonth(point, 'net_invoiced')}/>
+          : <LineChart title={'Net invoiced for '+data.year} points={billed} onSelect={point => inspectMonth(point, 'net_invoiced')}/>}
       </article>
       <article className="kats-chart-card">
         <div className="kats-chart-header"><h2>Approved expenses by month</h2>
@@ -91,10 +116,30 @@ export function AnnualTrendsPage() {
             </select>
           </label>
         </div>
-        {expenseStyle === 'bar' ? <BarChart title={'Approved expenses for '+data.year} points={expenses}/>
-          : <LineChart title={'Approved expenses for '+data.year} points={expenses}/>}
+        {expenseStyle === 'bar' ? <BarChart title={'Approved expenses for '+data.year} points={expenses} onSelect={point => inspectMonth(point, 'approved_expenses')}/>
+          : <LineChart title={'Approved expenses for '+data.year} points={expenses} onSelect={point => inspectMonth(point, 'approved_expenses')}/>}
       </article>
     </div>
+    {detail.status !== 'idle' && <section className="kats-drill-results"
+      aria-label="Annual report source records">
+      <div className="kats-chart-header"><h2>Source records · {detail.month}</h2>
+        <button type="button" className="outline-button small"
+          onClick={() => setDetail({status:'idle',items:[],error:''})}>Close</button>
+      </div>
+      {detail.status === 'loading' && <p role="status">Loading authorized records…</p>}
+      {detail.status === 'error' && <p role="alert">{detail.error}</p>}
+      {detail.status === 'ready' && (!detail.items.length ? <p>No matching source records.</p>
+        : <div className="data-table-wrap" role="region" tabIndex={0}
+          aria-label="Scrollable annual report source records"><table>
+            <thead><tr><th>Source record</th><th>Period / status</th><th>Amount</th></tr></thead>
+            <tbody>{detail.items.map((item, index) => <tr key={item.title + index}>
+              <th scope="row"><Link to={'/' + item.resource + '?q=' + encodeURIComponent(item.query || '')}>
+                {item.title}</Link></th><td>{item.subtitle}</td>
+              <td>{item.amount_ugx === undefined ? '—' : formatUGX(item.amount_ugx)}</td>
+            </tr>)}</tbody>
+          </table></div>)}
+      {detail.truncated && <p>Only the latest 25 records are shown here.</p>}
+    </section>}
     <h2>Monthly values</h2><div className="data-table-wrap"><table>
       <thead><tr><th>Month</th><th>Net invoiced</th><th>Verified collections</th><th>Approved incurred costs</th></tr></thead>
       <tbody>{rows.map(p=><tr key={p.month}><td>{p.month}</td>
@@ -105,6 +150,10 @@ export function AnnualTrendsPage() {
     {data.legacy_verified_without_settlement_date_ugx>0 && <p role="status">
       Historical reconciled payments without a trustworthy settlement timestamp:
       {formatUGX(data.legacy_verified_without_settlement_date_ugx)} (excluded from monthly charts).
+    </p>}
+    {data.generated_at && <p className="kats-chart-timestamp">
+      Report generated: <time dateTime={data.generated_at}>
+        {new Date(data.generated_at).toLocaleString('en-UG')}</time>
     </p>}
     <p className="caption">{data.methodology}</p>
     </>}
