@@ -125,6 +125,24 @@ export function BarChart({ points, unit = 'UGX', title = 'Values', horizontal = 
   </ChartFrame>;
 }
 
+/** Two genuine independent accounting series displayed side by side, never stacked. */
+export function ComparisonBarChart({ points, unit = 'UGX', title = 'Collection and invoicing' }) {
+  if (!points?.length) return <EmptyChart/>;
+  const values = normalise(points);
+  return <ChartFrame title={title}>
+    <RechartsBarChart data={values} accessibilityLayer
+      margin={{ top: 12, right: 18, bottom: 14, left: 0 }}>
+      <ChartAxes points={values} unit={unit}/>
+      <Tooltip formatter={tooltip(unit)} cursor={{ fill: '#eef5f9' }}/>
+      <Legend verticalAlign="top" height={32}/>
+      <Bar name="Verified collections" dataKey="value" fill={PALETTE[0]}
+        maxBarSize={32} radius={[4, 4, 0, 0]} isAnimationActive={false}/>
+      <Bar name="Net invoiced" dataKey="secondary" fill={PALETTE[1]}
+        maxBarSize={32} radius={[4, 4, 0, 0]} isAnimationActive={false}/>
+    </RechartsBarChart>
+  </ChartFrame>;
+}
+
 export function LineChart({ points, unit = 'UGX', title = 'Trend', secondary = false }) {
   if (!points?.length) return <EmptyChart/>;
   const values = normalise(points);
