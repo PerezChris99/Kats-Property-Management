@@ -130,7 +130,6 @@ export function MarketingNavigation({ user, logout, brand }) {
                 onClick={()=>{dismiss();logout();}}>Sign out</button></>
           : <Link to="/login" onClick={dismiss} className="pm-nav-login">
               <KeyRound size={16} aria-hidden="true"/> Sign in</Link>}
-      </nav>
       {selected && <section id="pm-mega-panel" className="pm-mega-panel"
         aria-label={selected.label+' menu'}>
         <div className="pm-mega-top">
@@ -174,6 +173,7 @@ export function MarketingNavigation({ user, logout, brand }) {
           }}><RefreshCw size={14} aria-hidden="true"/> Check for app updates</button>
         </div>
       </section>}
+      </nav>
     </div>
   </header>;
 }
