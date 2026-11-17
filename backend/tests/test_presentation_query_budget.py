@@ -3,6 +3,7 @@
 Avoid a query per tenant, invoice, month or chart point. This is a query-count
 regression, not a claimed p95 latency or throughput benchmark.
 """
+import re
 from sqlalchemy import event
 from app.extensions import db
 from test_workspace_analytics import seeded
@@ -23,8 +24,8 @@ def test_shared_period_summary_uses_bounded_sql_grouping(app, monkeypatch):
             event.remove(db.engine, "before_cursor_execute", count_sql)
         assert result.status_code == 200, result.json
         # Aggregation remains on the database; no per-month/per-record fetch.
-        financial = [q for q in sql if (" from payments" in q or " from invoices" in q
-                                       or " from expenses" in q) and "sum(" in q]
-        assert len(financial) <= 3, financial
+        financial = [q for q in sql if re.search(r"\bfrom\s+(payments|invoices|expenses)\b", q)
+                     and "sum(" in q]
+        assert 2 <= len(financial) <= 3, financial
         assert all("group by" in q for q in financial)
         assert len(result.json["points"]) == 12
