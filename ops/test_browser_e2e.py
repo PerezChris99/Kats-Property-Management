@@ -990,3 +990,65 @@ def test_owner_dashboard_frosted_surfaces_and_send_motion(browser):
         assert response.json()["display"] == "standalone"
     finally:
         context.close()
+
+@pytest.mark.parametrize("width,height", [(1440,900),(1024,768),(390,844)])
+def test_public_floating_mega_navigation_and_halftone(browser, width, height):
+    """Full-width desktop context, accessible compact drawer and physical CSS blur."""
+    context = browser.new_context(viewport={"width":width,"height":height},
+                                  reduced_motion="reduce")
+    page = context.new_page()
+    try:
+        page.goto(BASE + "/", wait_until="domcontentloaded")
+        header = page.locator(".pm-floating-shell")
+        expect(header).to_be_visible(timeout=15000)
+        css = header.evaluate("""el => {
+          const value=getComputedStyle(el);
+          const photo=getComputedStyle(document.querySelector('.pm-hero-images'),'::after');
+          return {blur:value.backdropFilter, radius:value.borderRadius,
+            padding:value.paddingTop, halftone:photo.backgroundImage};
+        }""")
+        assert "blur(" in css["blur"], css
+        assert css["padding"] == "8px", css
+        assert "radial-gradient" in css["halftone"], css
+        expect(page.get_by_role("heading", name=re.compile("From rent due"))).to_be_visible()
+        expect(page.get_by_role("heading", name="Less chasing. More knowing.")).to_have_count(1)
+        if width > 1100:
+            page.get_by_role("button", name="Platform", exact=True).click()
+            menu = page.locator(".pm-mega-panel")
+            expect(menu).to_be_visible()
+            columns=menu.locator(".pm-mega-columns > *")
+            expect(columns).to_have_count(4)
+            assert menu.locator(".pm-mega-link-icon svg").count() >= 6
+            shellBox=header.bounding_box()
+            menuBox=menu.bounding_box()
+            assert abs(shellBox["width"]-menuBox["width"]) < 3, (shellBox,menuBox)
+            menu.get_by_role("link", name=re.compile("Rent & verified payments")).hover()
+            expect(menu.locator(".pm-mega-support strong")).to_have_text(
+                "Rent & verified payments")
+            page.keyboard.press("Escape")
+            expect(menu).to_have_count(0)
+        else:
+            page.get_by_role("button", name="Open navigation").click()
+            expect(page.get_by_role("navigation", name="Main navigation")).to_be_visible()
+            page.get_by_role("button", name="Platform", exact=True).click()
+            menu=page.locator(".pm-mega-panel")
+            expect(menu).to_be_visible()
+            expect(menu.get_by_role("link", name=re.compile("Rent & verified payments"))).to_be_visible()
+            assert page.evaluate("""() => document.documentElement.scrollWidth <=
+              document.documentElement.clientWidth + 2""")
+            page.keyboard.press("Escape")
+            expect(menu).to_have_count(0)
+    finally:
+        context.close()
+
+
+def test_manual_update_check_exposes_status_without_reloading_in_development(page):
+    """Loopback dev builds have no deploy marker; never pretend an update exists."""
+    page.goto(BASE + "/",wait_until="domcontentloaded")
+    page.get_by_role("button", name="Explore", exact=True).click()
+    menu=page.locator(".pm-mega-panel")
+    menu.get_by_role("button", name="Check for app updates").click()
+    notice=page.get_by_role("complementary", name="App version updates")
+    expect(notice).to_be_visible(timeout=5000)
+    expect(notice).to_contain_text("Update checks are available in deployed builds.")
+    assert page.get_by_role("button", name="Get new update").count()==0
