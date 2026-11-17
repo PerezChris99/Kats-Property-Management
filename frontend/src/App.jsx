@@ -579,7 +579,7 @@ function Dashboard({ user }) {
       <div className="kats-flow-label"><span>03 / REVIEW THE EVIDENCE</span>
         <p>Live charts, period comparisons and exact underlying records.</p></div>
       <Suspense fallback={<p className="data-loading" role="status">Loading portfolio charts…</p>}>
-        <LandlordAnalytics/>
+        <LandlordAnalytics />
       </Suspense>
       <details className="kats-workflow-disclosure kats-dash-more">
         <summary>More workspace destinations <span>Properties, rooms and financial records</span></summary>
@@ -740,7 +740,7 @@ function TenantHome() {
       <div className="kats-flow-label"><span>03 / UNDERSTAND YOUR HISTORY</span>
         <p>Verified receipts, payment status and exact billing-period trends.</p></div>
       <Suspense fallback={<p className="data-loading" role="status">Loading rental charts…</p>}>
-        <TenantAnalytics/>
+        <TenantAnalytics />
       </Suspense>
     </section>;
 }
