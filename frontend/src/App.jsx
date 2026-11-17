@@ -1,6 +1,8 @@
 import { api } from './lib/api';
 import { WorkspaceNavigation, WorkspaceSectionTabs } from './WorkspaceNavigation';
-import { PresentationTour } from './PresentationTour';
+import { QuickActionsPalette } from './QuickActionsPalette';
+import { VictoryLink } from './VictoryLink';
+import { PwaInstallButton } from './PwaInstallButton';
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 const LandlordAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.LandlordAnalytics})));
 const TenantAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.TenantAnalytics})));
@@ -477,51 +479,117 @@ function ResourcePage({ resource, user }) {
 function Dashboard({ user }) {
     const [summary, setSummary] = useState(null);
     const [error, setError] = useState('');
-    useEffect(() => { api('dashboard').then(setSummary).catch(err => setError(String(err))); }, []);
+    const [revision, setRevision] = useState(0);
+    useEffect(() => {
+        const controller = new AbortController();
+        setError('');
+        api('dashboard', { signal: controller.signal })
+            .then(data => {if (!controller.signal.aborted) setSummary(data);})
+            .catch(err => {if (!controller.signal.aborted)
+                setError(err.message || 'Unable to load dashboard');});
+        return () => controller.abort();
+    }, [revision]);
+    useEffect(() => {
+        const updated = () => setRevision(value => value + 1);
+        window.addEventListener('kats:data-updated', updated);
+        return () => window.removeEventListener('kats:data-updated', updated);
+    }, []);
     const money = value => 'UGX ' + Number(value || 0).toLocaleString('en-UG');
     const occupied = Number(summary?.occupied_rooms || 0);
     const vacant = Number(summary?.vacant_rooms || 0);
-    const occupancy = (occupied + vacant) > 0 ? Math.round(100 * occupied / (occupied + vacant)) : null;
+    const occupancy = (occupied + vacant) > 0
+        ? Math.round(100 * occupied / (occupied + vacant)) : null;
     const collected = Number(summary?.collected_ugx || 0);
     const expected = Number(summary?.expected_ugx || 0);
-    const collection = expected > 0 ? Math.min(100, Math.max(0, Math.round(100 * collected / expected))) : null;
-    return <section className="page kats-overview">
-      <PresentationTour role={user.role}/>
-      <div className="kats-overview-head">
-        <div><span className="eyebrow">YOUR PORTFOLIO, AT A GLANCE</span>
+    const collection = expected > 0
+        ? Math.min(100, Math.max(0, Math.round(100 * collected / expected))) : null;
+    return <section className="page kats-overview kats-dashboard-flow">
+      <header className="kats-overview-head kats-dash-hero">
+        <div>
+          <span className="eyebrow">PORTFOLIO / YOUR DAILY BRIEF</span>
           <h1>Welcome back, {user.full_name.split(' ')[0]}.</h1>
-          <p>Recorded balances and operational activity. Unverified payments are not counted as collected.</p>
+          <p>Clear decisions first. Every figure is recorded; unverified payments are excluded from collected rent.</p>
         </div>
-        <Link className="button" to="/reports">View reports <ArrowRight size={16}/></Link>
-      </div>
-      {error && <p role="alert" className="error">{error}</p>}
-      {!summary && !error ? <p role="status" className="data-loading">Loading your portfolio overview…</p> : !summary ? <div className="empty" role="alert"><p>Portfolio overview is unavailable.</p><button className="button small" onClick={() => { setError(''); api('dashboard').then(setSummary).catch(e=>setError(String(e))); }}>Retry</button></div> : <>
-        <div className="kats-overview-spotlight">
-          <div className="kats-overview-primary">
-            <span className="kats-overview-label">RENT PERFORMANCE</span>
-            <span className="kats-overview-desc">Collected rent</span>
-            <strong>{money(summary.collected_ugx)}</strong>
-            <div className="kats-meter" role="img" aria-label={collection === null ? 'No expected rent recorded' : collection + '% of expected rent collected'}>
-              <span style={{width: (collection ?? 0) + '%'}}/>
+        <VictoryLink to="/reports" label="View reports"
+          winText="See the progress"/>
+      </header>
+      <div className="kats-flow-label"><span>01 / KNOW YOUR POSITION</span>
+        <p>Start with collections and the exceptions needing attention.</p></div>
+      {error && <p role="alert" className="error">{error}
+        <button type="button" className="outline-button small"
+          onClick={() => setRevision(v => v + 1)}>Retry</button>
+      </p>}
+      {!summary && !error ? <p role="status" className="data-loading">Loading your portfolio overview…</p>
+        : summary && <>
+          <div className="kats-overview-spotlight">
+            <div className="kats-overview-primary kats-spotlight-feature">
+              <span className="kats-overview-label">VERIFIED RENT PERFORMANCE</span>
+              <span className="kats-overview-desc">Rent collected</span>
+              <strong>{money(summary.collected_ugx)}</strong>
+              <div className="kats-meter" role="img" aria-label={collection === null
+                ? 'No expected rent recorded' : collection + '% of expected rent collected'}>
+                <span style={{width: (collection ?? 0) + '%'}}/>
+              </div>
+              <div className="kats-meter-notes">
+                <span>{collection === null ? 'No expected rent recorded' : collection + '% of expected'}</span>
+                <span>Expected: {money(summary.expected_ugx)}</span>
+              </div>
+              <p className="kats-dash-context">Only independently reconciled transactions count as verified collections.</p>
             </div>
-            <div className="kats-meter-notes"><span>{collection === null ? 'No expected rent recorded' : collection + '% of expected'}</span><span>Expected: {money(summary.expected_ugx)}</span></div>
+            <div className="kats-overview-secondary kats-attention-panel">
+              <span className="kats-overview-label">ATTENTION REQUIRED</span>
+              <div><small>Outstanding rent</small>
+                <strong>{money(summary.outstanding_ugx)}</strong></div>
+              <div><small>Maintenance to resolve</small>
+                <strong>{Number(summary.open_maintenance || 0).toLocaleString('en-UG')}</strong></div>
+              <Link to="/maintenance">Review maintenance <ArrowRight size={16} aria-hidden="true"/></Link>
+            </div>
           </div>
-          <div className="kats-overview-secondary">
-            <span className="kats-overview-label">ATTENTION REQUIRED</span>
-            <div><small>Outstanding</small><strong>{money(summary.outstanding_ugx)}</strong></div>
-            <div><small>Open maintenance</small><strong>{Number(summary.open_maintenance || 0).toLocaleString('en-UG')}</strong></div>
-            <Link to="/maintenance">Review maintenance <ArrowRight size={16}/></Link>
-          </div>
+          <details className="kats-workflow-disclosure kats-summary-disclosure">
+            <summary>Portfolio health <span>Occupancy, occupied and vacant units</span></summary>
+            <div className="stat-grid">
+              <div className="stat"><small>Occupied rooms</small>
+                <strong>{occupied.toLocaleString('en-UG')}</strong></div>
+              <div className="stat"><small>Vacant / other rooms</small>
+                <strong>{vacant.toLocaleString('en-UG')}</strong></div>
+              <div className="stat"><small>Recorded occupancy</small>
+                <strong>{occupancy === null ? '—' : occupancy + '%'}</strong></div>
+            </div>
+          </details>
+        </>}
+      <section className="kats-dash-steps" aria-labelledby="kats-owner-next">
+        <div className="kats-flow-label"><span>02 / TAKE ACTION</span>
+          <p>Follow the normal operational path from billing to verified money and care.</p></div>
+        <h2 id="kats-owner-next">Your next moves</h2>
+        <div className="kats-action-grid">
+          <Link to="/invoices" className="kats-action-card">
+            <span className="kats-action-number">01 · BILLING</span>
+            <strong>Review invoices</strong><span>Check rent due and outstanding balances.</span>
+            <ArrowRight size={18} aria-hidden="true"/></Link>
+          <Link to="/payments" className="kats-action-card">
+            <span className="kats-action-number">02 · COLLECTIONS</span>
+            <strong>Verify payments</strong><span>Follow independent review and settlement status.</span>
+            <ArrowRight size={18} aria-hidden="true"/></Link>
+          <Link to="/maintenance" className="kats-action-card">
+            <span className="kats-action-number">03 · OPERATIONS</span>
+            <strong>Resolve maintenance</strong><span>Keep open requests moving to completion.</span>
+            <ArrowRight size={18} aria-hidden="true"/></Link>
         </div>
-        <div className="kats-overview-section-head"><h2>Portfolio health</h2><span>Recorded units</span></div>
-        <div className="stat-grid">
-          <div className="stat"><small>Occupied rooms</small><strong>{occupied.toLocaleString('en-UG')}</strong></div>
-          <div className="stat"><small>Vacant / other rooms</small><strong>{vacant.toLocaleString('en-UG')}</strong></div>
-          <div className="stat"><small>Recorded occupancy</small><strong>{occupancy === null ? '—' : occupancy + '%'}</strong></div>
-        </div>
-      </>}
-      <Suspense fallback={<p className="data-loading" role="status">Loading portfolio charts…</p>}><LandlordAnalytics /></Suspense>
-      <div className="quick kats-overview-actions"><h2>Go to workspace</h2><div><Link to="/properties">Properties <ArrowRight size={15}/></Link><Link to="/rooms">Rooms <ArrowRight size={15}/></Link><Link to="/invoices">Invoices <ArrowRight size={15}/></Link><Link to="/payments">Payments <ArrowRight size={15}/></Link></div></div>
+      </section>
+      <div className="kats-flow-label"><span>03 / REVIEW THE EVIDENCE</span>
+        <p>Live charts, period comparisons and exact underlying records.</p></div>
+      <Suspense fallback={<p className="data-loading" role="status">Loading portfolio charts…</p>}>
+        <LandlordAnalytics/>
+      </Suspense>
+      <details className="kats-workflow-disclosure kats-dash-more">
+        <summary>More workspace destinations <span>Properties, rooms and financial records</span></summary>
+        <nav className="kats-quiet-links" aria-label="Additional landlord destinations">
+          <Link to="/properties">Properties <ArrowRight size={15}/></Link>
+          <Link to="/rooms">Rooms <ArrowRight size={15}/></Link>
+          <Link to="/tenants">Tenancies <ArrowRight size={15}/></Link>
+          <Link to="/trends">Annual trends <ArrowRight size={15}/></Link>
+        </nav>
+      </details>
     </section>;
 }
 function ReportsPage() {
@@ -592,31 +660,95 @@ function TenantHome() {
         setError('');
         setLeaseError('');
         setLeaseLoading(true);
-        // Fetch these independently: an unavailable lease service must not
-        // suppress successful payment/balance information (or vice versa).
         api('tenant/dashboard').then(result => {
             if (active) setSummary(result);
-        }).catch(err => { if (active) setError(err.message || 'Could not load rent summary'); });
+        }).catch(err => {
+            if (active) setError(err.message || 'Could not load rent summary');
+        });
         api('tenant/lease').then(result => {
             if (active) setLease(result.lease || null);
-        }).catch(err => { if (active) setLeaseError(err.message || 'Could not load lease'); })
-            .finally(() => { if (active) setLeaseLoading(false); });
-        return () => { active = false; };
+        }).catch(err => {
+            if (active) setLeaseError(err.message || 'Could not load lease');
+        }).finally(() => {if (active) setLeaseLoading(false);});
+        return () => {active = false;};
     }, [reload]);
-    return <section className="page"><span className="eyebrow">TENANT PORTAL</span><h1>My rental account</h1><p>Your current lease and recorded rent activity.</p>
-    <PresentationTour role="TENANT"/>
-    {error && <p role="alert" className="error">{error}</p>}
-    {summary ? <div className="stat-grid"><div className="stat"><small>Invoiced</small><strong>UGX {summary.total_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Paid</small><strong>UGX {summary.paid_ugx.toLocaleString('en-UG')}</strong></div><div className="stat"><small>Outstanding</small><strong>UGX {summary.outstanding_ugx.toLocaleString('en-UG')}</strong></div></div> : !error ? <p role="status">Loading rent summary…</p> : <p role="alert">Unable to load rental summary. Check the API and reload.</p>}
-    <Suspense fallback={<p className="data-loading" role="status">Loading rental charts…</p>}><TenantAnalytics /></Suspense>
-    <div className="quick"><h2>My lease</h2>{leaseError && <p role="alert">{leaseError} <button type="button" className="outline-button small" onClick={() => setReload(n=>n+1)}>Retry</button></p>}{leaseLoading ? <p role="status">Loading lease…</p> : lease ? <p><strong>{lease.property_name || 'Your property'}</strong> · Unit {lease.room_number || lease.room_id} · Monthly rent: UGX {Number(lease.rent_ugx).toLocaleString('en-UG')} · Lease ends: {lease.end_date}.</p> : !leaseError ? <p>No active lease is currently linked to your account.</p> : null}<Link to="/invoices">Invoices</Link><Link to="/payments">Payments</Link><Link to="/maintenance">Maintenance</Link></div>
-  </section>;
+    useEffect(() => {
+        const updated = () => setReload(value => value + 1);
+        window.addEventListener('kats:data-updated', updated);
+        return () => window.removeEventListener('kats:data-updated', updated);
+    }, []);
+    const money = amount => 'UGX ' + Number(amount || 0).toLocaleString('en-UG');
+    return <section className="page kats-dashboard-flow kats-tenant-dashboard">
+      <header className="kats-overview-head kats-dash-hero">
+        <div><span className="eyebrow">MY HOME / MY RENTAL ACCOUNT</span>
+          <h1>Welcome home.</h1>
+          <p>Your rent position, next steps and records — all in one calm workspace.</p></div>
+        <VictoryLink to="/invoices" label="View my invoices"
+          winText="Stay on top"/>
+      </header>
+      <div className="kats-flow-label"><span>01 / MY RENT POSITION</span>
+        <p>See the recorded amount due before deciding what to do next.</p></div>
+      {error && <p className="error" role="alert">{error}
+        <button type="button" className="outline-button small"
+          onClick={() => setReload(v => v + 1)}>Retry summary</button></p>}
+      {summary ? <div className="kats-tenant-money-panel">
+        <div className="kats-tenant-feature">
+          <span className="kats-overview-label">CURRENT RECORDED OUTSTANDING</span>
+          <strong>{money(summary.outstanding_ugx)}</strong>
+          <span>Across your non-void rent invoices</span>
+          <Link to="/invoices">See invoices <ArrowRight size={16} aria-hidden="true"/></Link>
+        </div>
+        <div className="kats-tenant-totals">
+          <div className="stat"><small>Invoiced</small>
+            <strong>{money(summary.total_ugx)}</strong></div>
+          <div className="stat"><small>Applied to rent</small>
+            <strong>{money(summary.paid_ugx)}</strong></div>
+        </div>
+      </div> : !error && <p role="status" className="data-loading">Loading rental summary…</p>}
+      <section className="kats-dash-steps" aria-labelledby="kats-tenant-next">
+        <div className="kats-flow-label"><span>02 / WHAT TO DO NEXT</span>
+          <p>Review, confirm and request help without searching through menus.</p></div>
+        <h2 id="kats-tenant-next">Quick steps</h2>
+        <div className="kats-action-grid">
+          <Link to="/invoices" className="kats-action-card">
+            <span className="kats-action-number">01 · REVIEW</span><strong>My invoices</strong>
+            <span>Check rent charges and due dates.</span><ArrowRight size={18}/></Link>
+          <Link to="/payments" className="kats-action-card">
+            <span className="kats-action-number">02 · CONFIRM</span><strong>My payments</strong>
+            <span>Follow receipt verification and payment history.</span>
+            <ArrowRight size={18}/></Link>
+          <Link to="/maintenance" className="kats-action-card">
+            <span className="kats-action-number">03 · REQUEST CARE</span><strong>Get help</strong>
+            <span>Report or follow a maintenance request.</span>
+            <ArrowRight size={18}/></Link>
+        </div>
+      </section>
+      <details className="kats-workflow-disclosure kats-lease-disclosure">
+        <summary>My lease and home details <span>Unit, rent and lease dates</span></summary>
+        {leaseError && <p role="alert">{leaseError}
+          <button type="button" className="outline-button small"
+            onClick={() => setReload(v=>v+1)}>Retry</button></p>}
+        {leaseLoading ? <p role="status">Loading lease…</p> : lease
+          ? <div className="kats-lease-summary">
+              <div><small>PROPERTY</small><strong>{lease.property_name || 'Your property'}</strong></div>
+              <div><small>UNIT</small><strong>{lease.room_number || lease.room_id}</strong></div>
+              <div><small>MONTHLY RENT</small><strong>{money(lease.rent_ugx)}</strong></div>
+              <div><small>LEASE ENDS</small><strong>{lease.end_date}</strong></div>
+            </div> : !leaseError ? <p>No active lease is linked to your account.</p> : null}
+        <Link to="/statements">Open my statement <ArrowRight size={15}/></Link>
+      </details>
+      <div className="kats-flow-label"><span>03 / UNDERSTAND YOUR HISTORY</span>
+        <p>Verified receipts, payment status and exact billing-period trends.</p></div>
+      <Suspense fallback={<p className="data-loading" role="status">Loading rental charts…</p>}>
+        <TenantAnalytics/>
+      </Suspense>
+    </section>;
 }
 function CaretakerHome() {
     const [summary, setSummary] = useState(null);
     const [error, setError] = useState('');
     useEffect(() => { api('caretaker/dashboard').then(setSummary).catch(err => setError(String(err))); }, []);
     return <section className="page"><span className="eyebrow">CARETAKER PORTAL</span><h1>My assigned rooms</h1><p>Only assigned rooms and their tasks are visible.</p>
-    <PresentationTour role="CARETAKER"/>
     {error && <p role="alert" className="error">{error}</p>}
     {summary ? <div className="stat-grid">
       <div className="stat"><small>Assigned rooms</small><strong>{summary.assigned_rooms}</strong></div>
@@ -648,7 +780,7 @@ function Portal({ user, logout, systemReady }) {
           <span>Workspace <span aria-hidden="true">/</span> {pageTitle}</span>
           <strong>{pageTitle}</strong>
         </div>
-        <div className="portal-header-tools"><Link className="outline-button small" to="/search">Find records</Link><span className={'portal-system-state ' + (systemReady === true ? 'is-connected' : systemReady === false ? 'is-disconnected' : '')} role="status"><span className="portal-status-dot" aria-hidden="true"/>{systemReady === null ? 'Checking API' : systemReady ? 'System connected' : 'API unavailable'}</span><div className="portal-identity" title={user.full_name}>
+        <div className="portal-header-tools"><QuickActionsPalette pages={nav}/><PwaInstallButton role={user.role}/><span className={'portal-system-state ' + (systemReady === true ? 'is-connected' : systemReady === false ? 'is-disconnected' : '')} role="status"><span className="portal-status-dot" aria-hidden="true"/>{systemReady === null ? 'Checking API' : systemReady ? 'System connected' : 'API unavailable'}</span><div className="portal-identity" title={user.full_name}>
           <span className="identity-avatar" aria-hidden="true">{user.full_name.trim().charAt(0).toUpperCase()}</span>
           <span><strong>{user.full_name}</strong><small>{user.role.replaceAll('_', ' ')}</small></span>
         </div></div>
