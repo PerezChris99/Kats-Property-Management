@@ -1,25 +1,33 @@
 import { useEffect, useState } from 'react';
 import { Download, MonitorCheck } from 'lucide-react';
 
+// Chrome can fire the event while an owner is still signing in. Capture it at
+// app-module load, not only after the protected workspace component mounts.
+let pendingInstall = null;
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    pendingInstall = event;
+    window.dispatchEvent(new Event('kats:pwa-install-available'));
+  });
+}
+
 /** Browser-mediated installation; no prompts or cached privileged state. */
 export function PwaInstallButton({ role }) {
-  const [offer, setOffer] = useState(null);
+  const [offer, setOffer] = useState(pendingInstall);
   const [installed, setInstalled] = useState(() =>
     window.matchMedia('(display-mode: standalone)').matches ||
     window.navigator.standalone === true);
   useEffect(() => {
     const media = window.matchMedia('(display-mode: standalone)');
     const detect = () => setInstalled(media.matches || window.navigator.standalone === true);
-    const available = event => {
-      event.preventDefault();
-      setOffer(event);
-    };
-    const done = () => { setInstalled(true); setOffer(null); };
-    window.addEventListener('beforeinstallprompt', available);
+    const available = () => setOffer(pendingInstall);
+    const done = () => { pendingInstall = null; setInstalled(true); setOffer(null); };
+    window.addEventListener('kats:pwa-install-available', available);
     window.addEventListener('appinstalled', done);
     media.addEventListener?.('change', detect);
     return () => {
-      window.removeEventListener('beforeinstallprompt', available);
+      window.removeEventListener('kats:pwa-install-available', available);
       window.removeEventListener('appinstalled', done);
       media.removeEventListener?.('change', detect);
     };
@@ -30,6 +38,7 @@ export function PwaInstallButton({ role }) {
   if (!offer) return null;
   async function install() {
     const event = offer;
+    pendingInstall = null;
     setOffer(null);
     try {
       await event.prompt();
