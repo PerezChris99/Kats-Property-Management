@@ -24,7 +24,7 @@ test('all dashboard charts use one lazily imported visualization toolkit with li
     'analytics/tenant/payment-status','analytics/tenant/applied-payments',
     'analytics/tenant/balance-trend'
   ]) assert.ok(analytics.includes(endpoint),endpoint);
-  for (const kind of ['DonutChart','BarChart','LineChart','VennChart','RadarChart']) {
+  for (const kind of ['DonutChart','PieChart','BarChart','LineChart','AreaChart','ComparisonBarChart','VennChart','PropertyPerformanceChart']) {
     assert.ok(kit.includes('export function '+kind+'('),kind);
   }
   assert.ok(annual.includes("from './charts/ChartKit'"));
@@ -40,7 +40,21 @@ test('all dashboard charts use one lazily imported visualization toolkit with li
   assert.ok(kit.includes('<RechartsPieChart') &&
             kit.includes('<RechartsBarChart') &&
             kit.includes('<RechartsLineChart') &&
-            kit.includes('<RechartsRadarChart'), 'all visual types are Recharts');
+            kit.includes('<RechartsAreaChart'), 'all visual types are Recharts');
+  assert.equal(kit.includes('<RechartsRadarChart'), false, 'misleading circular radar removed');
+  assert.ok(kit.includes('domain={[0, 100]}'), 'property rates use comparable 0-100% axis');
+  assert.ok(kit.includes('secondary'), 'collections and invoicing stay distinct');
+  assert.ok(analytics.includes('kind="performance"'), 'staff property scores use true comparison bars');
+  assert.ok(analytics.includes('kind="monthly-line"'), 'staff collections are time series');
+  assert.ok(analytics.includes('analytics/tenant/payment-history'), 'tenant gets verified settlement history');
+  assert.ok(analytics.includes('<PieChart') && analytics.includes('<DonutChart'), 'distribution toggles');
+  assert.ok(analytics.includes('<ComparisonBarChart'), 'monthly billing and collections compare correctly');
+  assert.ok(analytics.includes('setMode(') && analytics.includes('setRange('),
+    'chart type and rolling period controls are interactive');
+  assert.ok(annual.includes('setCollectionStyle(') && annual.includes('setMonthsToShow('),
+    'annual collection trend is switchable between real graph types');
+  assert.ok(annual.includes('<LineChart') && annual.includes('<AreaChart') &&
+    annual.includes('<BarChart'), 'annual reports render real Cartesian charts');
 });
 
 test('workspace sizing tokens are 14px base with 12-col responsive layout',()=>{
@@ -51,7 +65,7 @@ test('workspace sizing tokens are 14px base with 12-col responsive layout',()=>{
     '--font-size-xs: 11px','--font-size-sm: 12px','--font-size-base: 14px',
     '--font-size-lg: 16px','--font-size-xl: 20px','--font-size-2xl: 24px',
     '--control-height: 32px','--control-height-sm: 28px',
-    '--chart-height: 240px','--content-max: 1392px'
+    '--chart-height: 310px','--content-max: 1392px'
   ]) assert.ok(css.includes(entry),entry);
   for(let i=1;i<=8;i++)assert.ok(css.includes('--space-'+i+': '+(4*i)+'px'));
   assert.ok(css.includes('grid-template-columns:repeat(12,minmax(0,1fr))'));
@@ -95,4 +109,24 @@ test('lazy module selectors match actual export kinds (including utilities)',()=
       assert.ok(app.includes("lazy(() => import('./"+component+"').then(m => ({ default: m."+component+" })))"),component);
     }
   }
+});
+
+
+test('chart CSS reserves real graph height and does not shrink the SVG', () => {
+  const css = read('src/workspace.css');
+  assert.ok(css.includes('.kats-recharts-frame svg.recharts-surface'));
+  assert.ok(css.includes('max-height:none'), 'plot cannot be clipped to a decorative icon');
+  assert.ok(css.includes('.kats-chart-controls'), 'management and tenant selectors are styled');
+  assert.ok(css.includes('@media (max-width:640px)'), 'narrow device layout remains responsive');
+});
+
+test('all staff and tenant chart controls use real API data, not display-only placeholders', () => {
+  const source = read('src/charts/WorkspaceAnalytics.jsx');
+  assert.ok(source.includes("api(endpoint,{signal:controller.signal})"));
+  assert.ok(source.includes("const plotted = TIME_SERIES.has(kind)"), 'changing range selects source points');
+  assert.ok(source.includes("onChange={event => setMode(event.target.value)}"));
+  assert.ok(source.includes("onChange={event => setRange(event.target.value)}"));
+  assert.ok(source.includes('PropertyPerformanceChart'));
+  assert.ok(source.includes('TenantAnalytics()') && source.includes('LandlordAnalytics()'));
+  assert.equal(/const sampleData|Math\.random\(|demoChartData/.test(source), false);
 });
