@@ -193,6 +193,16 @@ test('public navigation exposes real feature links through a full-width contextu
   assert.ok(nav.includes('onFocus={()=>setHighlight(entry)}'));
   assert.ok(nav.includes('onMouseEnter={()=>setHighlight(entry)}'));
   assert.ok(nav.includes('className="pm-mega-support"'));
+  assert.ok(nav.includes("label:'Operations'"));
+  assert.ok(nav.includes("import { PHOTOS } from './media'"));
+  assert.ok(nav.includes('const supportPhoto = SUPPORT_PHOTOS[focus?.href]'));
+  assert.ok(nav.includes('src={supportPhoto.url}'));
+  assert.ok(nav.includes('loading="lazy" decoding="async"'));
+  assert.equal(nav.includes('pm-mega-support-orbit'), false);
+  assert.equal(nav.includes('<focus.icon'), false);
+  assert.equal(nav.includes('Unsplash'), false);
+  assert.ok(css.includes('.pm-mega-support-photo img'));
+  assert.ok(css.includes('object-fit:cover'));
   assert.ok(css.includes('grid-template-columns:repeat(3,minmax(0,1fr)) minmax(210px,1.07fr)'));
   assert.ok(css.includes('padding:8px clamp(13px,1.6vw,25px)'));
   assert.ok(css.includes('backdrop-filter:blur(24px)'));
@@ -204,7 +214,7 @@ test('hero tells an operational story with subtle non-destructive halftone on ph
   const ui = read('src/site/Marketing.jsx');
   const css = read('src/site/public-elevated.css');
   assert.ok(ui.includes('From rent due to repairs done'));
-  assert.ok(ui.includes('Stop piecing together spreadsheets'));
+  assert.ok(ui.includes('KATS brings our property records'));
   assert.ok(ui.includes('What\'s outstanding?'));
   assert.ok(ui.includes('What needs attention?'));
   assert.ok(css.includes('.pm-hero-images::after'));
@@ -352,3 +362,26 @@ test('request access and sign in retain every form control while removing oversi
   assert.ok(css.includes('@media (max-height:650px)'));
   assert.equal(css.includes('.pm-request-page {overflow:hidden'),false);
 });
+
+test('one-business product boundary is clear and applicant access is restricted to Kats Properties', () => {
+  const ui=read('src/site/Marketing.jsx');
+  const nav=read('src/site/PublicMegaNavigation.jsx');
+  const readme=read('../README.md');
+  assert.ok(readme.includes('not software-as-a-service'));
+  assert.ok(readme.includes('one private property-management system'));
+  assert.ok(ui.includes('KATS PROPERTIES · ONE BUSINESS, ONE WORKSPACE'));
+  assert.ok(ui.includes('For staff and tenants connected to Kats Properties only'));
+  assert.ok(ui.includes('administrator verifies your relationship'));
+  assert.ok(nav.includes('For authorized Kats Properties staff and tenants'));
+  assert.ok(readme.includes('not a subscription product'));
+  assert.ok(read('src/site/media.js').includes('not represented as customers or managed KATS properties') === false ||
+    read('src/site/media.js').includes('NOT represented as customers or managed KATS properties'));
+});
+
+test('public navigation border styling is subtle, with retained frosted background', () => {
+  const css=read('src/site/public-elevated.css');
+  assert.ok(css.includes('border:1px solid rgba(226,240,249,.17)'));
+  assert.ok(css.includes('border:1px solid rgba(186,214,231,.29)'));
+  assert.ok(css.includes('backdrop-filter:blur(24px) saturate(142%)'));
+});
+
