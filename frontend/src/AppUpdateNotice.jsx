@@ -1,3 +1,4 @@
+/* global __KATS_BUILD_ID__ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowDownToLine, CheckCircle2, RefreshCw, X } from 'lucide-react';
 
