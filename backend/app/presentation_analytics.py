@@ -9,7 +9,7 @@ from datetime import date, datetime, timezone
 from calendar import monthrange
 
 from flask import Blueprint, jsonify, request
-from sqlalchemy import func
+from sqlalchemy import func, exists, select
 
 from .api import roles, fail
 from .extensions import db
@@ -179,14 +179,17 @@ def analytics_drilldown(user):
     month = request.args.get("month", "")
     category = request.args.get("category", "")
     if metric not in ("verified_collections", "net_invoiced", "applied_payments",
-                      "approved_expenses", "occupancy", "payment_status"):
+                      "approved_expenses", "occupancy", "payment_status", "property_collections",
+                      "property_rooms", "overlap"):
         return fail("Unsupported drill-down metric", 400)
-    if metric in ("approved_expenses", "occupancy") and user.role == "TENANT":
+    if metric in ("approved_expenses", "occupancy", "property_collections",
+                  "property_rooms", "overlap") and user.role == "TENANT":
         return fail("Not authorized", 403)
     if metric in ("applied_payments", "payment_status") and user.role != "TENANT":
         return fail("Not authorized", 403)
     try:
-        if metric not in ("occupancy", "payment_status"):
+        if metric not in ("occupancy", "payment_status", "property_collections",
+                           "property_rooms", "overlap"):
             first, following, from_dt, to_dt = _month_bounds(month)
     except ValueError as error:
         return fail(str(error), 400)
@@ -201,6 +204,53 @@ def analytics_drilldown(user):
         items = [{"title": "Room " + room.number, "subtitle": state,
                   "resource": "rooms", "query": room.number}
                  for room in query.order_by(Room.number, Room.id).limit(25)]
+    elif metric == "property_rooms":
+        if not category or len(category) > 200:
+            return fail("Property name required", 400)
+        query = db.session.query(Room, Property).join(
+            Property, Property.id == Room.property_id).filter(Property.name == category)
+        items = [{"title": f"{prop.name}: room {room.number}",
+                  "subtitle": room.status, "resource": "rooms", "query": room.number}
+                 for room, prop in query.order_by(Room.number, Room.id).limit(25)]
+    elif metric == "property_collections":
+        if not category or len(category) > 200:
+            return fail("Property name required", 400)
+        query = db.session.query(Payment, Invoice).join(
+            Invoice, Invoice.id == Payment.invoice_id).join(
+            Lease, Lease.id == Invoice.lease_id).join(
+            Room, Room.id == Lease.room_id).join(
+            Property, Property.id == Room.property_id).filter(
+            Property.name == category, Payment.status == "RECONCILED",
+            Payment.reversed_at.is_(None))
+        items = [{"title": inv.invoice_number,
+                  "subtitle": payment.settled_at.date().isoformat() if payment.settled_at
+                              else "Legacy verified; undated",
+                  "amount_ugx": int(payment.amount_ugx), "resource": "payments",
+                  "query": payment.reference or inv.invoice_number}
+                 for payment, inv in query.order_by(
+                     Payment.created_at.desc(), Payment.id).limit(25)]
+    elif metric == "overlap":
+        if category not in ("Current rent only", "Both", "Maintenance only", "Neither"):
+            return fail("Unsupported intersection", 400)
+        active = exists(select(Lease.id).where(
+            Lease.tenant_id == Tenant.id, Lease.status == "ACTIVE")).correlate(Tenant)
+        overdue = exists(select(Invoice.id).where(
+            Invoice.tenant_id == Tenant.id, Invoice.status != "VOID",
+            Invoice.due_date < date.today(),
+            Invoice.total_ugx > Invoice.paid_ugx + Invoice.credit_ugx)).correlate(Tenant)
+        from .models import MaintenanceRequest
+        has_ticket = exists(select(MaintenanceRequest.id).where(
+            MaintenanceRequest.tenant_id == Tenant.id,
+            MaintenanceRequest.status.in_(("OPEN", "ASSIGNED", "IN_PROGRESS", "ON_HOLD"))
+        )).correlate(Tenant)
+        rent_current = not category in ("Maintenance only", "Neither")
+        has_maintenance = category in ("Both", "Maintenance only")
+        query = db.session.query(Tenant).filter(active)
+        query = query.filter(~overdue if rent_current else overdue)
+        query = query.filter(has_ticket if has_maintenance else ~has_ticket)
+        items = [{"title": t.full_name, "subtitle": category,
+                  "resource": "tenants", "query": t.full_name}
+                 for t in query.order_by(Tenant.full_name, Tenant.id).limit(25)]
     elif metric == "payment_status":
         if category not in ("Paid", "Due", "Overdue"):
             return fail("Unsupported invoice status category", 400)
