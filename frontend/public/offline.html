@@ -1,1 +1,23 @@
-<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline — Kats</title><body style="font-family:system-ui;max-width:32rem;margin:4rem auto;padding:1rem;color:#0b1b3d"><h1>You're offline</h1><p>Reconnect to access your account. Payment and tenant information is never cached offline.</p><a href="/">Try again</a></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Offline — KATS Property Management</title>
+  <style>
+    body{font-family:system-ui,"Segoe UI",sans-serif;max-width:33rem;margin:clamp(2rem,8vw,6rem) auto;padding:1.2rem;color:#0b1b3d;background:#f5f7fa;line-height:1.6}
+    .card{background:#fff;padding:2rem;border:1px solid #d1e2ec;border-radius:13px}
+    h1{font-size:1.8rem;margin:0 0 .6rem}
+    button{background:#0d76a5;border:0;border-radius:8px;padding:.8rem 1.2rem;color:#fff;font:inherit;cursor:pointer}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>You're offline.</h1>
+    <p>Reconnect to use your workspace. KATS never stores private rent, tenant or payment records in the offline page.</p>
+    <p>The app will reopen automatically when your connection returns.</p>
+    <button type="button" id="retry-online">Try again</button>
+  </main>
+  <script defer src="/offline-reconnect.js"></script>
+</body>
+</html>

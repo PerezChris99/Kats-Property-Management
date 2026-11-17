@@ -3,6 +3,7 @@ import { WorkspaceNavigation, WorkspaceSectionTabs } from './WorkspaceNavigation
 import { QuickActionsPalette } from './QuickActionsPalette';
 import { VictoryLink } from './VictoryLink';
 import { PwaInstallButton } from './PwaInstallButton';
+import { AppUpdateNotice, CheckAppUpdatesButton } from './AppUpdateNotice';
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 const LandlordAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.LandlordAnalytics})));
 const TenantAnalytics = lazy(() => import('./charts/WorkspaceAnalytics').then(m => ({default:m.TenantAnalytics})));
@@ -780,7 +781,7 @@ function Portal({ user, logout, systemReady }) {
           <span>Workspace <span aria-hidden="true">/</span> {pageTitle}</span>
           <strong>{pageTitle}</strong>
         </div>
-        <div className="portal-header-tools"><QuickActionsPalette pages={nav}/><PwaInstallButton role={user.role}/><span className={'portal-system-state ' + (systemReady === true ? 'is-connected' : systemReady === false ? 'is-disconnected' : '')} role="status"><span className="portal-status-dot" aria-hidden="true"/>{systemReady === null ? 'Checking API' : systemReady ? 'System connected' : 'API unavailable'}</span><div className="portal-identity" title={user.full_name}>
+        <div className="portal-header-tools"><QuickActionsPalette pages={nav}/><CheckAppUpdatesButton/><PwaInstallButton role={user.role}/><span className={'portal-system-state ' + (systemReady === true ? 'is-connected' : systemReady === false ? 'is-disconnected' : '')} role="status"><span className="portal-status-dot" aria-hidden="true"/>{systemReady === null ? 'Checking API' : systemReady ? 'System connected' : 'API unavailable'}</span><div className="portal-identity" title={user.full_name}>
           <span className="identity-avatar" aria-hidden="true">{user.full_name.trim().charAt(0).toUpperCase()}</span>
           <span><strong>{user.full_name}</strong><small>{user.role.replaceAll('_', ' ')}</small></span>
         </div></div>
@@ -861,7 +862,7 @@ export default function App() {
     function logout() { api('auth/logout', { method: 'POST' }).catch(() => { }).finally(() => { setUser(null); navigate('/'); }); }
     if (!ready)
         return <div className="loading">Loading Kats…</div>;
-    return <>{!online && <div className="offline" role="status">Offline. Reconnect to view private records.</div>}<Suspense fallback={<div className="loading" role="status">Opening page…</div>}><Routes>
+    return <><AppUpdateNotice/>{!online && <div className="offline" role="status">Offline. Reconnect to view private records.</div>}<Suspense fallback={<div className="loading" role="status">Opening page…</div>}><Routes>
     <Route element={<PublicShell user={user} logout={logout}/>}>
       <Route path="/" element={<LandingPage user={user}/>}/>
       <Route path="/features" element={<Navigate to="/#capabilities" replace/>}/>

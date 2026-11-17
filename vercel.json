@@ -34,5 +34,20 @@
         "service": "web"
       }
     }
+  ],
+  "headers": [
+    {
+      "source": "/app-version.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/json; charset=utf-8"
+        }
+      ]
+    }
   ]
 }

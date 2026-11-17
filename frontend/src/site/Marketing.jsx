@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import {
   ArrowRight, BookOpen, Building2, ChartNoAxesCombined, Check, CheckCircle2, House,
   ChevronLeft, ChevronRight, CreditCard, FileCheck2, KeyRound,
-  Menu, ShieldCheck, Users, Wallet, Wrench, X
+  ShieldCheck, Users, Wallet, Wrench
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { PHOTOS, PHOTO_LICENSE } from './media';
+import { MarketingNavigation } from './PublicMegaNavigation';
 import { POLICY_LINKS, POLICY_PAGES, UGANDA_POLICY_CONTEXT } from './legal';
 import './site.css';
 
@@ -18,12 +19,12 @@ const PRINCIPLES = [
   { icon: KeyRound, title: 'Tenants', detail: 'Leases and requests.' }
 ];
 const FEATURES = [
-  { icon: Building2, eyebrow: 'PORTFOLIO', title: 'Properties & rooms', body: 'Monitor buildings, rooms and occupancy.' },
-  { icon: FileCheck2, eyebrow: 'TENANCIES', title: 'Leases & tenants', body: 'Manage tenants, deposits and renewals.' },
-  { icon: CreditCard, eyebrow: 'FINANCE', title: 'Rent & payments', body: 'Record UGX invoices and review collections.' },
-  { icon: Wrench, eyebrow: 'OPERATIONS', title: 'Maintenance', body: 'Track requests, work orders and repairs.' },
-  { icon: ChartNoAxesCombined, eyebrow: 'OVERSIGHT', title: 'Reports', body: 'Understand occupancy, arrears and expenses.' },
-  { icon: ShieldCheck, eyebrow: 'ADMINISTRATION', title: 'Access & approvals', body: 'Control roles, permissions and approvals.' }
+  { icon: Building2, anchor:'feature-properties', eyebrow: 'PORTFOLIO', title: 'Properties & rooms', body: 'Monitor buildings, rooms and occupancy.' },
+  { icon: FileCheck2, anchor:'feature-leases', eyebrow: 'TENANCIES', title: 'Leases & tenants', body: 'Manage tenants, deposits and renewals.' },
+  { icon: CreditCard, anchor:'feature-rent', eyebrow: 'FINANCE', title: 'Rent & payments', body: 'Record UGX invoices and review collections.' },
+  { icon: Wrench, anchor:'feature-maintenance', eyebrow: 'OPERATIONS', title: 'Maintenance', body: 'Track requests, work orders and repairs.' },
+  { icon: ChartNoAxesCombined, anchor:'feature-reports', eyebrow: 'OVERSIGHT', title: 'Reports', body: 'Understand occupancy, arrears and expenses.' },
+  { icon: ShieldCheck, anchor:'feature-access', eyebrow: 'ADMINISTRATION', title: 'Access & approvals', body: 'Control roles, permissions and approvals.' }
 ];
 const WORKFLOW = [
   { label: '01', icon: Building2, title: 'Add properties', body: 'Set up buildings, rooms and status.' },
@@ -39,22 +40,7 @@ function Brand({ compact = false }) {
 }
 
 function PublicHeader({ user, logout }) {
-  const { pathname } = useLocation();
-  const [open, setOpen] = useState(false);
-  useEffect(() => { setOpen(false); }, [pathname]);
-  const links = [['/', 'Home'], ['/request-access', 'Request access']];
-  return <header className="pm-header">
-    <div className="pm-header-inner">
-      <Brand />
-      <button className="pm-menu-trigger" type="button" aria-label={open ? 'Close navigation' : 'Open navigation'} aria-expanded={open} aria-controls="pm-main-nav" onClick={() => setOpen(v => !v)}>{open ? <X/> : <Menu/>}</button>
-      <nav id="pm-main-nav" className={'pm-nav' + (open ? ' is-open' : '')} aria-label="Main navigation">
-        {links.map(([to, label]) => <NavLink end key={to} to={to} className={({isActive}) => isActive ? 'is-active' : ''}>{label}</NavLink>)}
-        <span className="pm-nav-separator" aria-hidden="true"/>
-        {user ? <><Link to="/dashboard">Workspace</Link><button type="button" className="pm-nav-signout" onClick={logout}>Sign out</button></> : <Link to="/login" className="pm-nav-login"><KeyRound size={16}/> Sign in</Link>}
-        
-      </nav>
-    </div>
-  </header>;
+  return <MarketingNavigation user={user} logout={logout} brand={<Brand/>}/>;
 }
 
 function PublicFooter() {
@@ -277,7 +263,7 @@ function HeroCarousel({ user }) {
   return <section ref={heroRef} className="pm-hero" aria-label="Property management introduction" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={e => { if (!e.currentTarget.contains(e.relatedTarget)) setPaused(false); }}>
     <div className="pm-hero-images" aria-hidden="true">{PHOTOS.map((item, n) => <div className={'pm-slide' + (n === index ? ' is-current' : '')} key={item.url} style={ready.has(n) ? { backgroundImage: 'url("' + item.url + '")' } : undefined}/>)}</div>
     <div className="pm-hero-shade"/>
-    <div className="pm-hero-inner"><div className="pm-hero-copy"><span className="pm-kicker pm-kicker-light"><span className="pm-spark" /> BUILT FOR UGANDAN RENTALS</span><h1>Manage property. <em>Know the full picture.</em></h1><p>Manage units, leases, rent and repairs in one place.</p><div className="pm-hero-actions"><Link className="pm-cta pm-cta-yellow" to={user ? '/dashboard' : '/request-access'}>{user ? 'Open workspace' : 'Request access'} <ArrowRight size={18}/></Link><Link className="pm-cta pm-cta-ghost" to="/#workflow">How it works</Link></div><div className="pm-hero-points"><span><Check size={15}/> UGX rent records</span><span><Check size={15}/> Secure role access</span></div></div></div>
+    <div className="pm-hero-inner"><div className="pm-hero-copy"><span className="pm-kicker pm-kicker-light"><span className="pm-spark" /> ONE CLEAR VIEW OF YOUR RENTALS</span><h1>From rent due to repairs done. <em>Know what comes next.</em></h1><p>Stop piecing together spreadsheets, payments and maintenance messages. KATS connects your properties, leases, verified rent collections and repairs so your team can act with clarity.</p><div className="pm-hero-actions"><Link className="pm-cta pm-cta-yellow" to={user ? '/dashboard' : '/request-access'}>{user ? 'Open workspace' : 'Request access'} <ArrowRight size={18}/></Link><Link className="pm-cta pm-cta-ghost" to="/#workflow">How it works</Link></div><div className="pm-hero-points"><span><Check size={15}/> Know what is owed</span><span><Check size={15}/> Follow each repair</span><span><Check size={15}/> One accountable team</span></div></div></div>
     <div className="pm-carousel-bottom"><div className="pm-carousel-controls"><button onClick={() => move(-1)} aria-label="Previous residential photo"><ChevronLeft/></button><span className="pm-carousel-count">0{index + 1} / 0{PHOTOS.length}</span><button onClick={() => move(1)} aria-label="Next residential photo"><ChevronRight/></button></div><div className="pm-carousel-dots" aria-label="Choose a residential photo">{PHOTOS.map((p, n) => <button type="button" key={p.credit} aria-label={'Show photo ' + (n + 1)} aria-current={index === n ? 'true' : undefined} onClick={() => { if (ready.has(n)) setIndex(n); }} disabled={!ready.has(n)} className={index === n ? 'is-current' : ''}/>)}</div><a className="pm-hero-credit" href={PHOTOS[index].credit} target="_blank" rel="noopener noreferrer">{PHOTOS[index].location} · {PHOTOS[index].author}</a></div>
   </section>;
 }
@@ -285,7 +271,27 @@ function HeroCarousel({ user }) {
 function TrustBand() {
   return <section id="about" className="pm-role-strip" aria-label="About KATS">
     <div className="pm-container"><span>Built for Ugandan rental operations, with UGX records and role-specific access.</span>
-      <div>{PRINCIPLES.map(({ title }) => <span key={title}>{title}</span>)}</div>
+      <div>{PRINCIPLES.map(({ title }) => <span id={'role-'+title.toLowerCase()} key={title}>{title}</span>)}</div>
+    </div>
+  </section>;
+}
+function OutcomesStrip() {
+  return <section id="outcomes" className="pm-outcomes" aria-label="What property management solves">
+    <div className="pm-container pm-outcomes-inner">
+      <div className="pm-outcomes-intro">
+        <span className="pm-kicker">THE PROBLEM, MADE MANAGEABLE</span>
+        <h2>Less chasing.<br/><em>More knowing.</em></h2>
+        <p>Property management gets difficult when the records you need
+          live in different places. KATS brings the next decision into focus.</p>
+      </div>
+      <div className="pm-outcomes-list">
+        <article><span>01 / RENT</span><h3>What's outstanding?</h3>
+          <p>Trace charges to verified payments and see what still needs follow-up.</p></article>
+        <article><span>02 / HOMES</span><h3>What needs attention?</h3>
+          <p>Keep room status, maintenance requests and assigned work together.</p></article>
+        <article><span>03 / OVERSIGHT</span><h3>Where do we stand?</h3>
+          <p>Review a portfolio picture built from real operational records.</p></article>
+      </div>
     </div>
   </section>;
 }
@@ -294,7 +300,7 @@ function CoreCapabilities() {
     <div className="pm-container">
       <SectionTitle eyebrow="THE WORKSPACE" title="Manage the essentials." text="One connected place for your daily property work."/>
       <div className="pm-feature-grid pm-core-grid">
-        {FEATURES.map(({icon:Icon,eyebrow,title,body}) => <article className="pm-feature-card" key={title}>
+        {FEATURES.map(({icon:Icon,anchor,eyebrow,title,body}) => <article className="pm-feature-card" id={anchor} key={title}>
           <Icon size={25} aria-hidden="true"/>
           <span className="pm-card-eyebrow">{eyebrow}</span><h3>{title}</h3><p>{body}</p>
         </article>)}
@@ -314,7 +320,7 @@ function HowSteps() {
   </section>;
 }
 export function LandingPage({ user }) {
-  return <main className="pm-main"><HeroCarousel user={user}/><TrustBand/><CoreCapabilities/><HowSteps/><AccessCallout user={user}/></main>;
+  return <main className="pm-main"><HeroCarousel user={user}/><TrustBand/><OutcomesStrip/><CoreCapabilities/><HowSteps/><AccessCallout user={user}/></main>;
 }
 
 function PageHero({ eyebrow, title, text, photo = PHOTOS[0], children }) {

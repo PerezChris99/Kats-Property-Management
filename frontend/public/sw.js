@@ -1,7 +1,7 @@
 /* Static-only offline support. No API, auth, HTML, tenant, financial or
  * signed-document responses are cached or served from previous sessions. */
-const CACHE = 'kats-static-v2';
-const STATIC = ['/offline.html', '/icon.svg', '/brand-mark.svg'];
+const CACHE = 'kats-static-v3';
+const STATIC = ['/offline.html', '/offline-reconnect.js', '/icon.svg', '/brand-mark.svg'];
 const MAX_ASSETS = 70;
 
 self.addEventListener('install', event => {
@@ -23,6 +23,9 @@ self.addEventListener('fetch', event => {
   // Cross-origin photos/fonts may have unclear consent/licensing semantics.
   // All private API responses explicitly bypass the service worker.
   if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
+  // Release discovery and SW registration are browser-network reads only.
+  // No old session may serve an obsolete build marker.
+  if (url.pathname === '/app-version.json' || url.pathname === '/sw.js') return;
   if (request.mode === 'navigate') {
     event.respondWith(fetch(request).catch(() => caches.match('/offline.html')));
     return;
