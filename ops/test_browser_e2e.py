@@ -262,7 +262,7 @@ def test_public_navigation_is_management_first(page):
     for old in ("Features", "About"):
         expect(nav.get_by_role("link", name=old, exact=True)).to_have_count(0)
     expect(nav.get_by_role("link", name="How it works", exact=True)).to_have_count(1)
-    for group in ("Platform", "Who it's for", "Explore"):
+    for group in ("Operations", "Who it's for", "Explore"):
         expect(nav.get_by_role("button", name=group, exact=True)).to_have_count(1)
     expect(page.locator("#capabilities")).to_be_visible()
     expect(page.locator("#workflow")).to_be_visible()
