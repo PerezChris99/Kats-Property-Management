@@ -175,19 +175,42 @@ test('landing closing action is a page section, not a gradient card', () => {
 });
 
 
-test('public navigation is limited to Home, Request Access and Sign in', () => {
+test('public navigation exposes real feature links through a full-width contextual mega menu', () => {
   const ui = read('src/site/Marketing.jsx');
-  const nav = ui.slice(ui.indexOf('function PublicHeader('), ui.indexOf('function PublicFooter('));
-  assert.ok(nav.includes("['/', 'Home']"));
-  assert.ok(nav.includes("['/request-access', 'Request access']"));
-  assert.ok(nav.includes('to="/login"'));
-  for (const stale of ["['/features', 'Features']", "['/how-it-works', 'How it works']", "['/about', 'About']"]) {
-    assert.equal(nav.includes(stale), false);
+  const nav = read('src/site/PublicMegaNavigation.jsx');
+  const css = read('src/site/public-elevated.css');
+  assert.ok(ui.includes('<MarketingNavigation user={user} logout={logout} brand={<Brand/>}/>'));
+  assert.ok(nav.includes("id:'platform'") && nav.includes("id:'people'") && nav.includes("id:'discover'"));
+  for (const anchor of ['feature-properties','feature-leases','feature-rent',
+    'feature-reports','feature-maintenance','feature-access','role-owners',
+    'role-managers','role-accountants','role-tenants','role-caretakers',
+    'outcomes','workflow']) {
+    assert.ok(nav.includes('/#'+anchor), 'missing nav link: '+anchor);
+    assert.ok(ui.includes(anchor) || (anchor.startsWith('role-') &&
+      ui.includes("'role-'+title.toLowerCase()")), 'missing destination: '+anchor);
   }
-  assert.ok(ui.includes('id="capabilities"'));
-  assert.ok(ui.includes('id="workflow"'));
-  assert.ok(ui.includes('id="about"'));
-  assert.ok(ui.includes('<HeroCarousel user={user}/><TrustBand/><CoreCapabilities/><HowSteps/><AccessCallout user={user}/>'));
+  assert.ok(nav.includes('aria-expanded={menu===item.id}'));
+  assert.ok(nav.includes('onFocus={()=>setHighlight(entry)}'));
+  assert.ok(nav.includes('onMouseEnter={()=>setHighlight(entry)}'));
+  assert.ok(nav.includes('className="pm-mega-support"'));
+  assert.ok(css.includes('grid-template-columns:repeat(3,minmax(0,1fr)) minmax(210px,1.07fr)'));
+  assert.ok(css.includes('padding:8px clamp(13px,1.6vw,25px)'));
+  assert.ok(css.includes('backdrop-filter:blur(24px)'));
+  assert.ok(ui.includes('id="capabilities"') && ui.includes('id="about"'));
+  assert.ok(ui.includes('<HeroCarousel user={user}/><TrustBand/><OutcomesStrip/><CoreCapabilities/><HowSteps/><AccessCallout user={user}/>'));
+});
+
+test('hero tells an operational story with subtle non-destructive halftone on photography', () => {
+  const ui = read('src/site/Marketing.jsx');
+  const css = read('src/site/public-elevated.css');
+  assert.ok(ui.includes('From rent due to repairs done'));
+  assert.ok(ui.includes('Stop piecing together spreadsheets'));
+  assert.ok(ui.includes('What\'s outstanding?'));
+  assert.ok(ui.includes('What needs attention?'));
+  assert.ok(css.includes('.pm-hero-images::after'));
+  assert.ok(css.includes('.pm-footer.has-photo::after'));
+  assert.ok(css.includes('mix-blend-mode:soft-light'));
+  assert.ok(css.includes('prefers-reduced-transparency:reduce'));
 });
 
 test('redundant marketing views are removed without affecting operational modules', () => {
