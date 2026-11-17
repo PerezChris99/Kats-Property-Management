@@ -1,0 +1,423 @@
+/* KATS | Operational dashboard and installed-PWA surface refinement.
+ * Additive layer AFTER workspace.css. Retains the chart SVG dimensions,
+ * color contrast and source-data states; never blurs text or private content.
+ */
+.portal {
+  --dash-ink:#0b1b3d;
+  --dash-secondary:#466078;
+  --dash-stroke:rgba(123,161,190,.32);
+  --dash-glass:rgba(255,255,255,.76);
+  --dash-glass-strong:rgba(255,255,255,.87);
+  --dash-shadow:0 12px 38px rgba(11,27,61,.048),0 1px 4px rgba(11,27,61,.037);
+}
+.portal .portal-main {
+  background:
+    radial-gradient(ellipse 54% 34% at 90% 10%,rgba(56,189,248,.15),transparent 84%),
+    radial-gradient(ellipse 38% 28% at 12% 71%,rgba(239,191,67,.105),transparent 83%),
+    linear-gradient(138deg,#eef4f9 0%,#f5f5f7 45%,#edf4f8 100%);
+  background-attachment:fixed;
+}
+.portal .portal-bar {
+  background:rgba(247,251,255,.76);
+  border-bottom:1px solid rgba(176,201,217,.45);
+  -webkit-backdrop-filter:blur(20px) saturate(125%);
+  backdrop-filter:blur(20px) saturate(125%);
+}
+.portal .side {
+  background:
+    radial-gradient(ellipse at 0 8%,rgba(69,161,206,.18),transparent 58%),
+    linear-gradient(160deg,rgba(8,25,54,.95),rgba(11,39,69,.94));
+  border-right:1px solid rgba(128,181,209,.18);
+  -webkit-backdrop-filter:blur(18px) saturate(130%);
+  backdrop-filter:blur(18px) saturate(130%);
+}
+.portal .side-account {
+  background:rgba(224,246,255,.075);
+  border:1px solid rgba(201,225,244,.14);
+  -webkit-backdrop-filter:blur(16px);
+  backdrop-filter:blur(16px);
+}
+.portal .page :is(.stat,.quick,.module-card,.resource-form,.empty,
+ .record-toolbar,.pagination-controls,.data-table-wrap,.kats-chart-card),
+.portal .page :is(.kats-overview-primary,.kats-overview-secondary,.kats-workflow-disclosure,
+ .kats-action-card,.kats-tenant-money-panel) {
+  background:var(--dash-glass);
+  border:1px solid var(--dash-stroke);
+  box-shadow:var(--dash-shadow);
+  -webkit-backdrop-filter:blur(17px) saturate(120%);
+  backdrop-filter:blur(17px) saturate(120%);
+}
+.portal .page .stat {background:var(--dash-glass-strong);border-radius:10px;}
+.portal .page :is(.stat,.quick,.kats-chart-card) {box-shadow:var(--dash-shadow);}
+.portal .page :is(.stat,.kats-chart-card)::before {display:none;}
+.portal .page .kats-chart-card {border-radius:12px;padding:clamp(15px,2vw,22px);}
+.portal .page :is(.kats-chart-feedback,.kats-drill-results) {
+  background:rgba(248,252,255,.65);
+  border-radius:9px;
+}
+/* A high-contrast background remains if blur is unavailable or explicitly reduced. */
+@supports not ((backdrop-filter:blur(2px)) or (-webkit-backdrop-filter:blur(2px))) {
+  .portal .page :is(.stat,.quick,.kats-chart-card,.kats-workflow-disclosure,
+   .kats-action-card,.kats-tenant-money-panel) {background:#fff;}
+  .portal .portal-bar {background:#f6f9fc;}
+}
+@media (prefers-contrast:more) {
+  .portal .page :is(.stat,.quick,.kats-chart-card,.kats-workflow-disclosure,
+   .kats-action-card,.kats-tenant-money-panel) {background:#fff;border-color:#647c91;}
+}
+/* Grouped rail: only the current workstream opens; every route keeps its icon. */
+.portal .workspace-links.kats-nav-accordion {
+  display:block;
+  overflow-y:auto;
+  min-height:0;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(161,204,231,.26) transparent;
+  padding:4px 9px 14px;
+}
+.portal .kats-nav-group {margin:0 0 3px;}
+.portal .kats-nav-eyebrow {
+  margin:14px 10px 5px;
+  font-size:10px;
+  letter-spacing:.105em;
+  font-weight:750;
+  color:#a6c5dd;
+}
+.portal .kats-nav-group :is(.kats-nav-group-toggle,.kats-nav-section) {
+  display:flex;align-items:center;width:100%;gap:11px;
+  padding:10px 11px;
+  color:#dceaf6;
+  font-size:13px;font-weight:650;text-align:left;
+  background:transparent;border:1px solid transparent;border-radius:9px;
+  text-decoration:none;cursor:pointer;min-height:43px;
+}
+.portal .kats-nav-group :is(.kats-nav-group-toggle,.kats-nav-section) > span {flex:1;}
+.portal .kats-nav-group-toggle .kats-nav-chevron {
+  margin-left:auto;transition:transform .2s ease;opacity:.7;
+}
+.portal .kats-nav-group-toggle[aria-expanded=true] .kats-nav-chevron {
+  transform:rotate(90deg);
+}
+.portal .kats-nav-group :is(.kats-nav-group-toggle,.kats-nav-section):hover,
+.portal .kats-nav-group-toggle.is-current,
+.portal .kats-nav-section.active {
+  color:#fff;background:rgba(192,232,252,.115);
+  border-color:rgba(207,235,255,.105);
+}
+.portal .kats-nav-children {
+  display:grid;gap:2px;margin:3px 0 7px 18px;padding-left:9px;
+  border-left:1px solid rgba(191,225,244,.22);
+}
+.portal .kats-nav-children .kats-nav-child {
+  display:flex;gap:10px;align-items:center;text-decoration:none;
+  padding:8px 10px;border-radius:7px;min-height:37px;
+  color:#bcd3e4;font-size:12px;font-weight:520;
+  background:transparent;line-height:1.3;
+}
+.portal .kats-nav-children .kats-nav-child span {min-width:0;}
+.portal .kats-nav-children .kats-nav-child:hover,
+.portal .kats-nav-children .kats-nav-child:focus-visible {
+  background:rgba(208,237,255,.11);color:#fff;
+}
+.portal .kats-nav-children .kats-nav-child.active {
+  background:rgba(74,176,227,.19);color:#fff;
+  box-shadow:inset 2px 0 0 #66ccf5;
+}
+.portal .kats-section-tabs-list {gap:7px;}
+.portal .kats-section-tab {gap:7px;border-radius:8px;}
+.portal .kats-section-tab > svg {flex:none;}
+.portal .side-account {margin-bottom:7px;}
+/* Small desktop-like search control sits next to signed-in identity. */
+.portal .kats-command-trigger {
+  display:inline-flex;align-items:center;gap:9px;
+  min-height:38px;max-width:min(100%,280px);
+  padding:6px 9px 6px 12px;
+  border:1px solid #cbdae6;border-radius:9px;
+  background:rgba(255,255,255,.74);
+  color:#3a5570;cursor:pointer;
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  box-shadow:0 1px 3px rgba(11,27,61,.035);
+  font-size:12px;font-weight:600;
+}
+.portal .kats-command-trigger > span {overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.portal .kats-command-trigger kbd {
+  margin-left:auto;white-space:nowrap;
+  font-family:inherit;font-size:10px;font-weight:700;color:#576b7d;
+  border:1px solid #d2dfe8;background:#f4f7fa;padding:3px 5px;border-radius:5px;
+}
+.portal .kats-command-trigger:hover {border-color:#75afcd;background:rgba(255,255,255,.96);}
+.portal .kats-install-trigger,.portal .kats-installed-indicator {
+  display:inline-flex;align-items:center;gap:6px;min-height:36px;
+  border-radius:8px;padding:7px 10px;
+  border:1px solid rgba(95,158,189,.36);
+  color:#0b506f;background:rgba(236,249,255,.88);
+  font-size:11px;font-weight:700;
+}
+.portal .kats-install-trigger {cursor:pointer;}
+.portal .kats-install-trigger:hover {background:#dff4fd;}
+/* Palette is portaled to document.body so header blur cannot clip it. */
+.kats-command-backdrop {
+  position:fixed;inset:0;z-index:9999;
+  display:grid;place-items:start center;
+  padding:clamp(35px,10vh,96px) 16px 20px;
+  background:rgba(9,25,47,.45);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  overflow-y:auto;
+}
+.kats-command-dialog {
+  width:min(100%,590px);
+  border:1px solid rgba(212,234,247,.75);
+  border-radius:16px;background:rgba(249,252,255,.95);
+  color:#0b1b3d;overflow:hidden;
+  box-shadow:0 28px 85px rgba(7,23,46,.26);
+  -webkit-backdrop-filter:blur(24px) saturate(140%);
+  backdrop-filter:blur(24px) saturate(140%);
+}
+.kats-command-head,.kats-command-head>div {
+  display:flex;align-items:center;gap:11px;
+}
+.kats-command-head {
+  justify-content:space-between;padding:16px 18px 12px;
+  color:#163c58;font-size:14px;
+}
+.kats-command-close {
+  display:grid;place-items:center;width:35px;height:35px;
+  border:1px solid #d8e5ec;background:rgba(255,255,255,.8);
+  border-radius:9px;cursor:pointer;color:#526577;
+}
+.kats-command-input {
+  display:flex;align-items:center;gap:10px;
+  margin:0 17px;padding:5px 12px;
+  border:1.5px solid #9ecbe1;background:#fff;border-radius:11px;
+}
+.kats-command-input:focus-within {outline:3px solid rgba(13,126,183,.14);}
+.kats-command-input input {
+  flex:1;min-width:0;height:44px;border:0!important;outline:0!important;
+  background:transparent!important;font:inherit;font-size:15px;color:#0b1b3d;
+}
+.kats-command-input kbd {
+  font-size:11px;font-family:inherit;font-weight:750;color:#637789;
+  background:#eef4f8;padding:3px 6px;border-radius:4px;
+}
+.kats-command-results {padding:10px 12px;max-height:min(52vh,390px);overflow:auto;}
+.kats-command-category {
+  margin:4px 8px 9px;font-size:10px;letter-spacing:.105em;
+  font-weight:800;text-transform:uppercase;color:#647b8d;
+}
+.kats-command-results ul {list-style:none;padding:0;margin:0;display:grid;gap:3px;}
+.kats-command-results li {margin:0;}
+.kats-command-results li button {
+  width:100%;display:flex;align-items:center;gap:13px;
+  text-align:left;padding:11px 12px;min-height:50px;
+  border:1px solid transparent;border-radius:9px;
+  background:transparent;color:#28445e;cursor:pointer;font:inherit;
+}
+.kats-command-results li button>span {min-width:0;flex:1;display:grid;gap:2px;}
+.kats-command-results li button strong {font-size:13px;font-weight:700;}
+.kats-command-results li button small {font-size:11px;color:#60758b;}
+.kats-command-results li button:hover,
+.kats-command-results li button.is-selected,
+.kats-command-results li button:focus-visible {
+  background:#eaf5fb;border-color:#b7d9ea;
+}
+.kats-command-empty,.kats-command-error {font-size:13px;color:#496376;padding:10px 12px;}
+.kats-command-error {color:#992e39;}
+.kats-command-foot {
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  gap:9px;border-top:1px solid #dfeaf0;padding:12px 18px;
+  font-size:11px;color:#556e81;
+}
+/* Three intentional layers: greeting -> operational action -> evidence. */
+.portal .kats-dashboard-flow .kats-dash-hero {
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;
+  gap:20px;padding:8px 0 19px;margin-bottom:15px;
+}
+.portal .kats-dash-hero > div {max-width:675px;flex:1 1 280px;}
+.portal .kats-dash-hero h1 {font-size:clamp(25px,2.8vw,36px);margin:5px 0 8px;letter-spacing:-.04em;}
+.portal .kats-dash-hero p {margin:0;color:var(--dash-secondary);line-height:1.65;}
+.portal .kats-flow-label {
+  display:flex;align-items:baseline;flex-wrap:wrap;gap:7px 17px;
+  margin:25px 0 13px;
+}
+.portal .kats-flow-label>span {
+  font-weight:800;font-size:10px;letter-spacing:.115em;color:#126f9b;
+}
+.portal .kats-flow-label>p {margin:0;font-size:12px;color:#566f81;}
+.portal .kats-overview-spotlight {
+  display:grid;grid-template-columns:minmax(0,1.7fr) minmax(270px,1fr);
+  gap:15px;
+}
+.portal .page .kats-overview-primary,
+.portal .page .kats-overview-secondary {
+  position:relative;min-width:0;
+  border-radius:14px;padding:clamp(20px,2.4vw,31px);
+}
+.portal .page .kats-spotlight-feature {
+  background:linear-gradient(142deg,rgba(252,255,255,.92),rgba(221,242,253,.7));
+  border-color:rgba(147,196,225,.58);
+}
+.portal .page .kats-attention-panel {background:rgba(255,255,255,.74);}
+.portal .kats-overview-primary .kats-overview-desc {
+  display:block;color:var(--dash-secondary);font-size:13px;margin:13px 0 4px;
+}
+.portal .kats-overview-primary>strong {font-size:clamp(27px,3vw,39px);letter-spacing:-.035em;overflow-wrap:anywhere;}
+.portal .kats-overview-secondary strong {font-size:clamp(18px,2vw,23px);overflow-wrap:anywhere;}
+.portal .kats-dash-context {font-size:11px;color:#516b7d;margin:11px 0 0;}
+.portal .kats-dash-steps {margin:24px 0 32px;}
+.portal .kats-dash-steps h2 {font-size:19px;margin:2px 0 16px;}
+.portal .kats-action-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;}
+.portal .page .kats-action-card {
+  display:flex;flex-direction:column;align-items:flex-start;gap:8px;
+  position:relative;text-decoration:none;color:#0d2e4b;
+  padding:18px 19px 17px;min-height:160px;border-radius:12px;
+  transition:border-color .2s ease,transform .2s ease,box-shadow .2s ease,background .2s ease;
+}
+.portal .kats-action-number {font-size:10px;font-weight:800;letter-spacing:.085em;color:#197ba9;}
+.portal .kats-action-card strong {font-size:17px;line-height:1.3;}
+.portal .kats-action-card>span:not(.kats-action-number) {font-size:12px;line-height:1.55;color:#546c80;}
+.portal .kats-action-card>svg {margin-top:auto;color:#0c7faf;}
+.portal .kats-action-card:is(:hover,:focus-visible) {
+  border-color:rgba(44,145,195,.58);background:rgba(255,255,255,.93);
+  box-shadow:0 14px 32px rgba(9,46,84,.09);
+}
+.portal .kats-workflow-disclosure {
+  min-width:0;margin:15px 0 22px;border-radius:12px;
+  padding:0 18px;color:var(--dash-ink);
+}
+.portal .kats-workflow-disclosure>summary {
+  display:flex;align-items:center;flex-wrap:wrap;gap:7px 14px;
+  cursor:pointer;list-style:none;font-weight:760;font-size:14px;
+  padding:16px 3px;min-height:53px;
+}
+.portal .kats-workflow-disclosure>summary::-webkit-details-marker {display:none;}
+.portal .kats-workflow-disclosure>summary::before {
+  content:"＋";display:inline-grid;place-items:center;flex:none;
+  width:26px;height:26px;border-radius:7px;
+  background:rgba(57,155,207,.11);color:#116a9b;font-size:17px;font-weight:500;
+}
+.portal .kats-workflow-disclosure[open]>summary::before {content:"−";}
+.portal .kats-workflow-disclosure>summary>span {color:#5b7080;font-weight:440;font-size:12px;}
+.portal .kats-workflow-disclosure[open]>summary {border-bottom:1px solid rgba(145,183,207,.32);}
+.portal .kats-workflow-disclosure .stat-grid {margin:16px 0;}
+.portal .kats-analytics-disclosure {margin-top:20px;}
+.portal .kats-disclosed-content {padding:18px 0 22px;}
+.portal .kats-disclosed-content .kats-chart-grid {margin-bottom:18px;}
+.portal .kats-disclosed-content .kats-portfolio-summary {margin:20px 0 4px;}
+.portal .kats-quiet-links {display:flex;flex-wrap:wrap;gap:9px;padding:15px 0 18px;}
+.portal .kats-quiet-links a {
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:12px;text-decoration:none;border:1px solid #c7dee9;
+  background:rgba(255,255,255,.75);padding:8px 11px;border-radius:7px;color:#176586;
+}
+.portal .kats-tenant-money-panel {
+  display:grid;grid-template-columns:minmax(0,1.5fr) minmax(210px,.85fr);
+  gap:14px;min-width:0;padding:14px;border-radius:14px;
+}
+.portal .kats-tenant-feature {
+  display:flex;flex-direction:column;align-items:flex-start;gap:11px;
+  background:linear-gradient(148deg,rgba(235,248,255,.9),rgba(255,255,255,.76));
+  padding:clamp(18px,2.5vw,30px);border-radius:10px;
+}
+.portal .kats-tenant-feature strong {
+  color:#0c2949;font-weight:800;
+  font-size:clamp(28px,3.3vw,43px);line-height:1.15;overflow-wrap:anywhere;
+}
+.portal .kats-tenant-feature>span:not(.kats-overview-label) {font-size:12px;color:#5b7385;}
+.portal .kats-tenant-feature a {
+  display:inline-flex;align-items:center;gap:7px;
+  font-weight:700;text-decoration:none;color:#075c88;font-size:13px;margin-top:auto;
+}
+.portal .kats-tenant-totals {display:grid;gap:12px;}
+.portal .kats-tenant-totals .stat {
+  display:flex;flex-direction:column;justify-content:center;gap:8px;min-width:0;
+}
+.portal .kats-tenant-totals .stat strong {font-size:clamp(17px,2vw,22px);}
+.portal .kats-lease-summary {
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;padding:16px 0;
+}
+.portal .kats-lease-summary>div {display:grid;gap:7px;min-width:0;}
+.portal .kats-lease-summary small {font-size:10px;color:#58748b;font-weight:750;}
+.portal .kats-lease-summary strong {font-size:13px;overflow-wrap:anywhere;}
+.portal .kats-lease-disclosure>a {display:inline-flex;align-items:center;gap:6px;margin:0 0 17px;color:#126b92;}
+/* Primary CTAs celebrate progress without changing the actual linked action. */
+.portal .page .kats-victory-cta {
+  display:inline-flex;align-items:center;justify-content:center;
+  flex:none;gap:12px;min-height:48px;padding:12px 17px;
+  border-radius:11px;border:1px solid rgba(23,136,188,.3);
+  color:#fff;background:linear-gradient(120deg,#0b66a0,#1382b8);
+  box-shadow:0 8px 25px rgba(11,114,168,.19);
+  text-decoration:none;overflow:hidden;white-space:nowrap;
+  font-size:13px;font-weight:750;
+}
+.portal .kats-victory-copy {display:grid;grid-template-areas:"copy";min-width:0;}
+.portal .kats-victory-copy>span {
+  grid-area:copy;transition:opacity .22s ease,transform .22s ease;
+}
+.portal .kats-victory-win {opacity:0;transform:translateY(9px);}
+.portal .kats-victory-send {display:grid;place-items:center;width:19px;height:22px;overflow:hidden;}
+.portal .kats-victory-cta:is(:hover,:focus-visible) {
+  background:linear-gradient(120deg,#0b7faf,#2095bb);
+  box-shadow:0 12px 32px rgba(11,115,169,.24);
+}
+.portal .kats-victory-cta:is(:hover,:focus-visible) .kats-victory-default {
+  opacity:0;transform:translateY(-9px);
+}
+.portal .kats-victory-cta:is(:hover,:focus-visible) .kats-victory-win {
+  opacity:1;transform:translateY(0);
+}
+@keyframes kats-send-flight {
+  0%,8% {opacity:1;transform:translate(0,0);}
+  38% {opacity:0;transform:translate(27px,-27px);}
+  54% {opacity:0;transform:translate(-18px,18px);}
+  78%,100% {opacity:1;transform:translate(0,0);}
+}
+@media (hover:hover) and (prefers-reduced-motion:no-preference) {
+  .portal .kats-action-card:hover {transform:translateY(-2px);}
+  .portal .kats-victory-cta:is(:hover,:focus-visible) .kats-victory-send svg {
+    animation:kats-send-flight 1.3s ease-in-out infinite;
+  }
+}
+/* Installed PWA uses the same dense desktop hierarchy and full-height rail. */
+@media(display-mode:standalone) {
+  .portal .portal-bar {min-height:62px;}
+  .portal .side {min-height:100dvh;}
+  .portal .portal-main {min-height:100dvh;}
+}
+@media(max-width:1024px) {
+  .portal .kats-action-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+  .portal .kats-lease-summary {grid-template-columns:repeat(2,minmax(0,1fr));}
+  .portal .kats-tenant-money-panel {grid-template-columns:minmax(0,1fr);}
+  .portal .kats-tenant-totals {grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:768px) {
+  .portal .kats-overview-spotlight {grid-template-columns:minmax(0,1fr);}
+  .portal .kats-overview-head .kats-victory-cta {align-self:flex-start;}
+  .portal .kats-command-trigger {min-width:38px;padding:8px;justify-content:center;}
+  .portal .kats-command-trigger>span,.portal .kats-command-trigger kbd {display:none;}
+  .portal .portal-header-tools .kats-installed-indicator {display:none;}
+  .portal .kats-lease-summary {grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:540px) {
+  .portal .kats-action-grid {grid-template-columns:minmax(0,1fr);}
+  .portal .page .kats-action-card {min-height:120px;}
+  .portal .kats-tenant-totals {grid-template-columns:minmax(0,1fr);}
+  .portal .kats-dash-hero {align-items:flex-start;}
+  .portal .page .kats-victory-cta {width:100%;}
+  .portal .kats-workflow-disclosure>summary>span {flex-basis:100%;padding-left:36px;}
+  .kats-command-backdrop {padding:16px 8px;}
+  .kats-command-dialog {border-radius:13px;}
+  .kats-command-foot>span {display:none;}
+}
+@media(prefers-reduced-motion:reduce) {
+  .portal .kats-nav-chevron,.portal .kats-action-card,
+  .portal .kats-victory-copy>span {transition:none!important;}
+  .portal .kats-victory-send svg {animation:none!important;}
+}
+@media print {
+  .portal .kats-dash-hero .kats-victory-cta,
+  .portal .kats-action-grid,.portal .kats-command-trigger,
+  .portal .kats-install-trigger {display:none!important;}
+  .portal .page :is(.kats-workflow-disclosure,.kats-chart-card,.stat) {
+    background:#fff!important;box-shadow:none!important;backdrop-filter:none!important;
+  }
+}

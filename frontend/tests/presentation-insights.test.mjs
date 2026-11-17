@@ -31,17 +31,37 @@ test('chart source records are authenticated, accessible and real vector exports
   assert.ok(charts.includes('<Tooltip'), 'native tooltip remains');
 });
 
-test('presentation guide cannot leak synthetic credentials into live deployment', () => {
-  const guide = read('src/PresentationTour.jsx');
+test('role dashboards have operational hierarchy and no presentation walkthrough', () => {
   const app = read('src/App.jsx');
-  assert.ok(guide.includes('import.meta.env.DEV'), 'guide is dev-only');
-  assert.ok(guide.includes('window.location.hostname'), 'guide restricted to local loopback');
-  assert.ok(guide.includes('OWNER:') && guide.includes('ACCOUNTANT:') &&
-    guide.includes('TENANT:') && guide.includes('CARETAKER:'), 'guided account roles');
-  assert.ok(app.includes('<PresentationTour role={user.role}/>'));
-  assert.ok(app.includes('<PresentationTour role="TENANT"/>'));
-  assert.ok(app.includes('<PresentationTour role="CARETAKER"/>'));
-  assert.equal(guide.includes('localStorage'), false, 'no persistent account state');
+  const analytics = read('src/charts/WorkspaceAnalytics.jsx');
+  const style = read('src/dashboard-polish.css');
+  const nav = read('src/WorkspaceNavigation.jsx');
+  assert.equal(app.includes('PresentationTour'), false, 'no walkthrough shown at top');
+  assert.ok(app.includes('kats-flow-label') && app.includes('kats-action-grid'));
+  assert.ok(app.includes('kats-tenant-money-panel'), 'tenant rent gets emphasis');
+  assert.ok(analytics.includes('<ChartDisclosure'), 'secondary charts fold on demand');
+  assert.ok(analytics.includes('setVisited(true)'), 'secondary queries load when opened');
+  assert.ok(style.includes('--dash-glass:'), 'subtle translucent layering');
+  assert.ok(style.includes('prefers-reduced-motion'), 'motion accessibility');
+  assert.ok(nav.includes('kats-nav-group-toggle'), 'labeled collapsible navigation');
+  assert.ok(nav.includes('PAGE_META[page]?.icon'), 'icons for every supported route');
+});
+
+test('command palette and owner PWA installation preserve route permissions', () => {
+  const app = read('src/App.jsx');
+  const command = read('src/QuickActionsPalette.jsx');
+  const install = read('src/PwaInstallButton.jsx');
+  const manifest = JSON.parse(read('public/manifest.webmanifest'));
+  assert.ok(app.includes('<QuickActionsPalette pages={nav}/>'));
+  assert.ok(command.includes('event.metaKey') && command.includes('event.ctrlKey'));
+  assert.ok(command.includes("api('workspace/search?q='"), 'server authorizes record results');
+  assert.ok(command.includes('allowed.includes(item.path.slice(1))'), 'local role-based route list');
+  assert.ok(command.includes('createPortal('), 'modal escapes header blur');
+  assert.ok(command.includes('aria-modal="true"') && command.includes('Escape'));
+  assert.ok(install.includes("role !== 'OWNER'"), 'install prompt is owner-only');
+  assert.ok(install.includes('beforeinstallprompt'));
+  assert.equal(manifest.start_url, '/dashboard');
+  assert.equal(manifest.display, 'standalone');
 });
 
 test('private completed data is not cached and staging load is gated', () => {

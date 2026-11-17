@@ -620,7 +620,13 @@ def test_live_account_analytics_render_without_blanks(browser,role,expected,widt
             page.locator(".pm-demo-tenant-list button").first.click()
         expect(page).to_have_url(re.compile(r"/dashboard$"),timeout=15000)
         cards=page.locator(".kats-chart-card")
-        expect(cards).to_have_count(expected,timeout=15000)
+        # Two decision-critical charts render by default. Details use
+        # progressive disclosure and do not perform hidden API requests.
+        expect(cards).to_have_count(2, timeout=15000)
+        disclosure = page.locator("details.kats-analytics-disclosure > summary")
+        expect(disclosure).to_have_count(1)
+        disclosure.click()
+        expect(cards).to_have_count(expected, timeout=15000)
         expect(page.locator(".kats-chart-skeleton")).to_have_count(0,timeout=20000)
         assert page.locator(".kats-fatal-page").count()==0
         assert page.locator(".kats-chart-feedback[role='alert']").count()==0
@@ -662,6 +668,8 @@ def test_live_chart_geometry_and_mode_switches(browser, role):
         expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
         # Lazy dashboard mounts asynchronously. An absent skeleton before mount
         # is NOT proof that the chart has finished rendering.
+        expect(page.locator(".kats-chart-card")).to_have_count(2, timeout=20000)
+        page.locator("details.kats-analytics-disclosure > summary").click()
         expect(page.locator(".kats-chart-card")).to_have_count(
             5 if role == "OWNER" else 4, timeout=20000)
         expect(page.locator(".kats-chart-skeleton")).to_have_count(0, timeout=20000)
@@ -798,6 +806,8 @@ def test_recharts_touch_device_emulation(browser, device, role, expected):
         page.on("console", lambda message: failures.append(message.text)
                 if message.type == "error" else None)
         charts = page.locator(".kats-chart-card")
+        expect(charts).to_have_count(2, timeout=15000)
+        page.locator("details.kats-analytics-disclosure > summary").click()
         expect(charts).to_have_count(expected, timeout=15000)
         expect(page.locator(".kats-chart-skeleton")).to_have_count(0, timeout=20000)
         expect(page.locator(".kats-chart-feedback[role='alert']")).to_have_count(0)
@@ -879,5 +889,92 @@ def test_presentation_reporting_filter_exports_and_authorized_drilldown(browser,
         card.get_by_role("button", name="View underlying records").click()
         expect(card.locator(".kats-drill-results")).to_be_visible(timeout=15000)
         assert card.locator(".kats-drill-results [role='alert']").count() == 0
+    finally:
+        context.close()
+
+@pytest.mark.parametrize("role", ["OWNER", "TENANT"])
+def test_workspace_command_palette_and_collapsible_navigation(browser, role):
+    """Actual Chromium: one shortcut, accessible dialog, role-filtered routes and no tour."""
+    context = browser.new_context(viewport={"width": 1280, "height": 860},
+                                  reduced_motion="reduce")
+    page = context.new_page()
+    try:
+        page.goto(BASE + "/login", wait_until="domcontentloaded")
+        probe = page.request.get(BASE + "/api/v1/auth/demo-accounts")
+        if probe.status != 200 or not probe.json().get("enabled"):
+            pytest.skip("Requires the isolated fictional demo")
+        expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=15000)
+        if role == "OWNER":
+            page.locator(".pm-demo-owner").click()
+        else:
+            page.locator(".pm-demo-search").fill("Sarah Namusoke")
+            page.locator(".pm-demo-tenant-list button").first.click()
+        expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
+        assert page.locator(".kats-presentation-tour").count() == 0
+        # Protected dashboard and its lazy children may mount a tick after URL navigation.
+        expect(page.locator(".kats-dash-hero")).to_have_count(1, timeout=15000)
+        expect(page.locator(".kats-chart-card")).to_have_count(2, timeout=20000)
+        expect(page.get_by_role("button", name="Search pages, records and quick actions")).to_be_visible()
+        page.keyboard.press("Control+k")
+        dialog = page.get_by_role("dialog", name="Quick actions and authorized workspace search")
+        expect(dialog).to_be_visible()
+        expect(dialog.get_by_role("searchbox", name="Search authorized pages and records")).to_be_focused()
+        dialog.get_by_role("searchbox").fill("invoice")
+        expect(dialog.get_by_role("button", name="Invoices")).to_be_visible(timeout=15000)
+        page.keyboard.press("Escape")
+        expect(dialog).to_have_count(0)
+        # Expanded route groups reveal *icon-labeled* permitted children.
+        if role == "OWNER":
+            page.get_by_role("button", name="Finance", exact=True).click()
+            finance = page.locator(".kats-nav-group").filter(has_text="Finance")
+            expect(finance.get_by_role("link", name="Invoices")).to_be_visible()
+            assert finance.locator(".kats-nav-child svg").count() >= 2
+        else:
+            page.get_by_role("button", name="Rent & payments", exact=True).click()
+            rent = page.locator(".kats-nav-group").filter(has_text="Rent & payments")
+            expect(rent.get_by_role("link", name="Invoices")).to_be_visible()
+            assert rent.locator(".kats-nav-child svg").count() >= 2
+        page.keyboard.press("Control+k")
+        expect(dialog).to_be_visible()
+        dialog.get_by_role("button", name="Invoices", exact=True).click()
+        expect(page).to_have_url(re.compile(r"/invoices$"), timeout=15000)
+    finally:
+        context.close()
+
+
+def test_owner_dashboard_frosted_surfaces_and_send_motion(browser):
+    context = browser.new_context(viewport={"width": 1280, "height": 860},
+                                  reduced_motion="no-preference")
+    page = context.new_page()
+    try:
+        page.goto(BASE + "/login", wait_until="domcontentloaded")
+        probe = page.request.get(BASE + "/api/v1/auth/demo-accounts")
+        if probe.status != 200 or not probe.json().get("enabled"):
+            pytest.skip("Requires isolated fictional demo")
+        expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=15000)
+        page.locator(".pm-demo-owner").click()
+        expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
+        cta = page.get_by_role("link", name="View reports")
+        expect(cta).to_be_visible()
+        assert page.locator(".kats-victory-win").count() == 1
+        cta.hover()
+        effect = cta.evaluate("""el => ({
+          label: getComputedStyle(el.querySelector('.kats-victory-win')).opacity,
+          animation: getComputedStyle(el.querySelector('.kats-victory-send svg')).animationName
+        })""")
+        assert effect["animation"] == "kats-send-flight"
+        assert float(effect["label"]) >= 0, effect
+        card = page.locator(".kats-dash-steps .kats-action-card").first
+        css = card.evaluate("""el => ({
+          blur: getComputedStyle(el).backdropFilter,
+          background: getComputedStyle(el).backgroundColor
+        })""")
+        assert "blur(" in css["blur"], css
+        expect(page.locator("details.kats-summary-disclosure")).to_have_count(1)
+        expect(page.locator("details.kats-analytics-disclosure")).to_have_count(1)
+        response = page.request.get(BASE + "/manifest.webmanifest")
+        assert response.status == 200
+        assert response.json()["start_url"] == "/dashboard"
+        assert response.json()["display"] == "standalone"
     finally:
         context.close()

@@ -139,7 +139,8 @@ test('access request retains real submission and accessible glass review timelin
 test('workspace dashboard uses live response, not placeholder statistics', () => {
   const app = read('src/App.jsx');
   const css = read('src/worldclass.css');
-  assert.ok(app.includes("api('dashboard').then(setSummary)"));
+  assert.ok(app.includes("api('dashboard', { signal: controller.signal })"));
+  assert.ok(app.includes('kats:data-updated'), 'dashboard refreshes after accepted mutations');
   assert.ok(app.includes('summary.collected_ugx'));
   assert.ok(app.includes('summary.open_maintenance'));
   assert.ok(app.includes('kats-overview-spotlight'));

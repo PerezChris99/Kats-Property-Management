@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, Bell, BookOpen, Building2, CalendarRange, ChartColumnIncreasing, ChevronRight, ClipboardCheck, CreditCard, Gauge, FileCheck2, FileClock, FileText, FolderLock, House, KeyRound, LayoutDashboard, LogOut, Mail, Menu, ReceiptText, Search, Settings2, ShieldCheck, Smartphone, Users, Wallet, Wrench, X } from 'lucide-react';
+import { Activity, Bell, BookOpen, Building2, CalendarRange, ChartColumnIncreasing, ChevronRight, ClipboardCheck, CreditCard, Gauge, FileCheck2, FileClock, FileText, FolderLock, House, KeyRound, LayoutDashboard, LogOut, Mail, Menu, ReceiptText, Settings2, ShieldCheck, Smartphone, Users, Wallet, Wrench, X } from 'lucide-react';
 export const COMPACT_GROUPS = [
     { title: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard, pages: ['dashboard'] },
     { title: 'Portfolio', label: 'Portfolio', icon: Building2, pages: ['properties','buildings','floors','rooms','room-placement','portfolio-editor'] },
@@ -33,15 +33,19 @@ export function WorkspaceSectionTabs({ pages, active, role }) {
     return <nav className="kats-section-tabs" aria-label={group.label + ' subpages'}>
       <div className="kats-section-tabs-heading"><span>{group.label}</span><small>Choose a section</small></div>
       <div className="kats-section-tabs-list">
-        {group.pages.map((page,index) => <Link key={page} to={'/'+page}
+        {group.pages.map(page => <Link key={page} to={'/'+page}
             aria-current={page===active ? 'page':undefined}
             className={'kats-section-tab'+(page===active?' is-active':'')}>
-          <span className="kats-tab-index">{index+1}</span>{labelFor(page)}
+          <PageIcon page={page}/>{labelFor(page)}
         </Link>)}
       </div>
     </nav>;
 }
-const PAGE_META = {
+function PageIcon({page}) {
+    const Icon = PAGE_META[page]?.icon ?? ChevronRight;
+    return <Icon size={15} aria-hidden="true" strokeWidth={1.9}/>;
+}
+export const PAGE_META = {
     dashboard: { label: 'Dashboard', icon: LayoutDashboard },
     notifications: { label: 'Notifications', icon: Bell },
     trends: { label: 'Financial trends', icon: ChartColumnIncreasing },
@@ -90,162 +94,169 @@ const PAGE_META = {
     'privacy-requests': { label: 'Privacy requests', icon: FileClock },
     security: { label: 'Security', icon: ShieldCheck }
 };
-function labelFor(key) {
+export function labelFor(key) {
     return PAGE_META[key]?.label ?? key.replaceAll('-', ' ').replace(/^./, c => c.toUpperCase());
 }
 export function WorkspaceNavigation({ pages, active, user, onLogout }) {
-    const [query, setQuery] = useState('');
     const [drawerOpen, setDrawerOpen] = useState(false);
-    const desktopSearch = useRef(null);
-    const drawerSearch = useRef(null);
+    const [expanded, setExpanded] = useState(() =>
+        compactGroups(pages, user.role).find(group => group.pages.includes(active))?.title || '');
     const drawerTrigger = useRef(null);
     const drawerPanel = useRef(null);
-    const groups = useMemo(() => {
-        const wanted = query.trim().toLowerCase();
-        const available = compactGroups(pages,user.role);
-        if (!wanted) return available;
-        // Search still exposes the original direct page URLs, even though
-        // the normal sidebar only shows grouped destinations.
-        return available.map(group=>({
-            ...group,
-            pages:group.pages.filter(page=>labelFor(page).toLowerCase().includes(wanted)
-                || group.label.toLowerCase().includes(wanted))
-        })).filter(group=>group.pages.length);
-    }, [pages,user.role,query]);
+    const groups = useMemo(() => compactGroups(pages, user.role), [pages, user.role]);
     useEffect(() => {
         setDrawerOpen(false);
-        setQuery('');
-    }, [active]);
+        const current = compactGroups(pages, user.role).find(group => group.pages.includes(active));
+        if (current) setExpanded(current.title);
+    }, [active, pages, user.role]);
     useEffect(() => {
-        if (!drawerOpen)
-            return;
+        if (!drawerOpen) return undefined;
         const previous = document.body.style.overflow;
         const trigger = drawerTrigger.current;
         document.body.style.overflow = 'hidden';
-        drawerSearch.current?.focus();
+        const focusTarget = drawerPanel.current?.querySelector('button:not([disabled]), a[href]');
+        focusTarget?.focus();
         function trapFocus(event) {
-            if (event.key !== 'Tab')
-                return;
-            const elements = drawerPanel.current?.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled])');
-            if (!elements?.length)
-                return;
+            if (event.key !== 'Tab') return;
+            const elements = drawerPanel.current?.querySelectorAll(
+                'a[href], button:not([disabled])');
+            if (!elements?.length) return;
             const first = elements[0];
             const last = elements[elements.length - 1];
             if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault();
-                last.focus();
-            }
-            else if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault();
-                first.focus();
+                event.preventDefault(); last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault(); first.focus();
             }
         }
+        function escape(event) {
+            if (event.key === 'Escape') setDrawerOpen(false);
+        }
         document.addEventListener('keydown', trapFocus);
+        document.addEventListener('keydown', escape);
         return () => {
             document.removeEventListener('keydown', trapFocus);
+            document.removeEventListener('keydown', escape);
             document.body.style.overflow = previous;
             trigger?.focus();
         };
     }, [drawerOpen]);
-    useEffect(() => {
-        function keyDown(event) {
-            if (event.key === 'Escape')
-                setDrawerOpen(false);
-            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-                event.preventDefault();
-                if (window.matchMedia('(max-width: 800px)').matches)
-                    setDrawerOpen(true);
-                else
-                    desktopSearch.current?.focus();
-            }
-        }
-        window.addEventListener('keydown', keyDown);
-        return () => window.removeEventListener('keydown', keyDown);
-    }, []);
-    function menuItems(close) {
-        if (!groups.length) return <p className="nav-empty">No matching pages.</p>;
-        // Normal mode: one navigational entry per section. Search mode:
-        // direct links to the matching individual routes.
-        if (!query.trim()) return groups.map(group=>{
-            const Icon=group.icon;
-            const selected=group.pages.includes(active);
-            return <Link key={group.title} to={'/'+group.pages[0]}
-                className={'nav-item kats-nav-section'+(selected?' active':'')}
-                aria-current={selected?'location':undefined} onClick={close}>
-                <Icon size={17} strokeWidth={1.8} aria-hidden="true"/>
-                <span>{group.label}</span>
-                <ChevronRight size={14} aria-hidden="true"/>
-            </Link>;
+
+    function menuItems(close, surface = 'desktop') {
+        return groups.map((group, index) => {
+            const Icon = group.icon;
+            const selected = group.pages.includes(active);
+            const isDashboard = group.pages.length === 1 && group.pages[0] === 'dashboard';
+            const isExpanded = expanded === group.title;
+            const section = index === 0 ? 'OVERVIEW'
+                : ['Insights', 'Administration', 'Records', 'Account'].includes(group.title)
+                    ? 'REVIEW & CONTROL'
+                    : 'MANAGE';
+            return <section className="kats-nav-group" key={group.title} aria-label={group.label}>
+                {(index === 0 || section !== (index === 1 ? 'OVERVIEW' :
+                  ['Insights', 'Administration', 'Records', 'Account'].includes(groups[index - 1]?.title)
+                    ? 'REVIEW & CONTROL' : 'MANAGE')) &&
+                  <p className="kats-nav-eyebrow">{section}</p>}
+                {isDashboard
+                    ? <Link to={'/'+group.pages[0]}
+                        className={'nav-item kats-nav-section'+(selected?' active':'')}
+                        onClick={close} aria-current={selected?'page':undefined}>
+                        <Icon size={17} aria-hidden="true" strokeWidth={1.8}/>
+                        <span>{group.label}</span>
+                      </Link>
+                    : <>
+                        <button type="button" className={'kats-nav-group-toggle'+
+                            (selected ? ' is-current' : '')}
+                            aria-expanded={isExpanded}
+                            aria-controls={isExpanded ? surface+'-nav-'+group.title.toLowerCase() : undefined}
+                            onClick={() => setExpanded(isExpanded ? '' : group.title)}>
+                            <Icon size={18} aria-hidden="true" strokeWidth={1.8}/>
+                            <span>{group.label}</span>
+                            <ChevronRight className="kats-nav-chevron" size={15} aria-hidden="true"/>
+                        </button>
+                        {isExpanded && <div id={surface+'-nav-'+group.title.toLowerCase()}
+                            className="kats-nav-children">
+                            {group.pages.map(page => {
+                                const ChildIcon = PAGE_META[page]?.icon ?? ChevronRight;
+                                return <Link key={page} to={'/'+page}
+                                    aria-current={active===page?'page':undefined}
+                                    onClick={close}
+                                    className={'nav-item kats-nav-child'+
+                                        (active===page?' active':'')}>
+                                    <ChildIcon size={16} strokeWidth={1.7} aria-hidden="true"/>
+                                    <span>{labelFor(page)}</span>
+                                </Link>;
+                            })}
+                        </div>}
+                      </>}
+            </section>;
         });
-        return groups.map(group=><section className="nav-group" key={group.title} aria-label={group.label}>
-            <h2 className="nav-group-label">{group.label}</h2>
-            {group.pages.map(page=><Link className={'nav-item'+(active===page?' active':'')}
-                key={page} to={'/'+page} onClick={close}
-                aria-current={active===page?'page':undefined}>
-                <ChevronRight size={16} aria-hidden="true"/><span>{labelFor(page)}</span>
-            </Link>)}
-        </section>);
     }
+
     const bottomPages = (user.role === 'TENANT'
         ? ['dashboard', 'invoices', 'payments', 'maintenance']
         : ['dashboard', 'rooms', 'payments', 'maintenance']).filter(page => pages.includes(page));
-    const searched = query.length > 0;
     return <>
-    <aside className="side" aria-label="Workspace navigation">
-      <Link to="/dashboard" className="workspace-brand">
-        <span className="brand-symbol" aria-hidden="true"><img src="/brand-mark.svg" alt="" width="39" height="39"/></span>
-        <span><strong>KATS</strong><small>PROPERTY MANAGEMENT</small></span>
-      </Link>
-      <div className="side-account">
-        <span className="side-account-label">WORKSPACE</span>
-        <strong title={user.full_name}>{user.full_name}</strong>
-        <span>{user.role.replaceAll('_', ' ').toLowerCase()}</span>
-      </div>
-      <div className="nav-search">
-        <Search size={17} aria-hidden="true"/>
-        <input ref={desktopSearch} type="search" placeholder="Find a page" aria-label="Search workspace navigation" value={query} onChange={event => setQuery(event.target.value)}/>
-        {!searched && <kbd>Ctrl K</kbd>}
-      </div>
-      <nav className="workspace-links" aria-label="Workspace sections">{menuItems(() => setQuery(''))}</nav>
-      <div className="side-utilities">
-        <Link to="/security"><ShieldCheck size={17}/> Account security</Link>
-        <button className="side-signout" type="button" onClick={onLogout}>
-          <LogOut size={17}/> Sign out
-        </button>
-      </div>
-    </aside>
-    <nav className="mobile-nav" aria-label="Mobile workspace navigation">
-      {bottomPages.map(page => {
-            const Icon = PAGE_META[page]?.icon ?? LayoutDashboard;
-            return <Link key={page} to={'/' + page} className={active === page ? 'active' : ''} aria-current={active === page ? 'page' : undefined}>
-          <Icon size={20} strokeWidth={1.9}/><span>{labelFor(page)}</span>
-        </Link>;
-        })}
-      <button ref={drawerTrigger} type="button" className={!bottomPages.includes(active) ? 'active' : ''} aria-label="Browse all workspace pages" aria-expanded={drawerOpen} aria-controls="mobile-workspace-drawer" onClick={() => setDrawerOpen(true)}>
-        <Menu size={20} strokeWidth={1.9}/><span>More</span>
-      </button>
-    </nav>
-    {drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)}>
-      <section id="mobile-workspace-drawer" ref={drawerPanel} role="dialog" aria-modal="true" aria-label="Workspace navigation" className="workspace-drawer" onClick={event => event.stopPropagation()}>
-        <div className="drawer-head">
-          <div><strong>Browse workspace</strong><span>{user.role.replaceAll('_', ' ')}</span></div>
-          <button aria-label="Close navigation" className="icon-button" type="button" onClick={() => setDrawerOpen(false)}><X size={21}/></button>
+      <aside className="side" aria-label="Workspace navigation">
+        <Link to="/dashboard" className="workspace-brand">
+          <span className="brand-symbol" aria-hidden="true">
+            <img src="/brand-mark.svg" alt="" width="39" height="39"/></span>
+          <span><strong>KATS</strong><small>PROPERTY MANAGEMENT</small></span>
+        </Link>
+        <div className="side-account">
+          <span className="side-account-label">YOUR WORKSPACE</span>
+          <strong title={user.full_name}>{user.full_name}</strong>
+          <span>{user.role.replaceAll('_', ' ').toLowerCase()}</span>
         </div>
-        <div className="nav-search drawer-search">
-          <Search size={18} aria-hidden="true"/>
-          <input ref={drawerSearch} type="search" placeholder="Search pages" aria-label="Search all workspace pages" value={query} onChange={event => setQuery(event.target.value)}/>
-        </div>
-        <nav className="drawer-links" aria-label="All workspace sections">
-          <Link className="nav-item" to="/search" onClick={() => setDrawerOpen(false)}><Search size={17} aria-hidden="true"/>Find records</Link>
-          {menuItems(() => setDrawerOpen(false))}
+        <nav className="workspace-links kats-nav-accordion" aria-label="Workspace sections">
+          {menuItems(undefined, 'desktop')}
         </nav>
-        <div className="drawer-footer">
-          <button className="side-signout" type="button" onClick={() => {
-                setDrawerOpen(false);
-                onLogout();
-            }}><LogOut size={17}/> Sign out</button>
+        <div className="side-utilities">
+          <Link to="/security"><ShieldCheck size={17} aria-hidden="true"/> Account security</Link>
+          <button className="side-signout" type="button" onClick={onLogout}>
+            <LogOut size={17} aria-hidden="true"/> Sign out
+          </button>
         </div>
-      </section>
-    </div>}
-  </>;
+      </aside>
+      <nav className="mobile-nav" aria-label="Mobile workspace navigation">
+        {bottomPages.map(page => {
+          const Icon = PAGE_META[page]?.icon ?? LayoutDashboard;
+          return <Link key={page} to={'/' + page}
+            className={active === page ? 'active' : ''}
+            aria-current={active === page ? 'page' : undefined}>
+            <Icon size={20} strokeWidth={1.9}/><span>{labelFor(page)}</span>
+          </Link>;
+        })}
+        <button ref={drawerTrigger} type="button"
+          className={!bottomPages.includes(active) ? 'active' : ''}
+          aria-label="Browse all workspace pages" aria-expanded={drawerOpen}
+          aria-controls="mobile-workspace-drawer"
+          onClick={() => setDrawerOpen(true)}>
+          <Menu size={20} strokeWidth={1.9}/><span>More</span>
+        </button>
+      </nav>
+      {drawerOpen && <div className="drawer-backdrop"
+        onClick={() => setDrawerOpen(false)}>
+        <section id="mobile-workspace-drawer" ref={drawerPanel} role="dialog"
+          aria-modal="true" aria-label="Workspace navigation"
+          className="workspace-drawer" onClick={event => event.stopPropagation()}>
+          <div className="drawer-head">
+            <div><strong>Browse workspace</strong>
+              <span>{user.role.replaceAll('_', ' ')}</span></div>
+            <button aria-label="Close navigation" className="icon-button"
+              type="button" onClick={() => setDrawerOpen(false)}>
+              <X size={21}/>
+            </button>
+          </div>
+          <nav className="drawer-links kats-nav-accordion"
+            aria-label="All workspace sections">{menuItems(() => setDrawerOpen(false), 'drawer')}</nav>
+          <div className="drawer-footer">
+            <button className="side-signout" type="button"
+              onClick={() => {setDrawerOpen(false); onLogout();}}>
+              <LogOut size={17}/> Sign out
+            </button>
+          </div>
+        </section>
+      </div>}
+    </>;
 }

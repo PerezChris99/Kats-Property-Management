@@ -8,6 +8,7 @@ import './styles.css';
 import './worldclass.css';
 import './site/redesign.css';
 import './workspace.css';
+import './dashboard-polish.css';
 const element = document.getElementById('root');
 if (!element)
     throw new Error('Missing root');

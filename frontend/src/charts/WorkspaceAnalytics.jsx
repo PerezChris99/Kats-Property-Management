@@ -300,43 +300,68 @@ function PortfolioMetrics() {
   </section>;
 }
 
+/** Preserve chart state after opening; unopened panels perform zero hidden API reads. */
+function ChartDisclosure({ title, description, children }) {
+  const [visited, setVisited] = useState(false);
+  return <details className="kats-workflow-disclosure kats-analytics-disclosure"
+    onToggle={event => {if (event.currentTarget.open) setVisited(true);}}>
+    <summary>{title}<span>{description}</span></summary>
+    {visited && <div className="kats-disclosed-content">{children}</div>}
+  </details>;
+}
+
 export function LandlordAnalytics() {
   return <section className="kats-analytics" aria-label="Live portfolio analytics">
-    <PortfolioMetrics/>
     <PeriodDashboard>{(view, refresh) => <>
-      <SectionHeading title="Portfolio analytics"
-        description="Current occupancy and membership; financial plots share the chosen reporting period."/>
-      <div className="kats-chart-grid">
-        <ChartPanel title="Portfolio occupancy" endpoint="analytics/landlord/occupancy" kind="donut"/>
-        <ChartPanel title="Collections by property (all recorded settlements)"
-          endpoint="analytics/landlord/collections-by-property" kind="category-bar"/>
+      <SectionHeading title="Finance and occupancy"
+        description="Financial performance follows one selected period; occupancy reflects current room states."/>
+      <div className="kats-chart-grid kats-main-charts">
         <ChartPanel title="Invoicing and verified collections"
           endpoint="analytics/landlord/monthly" kind="monthly-line"
           className="kats-chart-wide" periodView={view} onPeriodRefresh={refresh}/>
-        <ChartPanel title="Current rent and maintenance overlap"
-          endpoint="analytics/landlord/tenant-overlap" kind="venn"/>
-        <ChartPanel title="Property performance by metric (all recorded)"
-          endpoint="analytics/landlord/property-scores" kind="performance"/>
+        <ChartPanel title="Portfolio occupancy"
+          endpoint="analytics/landlord/occupancy" kind="donut"/>
       </div>
+      <ChartDisclosure title="Explore property-level insights"
+        description="Collections by property, maintenance overlap and performance scorecards">
+        <div className="kats-chart-grid">
+          <ChartPanel title="Collections by property (all recorded settlements)"
+            endpoint="analytics/landlord/collections-by-property" kind="category-bar"/>
+          <ChartPanel title="Current rent and maintenance overlap"
+            endpoint="analytics/landlord/tenant-overlap" kind="venn"/>
+          <ChartPanel title="Property performance by metric (all recorded)"
+            endpoint="analytics/landlord/property-scores" kind="performance"
+            className="kats-chart-wide"/>
+        </div>
+        <PortfolioMetrics/>
+      </ChartDisclosure>
     </>}</PeriodDashboard>
   </section>;
 }
+
 export function TenantAnalytics() {
   return <section className="kats-analytics" aria-label="Live rental analytics">
-    <SectionHeading title="My rental activity"
-      description="Only invoices and verified payments connected to your signed-in rental profile."/>
-    <PeriodDashboard>{(view, refresh) => <div className="kats-chart-grid">
-      <ChartPanel title="Invoice payment status (current)"
-        endpoint="analytics/tenant/payment-status" kind="donut"/>
-      <ChartPanel title="Payments applied by rent period"
-        endpoint="analytics/tenant/applied-payments" kind="bar"
-        periodView={view} onPeriodRefresh={refresh}/>
-      <ChartPanel title="Verified payment history"
-        endpoint="analytics/tenant/payment-history" kind="line"
-        periodView={view} onPeriodRefresh={refresh}/>
-      <ChartPanel title="Current outstanding debt by selected billing period"
-        endpoint="analytics/tenant/balance-trend" kind="line"
-        className="kats-chart-wide" periodView={view} onPeriodRefresh={refresh}/>
-    </div>}</PeriodDashboard>
+    <PeriodDashboard>{(view, refresh) => <>
+      <SectionHeading title="My rent activity"
+        description="Only your signed-in rental account and independently verified transactions."/>
+      <div className="kats-chart-grid kats-main-charts">
+        <ChartPanel title="Verified payment history"
+          endpoint="analytics/tenant/payment-history" kind="line"
+          className="kats-chart-wide" periodView={view} onPeriodRefresh={refresh}/>
+        <ChartPanel title="Invoice payment status (current)"
+          endpoint="analytics/tenant/payment-status" kind="donut"/>
+      </div>
+      <ChartDisclosure title="Explore detailed billing trends"
+        description="Applied rent by period and current outstanding balances by billing month">
+        <div className="kats-chart-grid">
+          <ChartPanel title="Payments applied by rent period"
+            endpoint="analytics/tenant/applied-payments" kind="bar"
+            periodView={view} onPeriodRefresh={refresh}/>
+          <ChartPanel title="Current outstanding debt by selected billing period"
+            endpoint="analytics/tenant/balance-trend" kind="line"
+            periodView={view} onPeriodRefresh={refresh}/>
+        </div>
+      </ChartDisclosure>
+    </>}</PeriodDashboard>
   </section>;
 }

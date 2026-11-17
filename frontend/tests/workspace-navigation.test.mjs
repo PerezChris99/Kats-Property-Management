@@ -6,6 +6,7 @@ const read = path => readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const nav=read('src/WorkspaceNavigation.jsx');
 const app=read('src/App.jsx');
 const css=read('src/workspace.css');
+const refined=read('src/dashboard-polish.css');
 
 test('landlord and tenant navigation uses compact grouped links, preserving original URLs',()=>{
   assert.ok(nav.includes('export const COMPACT_GROUPS'));
@@ -25,8 +26,12 @@ test('landlord and tenant navigation uses compact grouped links, preserving orig
 });
 
 test('compact sidebar has no normal overflow and tabs are responsive',()=>{
-  assert.ok(css.includes('.portal .workspace-links { overflow-y:hidden'));
-  assert.ok(css.includes('.portal .workspace-links:has(.nav-group) { overflow-y:auto'));
+  assert.ok(refined.includes('.portal .workspace-links.kats-nav-accordion'));
+  assert.ok(refined.includes('overflow-y:auto'), 'long expanded groups scroll rather than clip');
+  assert.ok(nav.includes('kats-nav-group-toggle'), 'related destinations collapse');
+  assert.ok(nav.includes('kats-nav-eyebrow'), 'navigation groups have labeled hierarchy');
+  assert.ok(nav.includes('aria-expanded={isExpanded}'));
+  assert.ok(nav.includes('surface+\'-nav-\''), 'mobile/desktop accordion DOM IDs do not collide');
   assert.ok(css.includes('.portal .kats-section-tabs-list'));
   assert.ok(css.includes('flex-wrap:wrap'));
   assert.ok(css.includes('.portal .kats-section-tab.is-active'));
