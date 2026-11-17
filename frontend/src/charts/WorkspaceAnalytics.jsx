@@ -76,6 +76,7 @@ export function ChartPanel({ title, endpoint, kind, className = '', periodView, 
   const [drillSeries, setDrillSeries] = useState('verified_collections');
   const [details, setDetails] = useState({ status: 'idle', items: [], error: '' });
   const drillRequest = useRef(0);
+  const chartRoot = useRef(null);
   const external = periodView !== undefined;
   const options = MODE_OPTIONS[kind] || MODE_OPTIONS.bar;
   const [mode, setMode] = useState(options[0][0]);
@@ -137,19 +138,40 @@ export function ChartPanel({ title, endpoint, kind, className = '', periodView, 
         });
       });
   };
+  const downloadSvg = () => {
+    const source = chartRoot.current?.querySelector('.recharts-wrapper > svg.recharts-surface');
+    if (!source) return;
+    const svg = source.cloneNode(true);
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', title);
+    const file = new Blob([new XMLSerializer().serializeToString(svg)], {
+      type: 'image/svg+xml;charset=utf-8',
+    });
+    const url = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'kats-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.svg';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  };
   const refresh = () => {
     setDetails({ status: 'idle', items: [], error: '' });
     if (external) onPeriodRefresh?.();
     else setRevision(v=>v+1);
   };
 
-  return <article className={'kats-chart-card ' + className} aria-label={title}>
+  return <article ref={chartRoot} className={'kats-chart-card ' + className} aria-label={title}>
     <header className="kats-chart-header">
       <div><h3>{title}</h3><span className="kats-chart-subtitle">From live, role-authorized records</span></div>
-      <button className="outline-button small" type="button"
-        disabled={active.status === 'loading'} onClick={refresh}>
-        Refresh
-      </button>
+      <div className="kats-chart-actions">
+        {active.status === 'ready' && !empty && <button className="outline-button small"
+          type="button" onClick={downloadSvg}>Download SVG</button>}
+        <button className="outline-button small" type="button"
+          disabled={active.status === 'loading'} onClick={refresh}>Refresh</button>
+      </div>
     </header>
     {active.status === 'ready' && !empty && <div className="kats-chart-controls">
       {options.length > 1 && <label>Chart type
