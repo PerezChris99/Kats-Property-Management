@@ -1029,7 +1029,7 @@ def test_public_floating_mega_navigation_and_halftone(browser, width, height):
             expect(menu.locator(".pm-mega-support strong")).to_have_text(
                 "Rent & verified payments")
             photo = menu.locator(".pm-mega-support-photo img")
-            expect(photo).to_have_attribute("src", re.compile(r"https://(?:thumb|upload)\\.wikimedia\\.org/"))
+            expect(photo).to_have_attribute("src", re.compile(r"https://(?:thumb|upload)\.wikimedia\.org/"))
             expect(photo).to_have_attribute("alt", re.compile("illustrative photography"))
             assert menu.locator(".pm-mega-support-art, .pm-mega-support-orbit").count() == 0
             border = header.evaluate("""el => getComputedStyle(el).borderTopColor""")
