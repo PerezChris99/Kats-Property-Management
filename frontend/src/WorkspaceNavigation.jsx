@@ -142,7 +142,7 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }) {
         };
     }, [drawerOpen]);
 
-    function menuItems(close) {
+    function menuItems(close, surface = 'desktop') {
         return groups.map((group, index) => {
             const Icon = group.icon;
             const selected = group.pages.includes(active);
@@ -167,13 +167,14 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }) {
                     : <>
                         <button type="button" className={'kats-nav-group-toggle'+
                             (selected ? ' is-current' : '')}
-                            aria-expanded={isExpanded} aria-controls={'nav-'+group.title.toLowerCase()}
+                            aria-expanded={isExpanded}
+                            aria-controls={isExpanded ? surface+'-nav-'+group.title.toLowerCase() : undefined}
                             onClick={() => setExpanded(isExpanded ? '' : group.title)}>
                             <Icon size={18} aria-hidden="true" strokeWidth={1.8}/>
                             <span>{group.label}</span>
                             <ChevronRight className="kats-nav-chevron" size={15} aria-hidden="true"/>
                         </button>
-                        {isExpanded && <div id={'nav-'+group.title.toLowerCase()}
+                        {isExpanded && <div id={surface+'-nav-'+group.title.toLowerCase()}
                             className="kats-nav-children">
                             {group.pages.map(page => {
                                 const ChildIcon = PAGE_META[page]?.icon ?? ChevronRight;
@@ -208,7 +209,7 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }) {
           <span>{user.role.replaceAll('_', ' ').toLowerCase()}</span>
         </div>
         <nav className="workspace-links kats-nav-accordion" aria-label="Workspace sections">
-          {menuItems(undefined)}
+          {menuItems(undefined, 'desktop')}
         </nav>
         <div className="side-utilities">
           <Link to="/security"><ShieldCheck size={17} aria-hidden="true"/> Account security</Link>
@@ -248,7 +249,7 @@ export function WorkspaceNavigation({ pages, active, user, onLogout }) {
             </button>
           </div>
           <nav className="drawer-links kats-nav-accordion"
-            aria-label="All workspace sections">{menuItems(() => setDrawerOpen(false))}</nav>
+            aria-label="All workspace sections">{menuItems(() => setDrawerOpen(false), 'drawer')}</nav>
           <div className="drawer-footer">
             <button className="side-signout" type="button"
               onClick={() => {setDrawerOpen(false); onLogout();}}>
