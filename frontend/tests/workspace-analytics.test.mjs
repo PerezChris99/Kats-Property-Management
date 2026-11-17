@@ -116,6 +116,8 @@ test('chart CSS reserves real graph height and does not shrink the SVG', () => {
   const css = read('src/workspace.css');
   assert.ok(css.includes('.kats-recharts-frame svg.recharts-surface'));
   assert.ok(css.includes('max-height:none'), 'plot cannot be clipped to a decorative icon');
+  assert.equal(/svg\.recharts-surface\\s*\\{[^}]*width:\\s*100%/s.test(css), false,
+    'do not override Recharts SVG width with a percentage');
   assert.ok(css.includes('.kats-chart-controls'), 'management and tenant selectors are styled');
   assert.ok(css.includes('@media (max-width:640px)'), 'narrow device layout remains responsive');
 });
