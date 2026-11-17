@@ -4,7 +4,7 @@
 
 ## Demo flow (fictional local-only data)
 
-Use the existing one-time local PostgreSQL demo preparation. Never run the seeder on production or use real tenant/payment information in screenshots. Sign into the local demo using the already-provisioned 31 fictional accounts. Each dashboard has a collapsed **Presentation walkthrough** with links that respect the signed-in role:
+Use the existing one-time local PostgreSQL demo preparation. Never run the seeder on production or use real tenant/payment information in screenshots. Sign into the local demo using the already-provisioned 31 fictional accounts. For the presentation, follow the dashboard's operational order (position → next actions → evidence), then use the labeled sidebar accordion or **Ctrl/⌘ K** quick-actions dialog to reach the next authorized destination:
 
 | Presenter | Demonstrate |
 | --- | --- |
@@ -14,7 +14,7 @@ Use the existing one-time local PostgreSQL demo preparation. Never run the seede
 | CARETAKER | Assigned rooms → maintenance ticket → cash custody record awaiting independent review |
 | TENANT | Own lease → own invoice/payment → maintenance → own statement; explicitly verify that another tenant's records are inaccessible |
 
-The walkthrough is intentionally visible only on loopback **development** builds and makes no database mutations. It does **not** enable a public production demo account.
+The former dashboard walkthrough banner was removed to keep the owner and tenant first view uncluttered. Use the local-only, pre-existing fictional demo sign-ins; the actual quick-actions dialog is available to authorized users without seeding or modifying any data. It does **not** enable a public production demo account.
 
 ## Shared financial reporting semantics
 
