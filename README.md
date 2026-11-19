@@ -114,6 +114,22 @@ npm run build
 
 GitHub Actions runs backend/API and migrated PostgreSQL checks, frontend/browser tests and Windows launcher tests for pull requests to `main` and pushes to `main`. See [test entry points](tests/README.md) and [go-live requirements](docs/GO_LIVE_CHECKLIST.md).
 
+## Client review on Vercel (not the Hostwares launch)
+
+The repository can be prepared as a **full-stack Vercel Services** project
+(React frontend + Flask backend) for client acceptance against **fictional,
+isolated** PostgreSQL/Redis data. The deployment must be under a Vercel plan
+permitted for commercial client work; the connected Hobby team is not
+sufficient for that use. No actual Vercel deployment or live URL is assumed.
+
+Read **[Vercel client review setup](docs/VERCEL_CLIENT_PREVIEW.md)** and use
+`ops/vercel.env.sample` as a key-name checklist only (never as real secrets).
+The optional read-only live probe is
+`python ops/verify_vercel_preview.py --url https://ACTUAL-VERCEL-REVIEW-HOST`.
+Celery tasks still require an external worker; an HTTP-only Vercel deployment
+does not make those workflows functional. Keep Hostwares as the separate
+production system.
+
 ## Production and capacity
 
 The baseline can serve a small single-owner operation **subject to real deployment and acceptance testing**. Tens of users are the expected use case; **hundreds of registered users are a capacity objective, not a tested guarantee**. Concurrent traffic, payment volume, report queries and background jobs determine actual limits.
