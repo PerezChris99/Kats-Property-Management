@@ -8,7 +8,7 @@ from flask import Flask, jsonify, request, abort, g
 from flask_cors import CORS
 from sqlalchemy import text
 from werkzeug.exceptions import HTTPException
-from .config import Config, validate_production_config
+from .config import Config, configured_origins, validate_production_config
 from .extensions import db, migrate, jwt, limiter
 
 def create_app(test_config=None):
@@ -33,15 +33,23 @@ def create_app(test_config=None):
         # externally supplied X-Forwarded-For and X-Forwarded-Proto values.
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0)
     if os.getenv("APP_ENV") == "production":
-        trusted = os.getenv("TRUSTED_HOSTS")
-        app.config["TRUSTED_HOSTS"] = [h.strip() for h in trusted.split(",") if h.strip()] if trusted else [
-            urlparse(x.strip()).hostname for x in os.environ["CORS_ORIGINS"].split(",") if x.strip()
-        ]
+        # Always permit exactly this deployment's generated hostname, in
+        # addition to operator-approved canonical hosts. No *.vercel.app wildcard.
+        hosts = ([h.strip() for h in os.environ["TRUSTED_HOSTS"].split(",") if h.strip()]
+                 if os.getenv("TRUSTED_HOSTS") else
+                 [urlparse(origin).hostname for origin in configured_origins()])
+        for origin in configured_origins():
+            host = urlparse(origin).hostname
+            if host not in hosts:
+                hosts.append(host)
+        app.config["TRUSTED_HOSTS"] = hosts
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
     limiter.init_app(app)
-    allowed_origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if origin.strip()]
+    allowed_origins = configured_origins() if os.getenv("APP_ENV") == "production" else [
+        origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if origin.strip()
+    ]
     CORS(app, origins=allowed_origins, supports_credentials=True, resources={r"/api/*": {"origins": allowed_origins}})
 
     @app.before_request

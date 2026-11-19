@@ -1,5 +1,37 @@
 import os
+import re
 from datetime import timedelta
+
+def vercel_deployment_origin():
+    """Return only the *exact* Vercel-assigned HTTPS host for this deployment.
+
+    Preview aliases change with each commit. An environment-provided hostname
+    is trusted only in a Vercel runtime, never based on client headers and
+    never through a permissive wildcard CORS pattern.
+    """
+    if os.getenv("VERCEL") != "1":
+        return None
+    if os.getenv("VERCEL_ENV") not in ("preview", "production"):
+        raise RuntimeError("Vercel deployment environment must be preview or production")
+    host = os.getenv("VERCEL_URL", "").strip().lower()
+    # No scheme, port, path, userinfo, wildcard or trailing dot.
+    if (not 1 <= len(host) <= 253 or
+            not re.fullmatch(
+                r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+vercel\.app",
+                host,
+            )):
+        raise RuntimeError("VERCEL_URL must be an exact *.vercel.app deployment hostname")
+    return "https://" + host
+
+
+def configured_origins():
+    """Explicit allowlist plus a validated current Vercel preview origin."""
+    origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
+    deployment = vercel_deployment_origin()
+    if deployment and deployment not in origins:
+        origins.append(deployment)
+    return origins
+
 
 class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///local-dev.sqlite3")
@@ -50,7 +82,7 @@ def validate_production_config():
         raise RuntimeError("SECRET_KEY and JWT_SECRET_KEY must be independently generated")
     if os.getenv("COOKIE_SECURE") != "true":
         raise RuntimeError("Production requires COOKIE_SECURE=true")
-    origins = [x.strip() for x in os.environ["CORS_ORIGINS"].split(",") if x.strip()]
+    origins = configured_origins()
     if not origins:
         raise RuntimeError("At least one HTTPS CORS origin is required")
     for origin in origins:
