@@ -1,6 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import ports from '../ops/dev_ports.json';
+import { readFileSync } from 'node:fs';
+
+// Vercel builds the isolated frontend service and need not include sibling
+// ops/ files. Those ports are used by the local dev proxy ONLY. Local runs
+// still read the single authoritative checked-in ops/dev_ports.json.
+const ports = process.env.VERCEL === '1'
+  ? { frontend: 5173, backend: 8000 }
+  : JSON.parse(readFileSync(new URL('../ops/dev_ports.json', import.meta.url), 'utf8'));
 
 // Separate, fixed loopback ports for local development. Never auto-fallback.
 const frontendPort = ports.frontend;
