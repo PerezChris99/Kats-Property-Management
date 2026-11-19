@@ -99,7 +99,9 @@ def test_launcher_preserves_virtualenv_and_worker_contract():
     assert '"db", "upgrade"' in source
     assert '"seed-permissions"' in source
     vite = (ROOT / "frontend" / "vite.config.js").read_text(encoding="utf-8")
-    assert "import ports from '../ops/dev_ports.json'" in vite
+    assert "new URL('../ops/dev_ports.json', import.meta.url)" in vite
+    assert "process.env.VERCEL === '1'" in vite
+    assert "JSON.parse(readFileSync(" in vite
     assert "port: frontendPort" in vite
     assert "strictPort: true" in vite
     assert "const backend = `http://127.0.0.1:${backendPort}`" in vite
