@@ -367,7 +367,9 @@ def test_dedicated_ports_match_shared_vite_config():
     assert native.BACKEND_PORT == expected["backend"]
     assert native.FRONTEND_PORT != native.BACKEND_PORT
     vite = (ROOT / "frontend" / "vite.config.js").read_text(encoding="utf-8")
-    assert "import ports from '../ops/dev_ports.json'" in vite
+    assert "new URL('../ops/dev_ports.json', import.meta.url)" in vite
+    assert "process.env.VERCEL === '1'" in vite
+    assert "JSON.parse(readFileSync(" in vite
     assert "port: frontendPort" in vite and "strictPort: true" in vite
     assert "target: backend" in vite
 
