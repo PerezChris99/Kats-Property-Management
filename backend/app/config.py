@@ -17,7 +17,7 @@ def vercel_deployment_origin():
     # No scheme, port, path, userinfo, wildcard or trailing dot.
     if (not 1 <= len(host) <= 253 or
             not re.fullmatch(
-                r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+vercel\\.app",
+                r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+vercel\.app",
                 host,
             )):
         raise RuntimeError("VERCEL_URL must be an exact *.vercel.app deployment hostname")
