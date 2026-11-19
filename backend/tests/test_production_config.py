@@ -70,3 +70,45 @@ def test_production_rejects_database_connection_overcommit(monkeypatch):
     monkeypatch.setenv("DB_POOL_SIZE", "5")
     monkeypatch.setenv("DB_MAX_OVERFLOW", "2")
     validate_production_config()
+
+
+def test_vercel_client_preview_origin_is_exact_not_wildcard(monkeypatch):
+    from app.config import configured_origins, vercel_deployment_origin
+    configure(monkeypatch)
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setenv("VERCEL_ENV", "preview")
+    monkeypatch.setenv("VERCEL_URL", "kats-client-3f2a-abc.vercel.app")
+    assert vercel_deployment_origin() == "https://kats-client-3f2a-abc.vercel.app"
+    assert configured_origins() == [
+        "https://kats.example.test", "https://kats-client-3f2a-abc.vercel.app"
+    ]
+    validate_production_config()
+
+    for bad in (
+        "*.vercel.app", "evil.vercel.app.attacker.com",
+        "https://example.vercel.app", "example.vercel.app/path",
+        "example.vercel.app:443", "a..vercel.app",
+        "-negative.vercel.app", "example.vercel.app.", "example.com", "",
+    ):
+        monkeypatch.setenv("VERCEL_URL", bad)
+        with pytest.raises(RuntimeError, match="VERCEL_URL"):
+            validate_production_config()
+    monkeypatch.setenv("VERCEL_URL", "kats-client-3f2a-abc.vercel.app")
+    monkeypatch.setenv("VERCEL_ENV", "development")
+    with pytest.raises(RuntimeError, match="deployment environment"):
+        validate_production_config()
+    monkeypatch.delenv("VERCEL", raising=False)
+    assert vercel_deployment_origin() is None
+    assert configured_origins() == ["https://kats.example.test"]
+    validate_production_config()
+
+
+def test_explicit_vercel_origin_always_preserves_hostwares_allowlist(monkeypatch):
+    from app.config import configured_origins
+    configure(monkeypatch)
+    monkeypatch.setenv("CORS_ORIGINS", "https://kats.example.test,https://client-preview.vercel.app")
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setenv("VERCEL_ENV", "production")
+    monkeypatch.setenv("VERCEL_URL", "client-preview.vercel.app")
+    assert configured_origins() == ["https://kats.example.test", "https://client-preview.vercel.app"]
+    validate_production_config()
