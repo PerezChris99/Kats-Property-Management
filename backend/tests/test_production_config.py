@@ -33,7 +33,7 @@ def test_production_cors_rejects_wildcards_mixed_origins_and_self_registration(m
 def test_production_rejects_memory_rate_limiter_even_with_valid_redis(monkeypatch):
     configure(monkeypatch)
     monkeypatch.setenv("RATELIMIT_STORAGE_URI", "memory://")
-    with pytest.raises(RuntimeError, match="requires Redis"):
+    with pytest.raises(RuntimeError, match="requires katsdb"):
         validate_production_config()
 
 
@@ -112,3 +112,25 @@ def test_explicit_vercel_origin_always_preserves_hostwares_allowlist(monkeypatch
     monkeypatch.setenv("VERCEL_URL", "client-preview.vercel.app")
     assert configured_origins() == ["https://kats.example.test", "https://client-preview.vercel.app"]
     validate_production_config()
+
+
+def test_redis_free_postgres_limits_and_inline_demo_are_valid(monkeypatch):
+    configure(monkeypatch)
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
+    monkeypatch.setenv("RATELIMIT_STORAGE_URI", "katsdb://")
+    monkeypatch.setenv("KATS_TASK_MODE", "inline")
+    monkeypatch.setenv("DB_POOL_SIZE", "1")
+    monkeypatch.setenv("DB_MAX_OVERFLOW", "0")
+    monkeypatch.setenv("DB_CONNECTION_BUDGET", "30")
+    validate_production_config()
+    monkeypatch.setenv("MTN_MOMO_ENABLED", "true")
+    with pytest.raises(RuntimeError, match="cannot operate payment"):
+        validate_production_config()
+    monkeypatch.setenv("MTN_MOMO_ENABLED", "false")
+    monkeypatch.setenv("KATS_TASK_MODE", "unsafe")
+    with pytest.raises(RuntimeError, match="KATS_TASK_MODE"):
+        validate_production_config()
+    monkeypatch.setenv("KATS_TASK_MODE", "celery")
+    with pytest.raises(RuntimeError, match="external broker"):
+        validate_production_config()
