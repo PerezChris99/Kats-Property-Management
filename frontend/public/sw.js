@@ -1,7 +1,7 @@
 /* Static-only offline support. No API, auth, HTML, tenant, financial or
  * signed-document responses are cached or served from previous sessions. */
-const CACHE = 'kats-static-v3';
-const STATIC = ['/offline.html', '/offline-reconnect.js', '/icon.svg', '/brand-mark.svg'];
+const CACHE = 'kats-static-v4';
+const STATIC = ['/offline.html', '/offline-reconnect.js', '/icon.svg', '/icon-192.png', '/icon-512-maskable.png', '/manifest.webmanifest', '/brand-mark.svg'];
 const MAX_ASSETS = 70;
 
 self.addEventListener('install', event => {
