@@ -153,11 +153,16 @@ def register_commands(app):
         Provider/fiscal polling is deliberately excluded from this demo mode.
         """
         import os
-        from sqlalchemy import text
+        from flask import current_app
+        from sqlalchemy import create_engine, text
+        from sqlalchemy.pool import NullPool
         if db.engine.dialect.name != "postgresql":
             raise click.ClickException("Scheduled jobs require PostgreSQL")
         if os.getenv("KATS_TASK_MODE") != "inline":
             raise click.ClickException("Set KATS_TASK_MODE=inline for Redis-free jobs")
+        if any(os.getenv(flag, "false").lower() == "true"
+               for flag in ("MTN_MOMO_ENABLED", "AIRTEL_MONEY_ENABLED", "EFRIS_ENABLED")):
+            raise click.ClickException("Live payment/fiscal providers are forbidden in inline mode")
         from . import tasks
         actions = {
             "rent-invoices": tasks.generate_rent_invoices,
@@ -166,18 +171,24 @@ def register_commands(app):
             "preventive-maintenance": tasks.generate_preventive_maintenance,
             "prune-credentials": tasks.prune_ephemeral_tokens,
         }
-        with db.engine.connect() as lock_connection:
-            locked = lock_connection.execute(text(
-                "SELECT pg_try_advisory_lock(1941, hashtext(:name))"
-            ), {"name": job}).scalar_one()
-            if not locked:
-                raise click.ClickException("Job already running in another process")
-            try:
-                # Tasks own their app context, authorization scope and
-                # idempotency. Execute synchronously, not with .delay().
-                actions[job]()
-                click.echo("Scheduled job finished: " + job)
-            finally:
-                lock_connection.execute(text(
-                    "SELECT pg_advisory_unlock(1941, hashtext(:name))"
-                ), {"name": job})
+        lock_engine = create_engine(current_app.config["SQLALCHEMY_DATABASE_URI"],
+                                    poolclass=NullPool)
+        try:
+            with lock_engine.connect() as lock_connection:
+                locked = lock_connection.execute(text(
+                    "SELECT pg_try_advisory_lock(1941, hashtext(:name))"
+                ), {"name": job}).scalar_one()
+                if not locked:
+                    raise click.ClickException("Job already running in another process")
+                try:
+                    # Tasks own their app context, authorization scope and
+                    # idempotency. Execute synchronously, not with .delay().
+                    actions[job]()
+                    click.echo("Scheduled job finished: " + job)
+                finally:
+                    lock_connection.execute(text(
+                        "SELECT pg_advisory_unlock(1941, hashtext(:name))"
+                    ), {"name": job})
+
+        finally:
+            lock_engine.dispose()
