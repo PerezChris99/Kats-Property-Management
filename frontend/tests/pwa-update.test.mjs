@@ -54,3 +54,32 @@ test('release metadata and SW are private-data-safe and never cached as immutabl
   assert.ok(read('src/main.jsx').includes("navigator.serviceWorker.register('/sw.js')"));
   assert.ok(read('public/manifest.webmanifest').includes('"display": "standalone"'));
 });
+
+
+test('manifest includes real 192 and 512 pixel raster icons, install scope and secure offline worker', () => {
+  const manifest = JSON.parse(read('public/manifest.webmanifest'));
+  assert.equal(manifest.display, 'standalone');
+  assert.equal(manifest.scope, '/');
+  assert.ok(manifest.start_url.startsWith('/'));
+  assert.ok(manifest.icons.some(i => i.src === '/icon-192.png'
+    && i.type === 'image/png' && i.sizes === '192x192' && i.purpose === 'any'));
+  assert.ok(manifest.icons.some(i => i.src === '/icon-512-maskable.png'
+    && i.type === 'image/png' && i.sizes === '512x512' && i.purpose === 'maskable'));
+  const png = (file, size) => {
+    const bytes = readFileSync(new URL('../public/' + file, import.meta.url));
+    assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+    assert.equal(bytes.readUInt32BE(16), size);
+    assert.equal(bytes.readUInt32BE(20), size);
+    assert.ok(bytes.length > 2000);
+  };
+  png('icon-192.png', 192);
+  png('icon-512-maskable.png', 512);
+  const sw=read('public/sw.js');
+  assert.ok(sw.includes("'/icon-192.png'"));
+  assert.ok(sw.includes("'/icon-512-maskable.png'"));
+  assert.ok(sw.includes("'/manifest.webmanifest'"));
+  assert.ok(sw.includes("url.pathname.startsWith('/api/')"));
+  assert.ok(sw.includes("fetch(request).catch(() => caches.match('/offline.html'))"));
+  assert.ok(read('index.html').includes('rel="manifest" href="/manifest.webmanifest"'));
+  assert.ok(read('src/main.jsx').includes("import.meta.env.PROD"));
+});
