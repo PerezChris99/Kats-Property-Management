@@ -67,7 +67,7 @@ def verify(origin, fetch=http_get):
         status, headers, body = fetch(origin, path)
         check("raster_" + filename,
               status == 200 and "image/png" in headers.get("content-type", "")
-              and len(body) >= 24 and body[:8] == b"\\x89PNG\\r\\n\\x1a\\n"
+              and len(body) >= 24 and body[:8] == b"\x89PNG\r\n\x1a\n"
               and int.from_bytes(body[16:20], "big") == dimension
               and int.from_bytes(body[20:24], "big") == dimension,
               "Raster PWA icon missing, invalid or routed to SPA HTML")
