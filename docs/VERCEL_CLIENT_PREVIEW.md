@@ -64,6 +64,17 @@ such a scheduler is configured and verified, exclude these scheduled flows
 from client acceptance; never claim an always-on Celery worker exists.
 Payment/fiscal integrations must stay disabled in inline mode.
 
+Optional operator-controlled cron (not a Vercel HTTP route) can call
+`python -m flask --app wsgi run-scheduled rent-reminders`,
+`run-scheduled rent-invoices`, `lease-expiries`,
+`preventive-maintenance` or `prune-credentials`, with
+`APP_ENV=production` and `KATS_TASK_MODE=inline` under protected
+review-only credentials. A PostgreSQL advisory lock prevents concurrent
+executions of the same named task; failures must be monitored by the operator.
+Also periodically run `python -m flask --app wsgi prune-rate-limits` to remove
+expired counter buckets. **Neither command is automatically scheduled by
+Vercel.**
+
 **Email & files**: for invitation, recovery and MFA user journeys, configure a
 verified **test** SMTP sender. A private document store plus malware scanning
 is required to exercise real attachments. If not provisioned, exclude those
