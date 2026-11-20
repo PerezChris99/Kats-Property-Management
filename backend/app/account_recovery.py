@@ -62,6 +62,20 @@ def send_link(user,purpose,secret):
           +"Do not share this link. Kats staff will never ask you for a password or one-time link.")
     send_transactional_email(user.email,subject,body)
 
+@recovery_api.get("/admin/invitations/status")
+@roles("OWNER", "SUPER_ADMIN")
+def invitation_delivery_status(actor):
+    """Show authorized owners mail setup status without exposing SMTP secrets.
+
+    A configured gateway is necessary but not proof a provider will deliver;
+    live send/activation must still be exercised with a real test mailbox.
+    """
+    return jsonify(configured=bool(mail_configured()),
+                   message=("Email gateway configured; send a test invitation to verify delivery"
+                            if mail_configured() else
+                            "Configure encrypted SMTP settings and a verified MAIL_FROM first"))
+
+
 @recovery_api.post("/admin/invitations")
 @roles("OWNER","SUPER_ADMIN")
 @limiter.limit("20 per hour")

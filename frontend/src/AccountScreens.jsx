@@ -90,9 +90,15 @@ export function InvitationsPage() {
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
     const [busy, setBusy] = useState(false);
+    const [mailReady, setMailReady] = useState(null);
     const load = useCallback(() => api('admin/users').then(result => setUsers(result.items || []))
         .catch(reason => setError(message(reason))), []);
-    useEffect(() => { void load(); }, [load]);
+    useEffect(() => {
+        void load();
+        void api('admin/invitations/status')
+            .then(result => setMailReady(Boolean(result.configured)))
+            .catch(() => setMailReady(null));
+    }, [load]);
     async function submit(event) {
         event.preventDefault();
         setBusy(true);
@@ -129,6 +135,8 @@ export function InvitationsPage() {
     return <section className="page">
     <span className="eyebrow">SECURE ACCOUNT PROVISIONING</span><h1>Invite a team member or tenant</h1>
     <p>No passwords are shared by administrators. New users activate their account using a short-lived email invitation.</p>
+    {mailReady === false && <p role="alert" className="error">Email delivery is not configured. Configure the server's SMTP provider and verified sender before sending invitations or recovery links.</p>}
+    {mailReady === true && <p role="status">Email gateway configured. Verify delivery by sending an invitation to an approved test mailbox.</p>}
     {error && <p className="error" role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     <form className="resource-form" onSubmit={submit}>
       <div className="fields">
@@ -138,7 +146,7 @@ export function InvitationsPage() {
           <option value="TENANT">Tenant</option><option value="CARETAKER">Caretaker</option>
           <option value="ACCOUNTANT">Accountant</option><option value="MANAGER">Manager</option>
         </select></label>
-      </div><button className="button" disabled={busy}>{busy ? 'Sending…' : 'Send secure invitation'}</button>
+      </div><button className="button" disabled={busy || mailReady === false}>{busy ? 'Sending…' : 'Send secure invitation'}</button>
     </form>
     <h2>Pending invitations</h2>
     {users.filter(u => u.is_active === false && ['TENANT', 'CARETAKER', 'ACCOUNTANT', 'MANAGER'].includes(label(u.role))).length === 0 ?

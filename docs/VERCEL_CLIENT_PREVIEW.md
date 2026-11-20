@@ -47,16 +47,33 @@ separately with a migration role before enabling web traffic. For elastic
 serverless connections, use the provider's connection pooler and keep
 `DB_POOL_SIZE=1`, `DB_MAX_OVERFLOW=0`; set provider connection limits.
 
-**Redis**: provision separate managed `rediss://` Redis for rate limits and
-the Celery broker/results. Never substitute `memory://` on the public site.
+**Redis is NOT required for client review.** Use `RATELIMIT_STORAGE_URI=katsdb://`
+with migration `0036_postgres_rate_limits`. This registers a shared,
+PostgreSQL-backed, atomic fixed-window limiter across Vercel instances.
+It fails closed if PostgreSQL/table access fails and hashes keys so no raw
+client-IP identifier is stored. Never substitute `memory://` on a public,
+multi-instance site. Periodically prune expired counters with an authorized
+database maintenance job.
 
-**Celery**: Vercel's request/response Functions do **not** host an always-on
-Celery worker or beat scheduler. To test notification delivery, queued
-maintenance work, retry processing and scheduled jobs end-to-end, run **one
-isolated always-on worker and one beat scheduler** on another permitted service
-using the *same preview-only* database and Redis. Without this, describe
-worker-dependent workflows as **unavailable for client acceptance**, never as
-verified. No worker or schedule should be auto-started from a Vercel request.
+**Background work**: set `KATS_TASK_MODE=inline` for the isolated demo.
+Request-triggered operations dispatch synchronously without a Redis broker.
+**Timed tasks are NOT automatic** on Vercel Functions: monthly rent generation,
+lease reminders, retention pruning and preventive maintenance still need a
+separate explicitly scheduled execution using protected CLI commands. Unless
+such a scheduler is configured and verified, exclude these scheduled flows
+from client acceptance; never claim an always-on Celery worker exists.
+Payment/fiscal integrations must stay disabled in inline mode.
+
+Optional operator-controlled cron (not a Vercel HTTP route) can call
+`python -m flask --app wsgi run-scheduled rent-reminders`,
+`run-scheduled rent-invoices`, `lease-expiries`,
+`preventive-maintenance` or `prune-credentials`, with
+`APP_ENV=production` and `KATS_TASK_MODE=inline` under protected
+review-only credentials. A PostgreSQL advisory lock prevents concurrent
+executions of the same named task; failures must be monitored by the operator.
+Also periodically run `python -m flask --app wsgi prune-rate-limits` to remove
+expired counter buckets. **Neither command is automatically scheduled by
+Vercel.**
 
 **Email & files**: for invitation, recovery and MFA user journeys, configure a
 verified **test** SMTP sender. A private document store plus malware scanning
@@ -71,7 +88,21 @@ request handler, to perform migrations and seed demo records. Keep *migration*
 credentials separate from the restricted runtime role.
 
 Run in the repository, with `backend` dependencies installed and all real
-values supplied by a secrets manager:
+values supplied by a secrets manager. For a fresh dedicated Neon
+`katsproperty` database, prefer the guarded all-in-one command; it migrates
+the complete Alembic chain, seeds permissions, writes only fictional records
+and verifies schema head and 31 accounts:
+
+```bash
+# Protected operator session only: NOT in a public function, deploy hook, or CI.
+# APP_ENV=staging, KATS_NEON_SETUP=1, KATS_PUBLIC_DEMO_SEED=1,
+# KATS_TASK_MODE=inline, KATS_PUBLIC_DEMO_PASSWORD=<strong-fictional-only>
+python ops/setup_neon_demo.py
+```
+
+For a migration-only installation (no demo seed), use the explicit steps below.
+Use separate restricted `kats_runtime` credentials for the Vercel app and
+database-owner credentials only for the one-time operator migration:
 
 ```bash
 # Protected admin session: APP_ENV=staging, dedicated migration DB role.
@@ -81,7 +112,7 @@ python -m flask --app wsgi seed-permissions
 cd ..
 ```
 
-The repository includes `ops/seed_neon_demo.py` for an *optional one-time*
+The repository also includes `ops/seed_neon_demo.py` for an *optional one-time*
 31-account entirely fictional dataset. **Only** use its guarded
 `APP_ENV=staging`, `KATS_PUBLIC_DEMO_SEED=1` mode against a dedicated,
 already migrated `katsproperty` Neon database after inspecting the seed
@@ -101,7 +132,7 @@ never real users. By default keep `VITE_KATS_PUBLIC_DEMO=false` and invite
 specifically approved testers instead.
 
 After migration, verify the restricted runtime role, current Alembic revision,
-RLS policies and Redis with the existing
+RLS policies and the shared PostgreSQL limiter with the existing
 `python -m app.release_preflight` command from inside `backend/`.
 Do not declare the full system ready based solely on the migrations.
 
@@ -116,7 +147,7 @@ deployment environment, including:
 | Runtime | `APP_ENV=production`, `COOKIE_SECURE=true`, `KATS_PREVIEW_MODE=0`, `PUBLIC_REGISTRATION_ENABLED=false` |
 | Host restriction | `CORS_ORIGINS` and `TRUSTED_HOSTS` for the **approved exact HTTPS review origin**; `PUBLIC_APP_URL` for links |
 | DB | `DATABASE_URL` with restricted pooled Postgres role, `sslmode=verify-full`, and small connection pool |
-| Rate limits and queues | TLS `REDIS_URL`, `RATELIMIT_STORAGE_URI`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` |
+| Shared limits and tasks | `RATELIMIT_STORAGE_URI=katsdb://`, `KATS_TASK_MODE=inline`; PostgreSQL migration 0036 |
 | Secrets | Distinct high-entropy `SECRET_KEY`, `JWT_SECRET_KEY`, plus valid `MFA_ENCRYPTION_KEY` |
 | External payments | All `MTN_MOMO_ENABLED`, `AIRTEL_MONEY_ENABLED`, `EFRIS_ENABLED` **false** |
 | Frontend | `VITE_KATS_PUBLIC_DEMO=false` unless using only the protected fictional demo |
@@ -147,7 +178,7 @@ python ops/verify_vercel_preview.py \
 The verifier is read-only. It proves real Flask + PostgreSQL `/readyz`
 response (not SPA HTML), request ID, built React asset, deep `/login`
 route, anonymous tenant/owner API isolation, uncached `app-version.json`,
-PWA manifest and a revalidating service worker. It exits nonzero on any
+PWA manifest, 192px/512px PNG icons and a revalidating service worker. It exits nonzero on any
 mismatch. If Vercel deployment protection blocks anonymous verification,
 use an authorized testing method within the owner's environment; **do not
 disable protection merely to make automated checks pass**.
@@ -164,9 +195,34 @@ real person/tenant information.
 
 Use `compose.hostwares.yml`, `docs/HOSTWARES_DEPLOYMENT.md` and the
 normal Hostwares production preflight. Hostwares gets a **separate**
-database, Redis, keys, mail configuration, worker, backups and approvals.
+database, keys, mail configuration, backups and approvals. Hostwares may
+retain separately managed Redis/Celery if that deployment later needs it; the
+Vercel client review does not.
 Never copy a fictional Vercel snapshot into the real Kats Properties ledger.
 After Hostwares cutover, retire/restrict the client-review stack, revoke
 reviewer accounts and keep an auditable acceptance record. The Vercel site
 is a convenience for testing, not evidence of completed live finance,
 security, backup or compliance signoff.
+
+## 7. Invitations, recovery and PWA acceptance
+
+The backend already has approved `POST /api/v1/admin/invitations`, resend,
+`POST /api/v1/auth/recover` and one-use `POST /api/v1/auth/complete-token`
+flows. Owner UI exposes **Invitations** and login exposes **Forgot password**;
+links contain bearer tokens in the URL **fragment** and never return them in
+admin API responses. `GET /api/v1/admin/invitations/status` now reports
+configured/unconfigured SMTP **only to authorized owners**, without credentials.
+
+Set a verified test `SMTP_HOST`, `SMTP_PORT` (465 or 587),
+`SMTP_USERNAME`, `SMTP_PASSWORD` and `MAIL_FROM` in encrypted Vercel env
+settings; send an invite to an approved *fictional test mailbox*, activate,
+reset, resend and prove old tokens/session credentials are invalidated.
+An HTTP test proves workflow behavior, **not** that SMTP delivered a message.
+
+The PWA has `manifest.webmanifest` with standalone mode, 192x192 PNG and
+512x512 padded maskable PNG icons, production-only service-worker
+registration, separate offline fallback, **no private API caching**, and
+release-update discovery. Test installation from HTTPS using a real current
+Android Chrome / desktop Chromium browser and validate offline screen,
+login when reconnected and user-initiated version upgrade. Source-level PWA
+checks are not proof of actual installation or push notification support.

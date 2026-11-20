@@ -90,3 +90,20 @@ def test_resend_invalidates_previous_invite_and_locks_disabled(app,monkeypatch):
         "token":sent[1],"new_password":"SecurePasswordABC123!"}).status_code==200
     assert admin.post("/api/v1/admin/invitations/"+user_id+"/resend",
         headers=csrf(admin)).status_code==409
+
+
+def test_invitation_gateway_status_only_for_owner_and_no_secrets(app, monkeypatch):
+    from app import account_recovery
+    owner=create_user("status-owner@kats.test","OWNER")
+    tenant=create_user("status-tenant@kats.test","TENANT")
+    admin=auth_client(app, owner)
+    limited=auth_client(app, tenant)
+    monkeypatch.setattr(account_recovery,"mail_configured",lambda:False)
+    res=admin.get("/api/v1/admin/invitations/status")
+    assert res.status_code==200 and res.json["configured"] is False
+    assert "password" not in str(res.json).lower()
+    assert limited.get("/api/v1/admin/invitations/status").status_code==403
+    assert app.test_client().get("/api/v1/admin/invitations/status").status_code in (401,422)
+    monkeypatch.setattr(account_recovery,"mail_configured",lambda:True)
+    ready=admin.get("/api/v1/admin/invitations/status")
+    assert ready.status_code==200 and ready.json["configured"] is True

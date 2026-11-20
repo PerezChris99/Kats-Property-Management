@@ -10,6 +10,7 @@ from sqlalchemy import text
 from werkzeug.exceptions import HTTPException
 from .config import Config, configured_origins, validate_production_config
 from .extensions import db, migrate, jwt, limiter
+from . import postgres_rate_limit  # noqa: F401 - registers shared katsdb:// with limits
 
 def create_app(test_config=None):
     if test_config is None:
@@ -152,6 +153,7 @@ def create_app(test_config=None):
     from . import dispute_models  # noqa: F401
     from . import maintenance_plan_models  # noqa: F401
     from . import account_models  # noqa: F401
+    from . import rate_limit_models  # noqa: F401
     from . import organization_models  # noqa: F401
     from . import journal_models  # noqa: F401
     from .finance import gl_models  # noqa: F401

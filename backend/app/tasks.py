@@ -4,8 +4,8 @@ from celery.schedules import crontab
 
 celery_app = Celery(
     "kats",
-    broker=os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/1"),
-    backend=os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/2"),
+    broker=os.getenv("CELERY_BROKER_URL") or os.getenv("REDIS_URL") or "memory://",
+    backend=os.getenv("CELERY_RESULT_BACKEND") or "cache+memory://",
 )
 from app.document_rls import trusted_worker_scope
 from celery import Task
@@ -20,8 +20,10 @@ class KATSServicedTask(Task):
 
 celery_app.Task = KATSServicedTask
 celery_app.conf.update(
-    # Synchronous, in-process preview tasks only; no Redis, Beat or worker.
-    task_always_eager=os.getenv("KATS_PREVIEW_MODE") == "1",
+    # Redis-free client review: explicit inline dispatch, no hidden broker.
+    # Periodic tasks still require an external, authenticated scheduler/CLI.
+    task_always_eager=(os.getenv("KATS_PREVIEW_MODE") == "1" or
+                       os.getenv("KATS_TASK_MODE") == "inline"),
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     task_time_limit=120,

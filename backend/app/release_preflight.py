@@ -79,7 +79,6 @@ def main():
         from alembic.config import Config as AlembicConfig
         from alembic.script import ScriptDirectory
         from sqlalchemy import text
-        from redis import Redis
         from app import create_app
         from app.extensions import db
         cfg = AlembicConfig()
@@ -93,17 +92,23 @@ def main():
                 conn.execute(text("SELECT 1")).scalar_one()
                 check_schema_and_role(conn, heads)
                 check_privileged_mfa(conn)
-        with Redis.from_url(os.environ["REDIS_URL"], socket_connect_timeout=4,
-                            socket_timeout=4) as redis:
-            if not redis.ping():
-                raise RuntimeError("Redis is not responding")
+        store = os.getenv("RATELIMIT_STORAGE_URI") or os.getenv("REDIS_URL", "")
+        if store == "katsdb://":
+            with app.app_context(), db.engine.connect() as conn:
+                conn.execute(text("SELECT 1 FROM rate_limit_counters LIMIT 1"))
+        else:
+            from redis import Redis
+            with Redis.from_url(store, socket_connect_timeout=4,
+                                socket_timeout=4) as redis:
+                if not redis.ping():
+                    raise RuntimeError("Redis is not responding")
     except Exception as exc:
         # Never print DSNs, passwords, connection arguments or SQL values.
         print("[BLOCKED] Runtime readiness failed (" + type(exc).__name__ +
               "). Check private service logs.", file=sys.stderr)
         return 3
     print("[PASS] Production settings, schema revision, restricted DB role, "
-          "document/tenancy/finance RLS, privileged MFA and Redis connectivity.")
+          "document/tenancy/finance RLS, privileged MFA and shared rate-limit storage.")
     print("[NOT APPROVED] Operator must still sign off on TLS, MFA, backup/restore, "
           "tenancy workflow, providers, external security and legal acceptance.")
     return 0

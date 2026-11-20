@@ -35,7 +35,7 @@ KATS is **one private property-management system belonging to Kats Properties**.
 | **Frontend** | React 19, JavaScript/JSX, Vite 6, React Router 7, TanStack Query 5, Recharts 3, Lucide icons, responsive CSS/PWA |
 | **API & business logic** | Python 3.12+, Flask 3, Flask-SQLAlchemy/SQLAlchemy, Flask-Migrate/Alembic, Gunicorn |
 | **Database** | PostgreSQL 16+, psycopg 3; SQLite for explicitly isolated local preview/testing |
-| **Background jobs** | Celery 5 and Redis (queue, shared rate limiting and service dependencies) |
+| **Task execution & rate limits** | PostgreSQL shared fixed-window limits for the Redis-free client demo; inline on-demand tasks; optional Celery/Redis for independently configured queued production jobs |
 | **Security** | Argon2id passwords, JWT secure cookies with CSRF controls, role permissions, TOTP MFA, audited financial events, PostgreSQL RLS on selected private tables |
 | **Files & integrations** | Optional S3-compatible private storage, ClamAV scanning, SMTP; gated MTN/Airtel/EFRIS adapters |
 | **Deployment** | Docker Compose, Nginx static frontend, Caddy HTTPS edge or trusted Hostwares TLS proxy |
@@ -50,8 +50,8 @@ flowchart TB
     EDGE --> API["Gunicorn · Flask REST API<br/>Auth · RBAC · Business rules"]
     WEB -. "Same-origin /api/v1" .-> API
     API --> DB[("Private PostgreSQL<br/>business records · accounting · audit")]
-    API --> REDIS[("Private Redis<br/>rate limits · task broker")]
-    REDIS --> WORKER["Celery workers<br/>scheduled and retryable jobs"]
+    API --> LIMITS[("PostgreSQL shared limit counters<br/>Redis-free demo")]
+    API -. "Optional external scheduler" .-> WORKER["Scheduled/queued jobs<br/>separate executor when enabled"]
     WORKER --> DB
     API -. "Configured, scanned storage only" .-> FILES["S3-compatible objects<br/>ClamAV"]
     API -. "Approved integrations only" .-> EXTERNAL["MTN / Airtel · URA EFRIS<br/>SMTP and other providers"]
@@ -118,7 +118,7 @@ GitHub Actions runs backend/API and migrated PostgreSQL checks, frontend/browser
 
 The repository can be prepared as a **full-stack Vercel Services** project
 (React frontend + Flask backend) for client acceptance against **fictional,
-isolated** PostgreSQL/Redis data. The deployment must be under a Vercel plan
+isolated** PostgreSQL data, using shared database-backed rate limits and no Redis for client review. The deployment must be under a Vercel plan
 permitted for commercial client work; the connected Hobby team is not
 sufficient for that use. No actual Vercel deployment or live URL is assumed.
 
@@ -126,8 +126,7 @@ Read **[Vercel client review setup](docs/VERCEL_CLIENT_PREVIEW.md)** and use
 `ops/vercel.env.sample` as a key-name checklist only (never as real secrets).
 The optional read-only live probe is
 `python ops/verify_vercel_preview.py --url https://ACTUAL-VERCEL-REVIEW-HOST`.
-Celery tasks still require an external worker; an HTTP-only Vercel deployment
-does not make those workflows functional. Keep Hostwares as the separate
+Request-triggered demo jobs can run inline, but **scheduled jobs still require a separate approved scheduler**; an HTTP-only Vercel deployment does not run monthly/daily jobs automatically. Keep Hostwares as the separate
 production system.
 
 ## Production and capacity
@@ -136,12 +135,12 @@ The baseline can serve a small single-owner operation **subject to real deployme
 
 Before launch or scaling:
 
-- Provision private managed PostgreSQL and Redis, restricted DB roles, HTTPS, isolated secrets, durable object storage where needed, and monitored Celery workers.
+- Provision private managed PostgreSQL, restricted DB roles, HTTPS, isolated secrets and durable storage as needed. Use a PostgreSQL-backed shared rate limiter for Redis-free deployments; add Redis/Celery only if the eventual queued-production architecture requires it.
 - Verify backup **restoration**, rollback, migrations, MFA enrollment, role-level isolation and operational alerting in staging.
 - Load-test authenticated owner, staff and tenant flows and payment concurrency; measure p95/p99 latency, errors, DB pool pressure, queue depth and resource use before raising worker counts.
 - Complete provider sandbox/settlement acceptance, accountant reconciliation, legal/privacy review, real Android/iOS testing and owner signoff.
 
-Start with the existing single-business architecture. Scale API/worker replicas and tune SQL/indices **from measured bottlenecks**, maintaining a single scheduler and shared rate limiter. No production capacity or availability SLA has been established.
+Start with the existing single-business architecture. Scale API replicas and optional worker replicas and tune SQL/indices **from measured bottlenecks**, maintaining a single scheduler and shared rate limiter. No production capacity or availability SLA has been established.
 
 ## Documentation
 

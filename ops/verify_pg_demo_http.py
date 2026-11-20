@@ -47,7 +47,22 @@ def main():
         assert tenant.get("/api/v1/analytics/landlord/monthly",headers=host).status_code==403
         assert owner.get("/api/v1/analytics/tenant/payment-status",headers=host).status_code==403
         assert tenant.get("/api/v1/properties",headers=host).status_code==403
-    print("[PASS] PostgreSQL landlord/tenant cookie login, scoped invoices and RBAC",flush=True)
+    # Exercise the *real* PostgreSQL rate limiter as the restricted runtime
+    # role, including atomic increments, expiry, and explicit key cleanup.
+    from app.postgres_rate_limit import PostgresRateLimitStorage
+    from uuid import uuid4
+    with app.app_context():
+        store = PostgresRateLimitStorage("katsdb://")
+        key = "kats-pg-rate-limit-acceptance:" + uuid4().hex
+        assert store.check()
+        assert store.get(key) == 0
+        assert store.incr(key, 60) == 1
+        assert store.incr(key, 60) == 2
+        assert store.get(key) == 2
+        assert store.get_expiry(key) > 0
+        store.clear(key)
+        assert store.get(key) == 0
+    print("[PASS] PostgreSQL landlord/tenant cookie login, RBAC and durable shared rate limits",flush=True)
 
 if __name__=="__main__":
     main()

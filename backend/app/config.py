@@ -61,7 +61,7 @@ class Config:
 def validate_production_config():
     if os.getenv("APP_ENV", "development") != "production":
         return
-    required = ("DATABASE_URL", "SECRET_KEY", "JWT_SECRET_KEY", "REDIS_URL", "CORS_ORIGINS")
+    required = ("DATABASE_URL", "SECRET_KEY", "JWT_SECRET_KEY", "CORS_ORIGINS")
     missing = [key for key in required if not os.getenv(key)]
     if missing:
         raise RuntimeError("Missing production environment variables: " + ", ".join(missing))
@@ -93,8 +93,20 @@ def validate_production_config():
     if os.getenv("PUBLIC_REGISTRATION_ENABLED", "false").lower() == "true":
         raise RuntimeError("Public self-registration requires a verified-email workflow; use invitations")
     storage = os.getenv("RATELIMIT_STORAGE_URI") or os.getenv("REDIS_URL", "")
-    if not storage.startswith(("redis://", "rediss://")):
-        raise RuntimeError("Production rate limiting requires Redis; memory storage is not safe across workers")
+    # PostgreSQL is a transactional, shared alternative to Redis. Never permit
+    # memory:// limits on Vercel: each function instance has its own memory.
+    if storage != "katsdb://" and not storage.startswith(("redis://", "rediss://")):
+        raise RuntimeError("Production rate limiting requires katsdb:// or managed Redis")
+    mode = os.getenv("KATS_TASK_MODE", "celery")
+    if mode not in ("celery", "inline"):
+        raise RuntimeError("KATS_TASK_MODE must be celery or inline")
+    if mode == "celery" and not (os.getenv("CELERY_BROKER_URL") or os.getenv("REDIS_URL")):
+        raise RuntimeError("Celery tasks require an external broker")
+    if mode == "inline" and any(
+        os.getenv(x, "false").lower() == "true"
+        for x in ("MTN_MOMO_ENABLED", "AIRTEL_MONEY_ENABLED", "EFRIS_ENABLED")
+    ):
+        raise RuntimeError("Inline demonstration tasks cannot operate payment/fiscal providers")
     if os.getenv("RATELIMIT_ENABLED", "true").lower() == "false":
         raise RuntimeError("Production cannot disable API rate limiting")
     if os.getenv("S3_BUCKET") and (not os.getenv("CLAMAV_HOST") or not os.getenv("S3_ENDPOINT_URL")):
@@ -108,11 +120,12 @@ def validate_production_config():
         if not 1 <= pool <= 30 or not 0 <= overflow <= 15 or not 1 <= timeout <= 60:
             raise ValueError()
         workers = int(os.getenv("API_WORKERS", "2"))
-        celery_workers = int(os.getenv("CELERY_WORKER_CONCURRENCY", "2"))
+        celery_workers = (int(os.getenv("CELERY_WORKER_CONCURRENCY", "2"))
+                          if mode == "celery" else 0)
         budget = int(os.getenv("DB_CONNECTION_BUDGET", "80"))
-        # API/worker pools are per-process. Reserve 10 slots for migrations,
-        # administration, managed backup tools and incident recovery.
-        if (not 1 <= workers <= 16 or not 1 <= celery_workers <= 16
+        # API/worker pools are per-process. Inline preview has no separate
+        # Celery worker. Reserve 10 slots for migrations and recovery.
+        if (not 1 <= workers <= 16 or not 0 <= celery_workers <= 16
                 or not 20 <= budget <= 1000
                 or (workers + celery_workers) * (pool + overflow) + 10 > budget):
             raise ValueError()

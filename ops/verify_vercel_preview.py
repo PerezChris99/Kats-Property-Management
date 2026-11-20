@@ -53,6 +53,25 @@ def verify(origin, fetch=http_get):
     check("installable_pwa", manifest.get("display") == "standalone",
           "Manifest must retain standalone installation")
 
+    for filename, dimension, purpose in (
+        ("icon-192.png", 192, "any"),
+        ("icon-512-maskable.png", 512, "maskable"),
+    ):
+        path = "/" + filename
+        check("manifest_" + filename,
+              any(icon.get("src") == path
+                  and icon.get("sizes") == str(dimension) + "x" + str(dimension)
+                  and purpose in icon.get("purpose", "any").split()
+                  for icon in manifest.get("icons", [])),
+              "Manifest must advertise the real raster installation icon")
+        status, headers, body = fetch(origin, path)
+        check("raster_" + filename,
+              status == 200 and "image/png" in headers.get("content-type", "")
+              and len(body) >= 24 and body[:8] == b"\x89PNG\r\n\x1a\n"
+              and int.from_bytes(body[16:20], "big") == dimension
+              and int.from_bytes(body[20:24], "big") == dimension,
+              "Raster PWA icon missing, invalid or routed to SPA HTML")
+
     status, headers, body = fetch(origin, "/sw.js")
     check("service_worker", status == 200
           and b"addEventListener" in body
