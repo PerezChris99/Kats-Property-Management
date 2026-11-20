@@ -42,3 +42,25 @@ def test_rate_limit_migration_is_linked_to_full_schema_and_does_not_remove_rls()
     assert "rate_limit_counters.expires_at <= now()" in store
     assert "with self._engine().begin()" in store
     assert "in_memory_fallback" not in store
+
+
+def test_redis_free_operator_jobs_fail_closed_without_postgres(app, monkeypatch):
+    monkeypatch.setenv("KATS_TASK_MODE", "inline")
+    runner=app.test_cli_runner()
+    scheduled=runner.invoke(args=["run-scheduled","rent-reminders"])
+    assert scheduled.exit_code != 0
+    assert "PostgreSQL" in scheduled.output
+    prune=runner.invoke(args=["prune-rate-limits"])
+    assert prune.exit_code != 0
+    assert "PostgreSQL" in prune.output
+
+
+def test_guarded_neon_demo_never_auto_creates_business_tables(monkeypatch):
+    import importlib.util
+    root=Path(__file__).resolve().parents[2]
+    spec=importlib.util.spec_from_file_location("neon_setup",root/"ops/setup_neon_demo.py")
+    script=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    monkeypatch.delenv("KATS_NEON_SETUP",raising=False)
+    with pytest.raises(RuntimeError,match="KATS_NEON_SETUP"):
+        script.verify_environment()
