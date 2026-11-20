@@ -30,7 +30,15 @@ def fake_http(origin, path):
         return 200, {"content-type": "application/json",
                      "cache-control": "no-store, max-age=0"}, b'{"version":"f00dbabe123456"}'
     if path == "/manifest.webmanifest":
-        return 200, {"content-type": "application/manifest+json"}, b'{"display":"standalone"}'
+        return 200, {"content-type": "application/manifest+json"}, (
+            b'{"display":"standalone","icons":['
+            b'{"src":"/icon-192.png","sizes":"192x192","purpose":"any"},'
+            b'{"src":"/icon-512-maskable.png","sizes":"512x512","purpose":"maskable"}]}')
+    if path in ("/icon-192.png", "/icon-512-maskable.png"):
+        size = 192 if path == "/icon-192.png" else 512
+        return 200, {"content-type": "image/png"}, (
+            bytes.fromhex("89504e470d0a1a0a") + b"00000000"
+            + size.to_bytes(4, "big") + size.to_bytes(4, "big") + b"test-fixture")
     if path == "/sw.js":
         return 200, {"content-type": "application/javascript",
                      "cache-control": "no-cache, max-age=0"}, b"self.addEventListener('install', () => {})"
@@ -43,7 +51,9 @@ def test_read_only_vercel_acceptance_checks_api_db_pwa_and_version():
     names = {item["name"] for item in result["checks"]}
     assert {"backend_readiness", "database_readiness",
             "deployment_version_uncached", "installable_pwa",
-            "service_worker", "worker_revalidates"}.issubset(names)
+            "service_worker", "worker_revalidates",
+            "manifest_icon-192.png", "raster_icon-192.png",
+            "manifest_icon-512-maskable.png", "raster_icon-512-maskable.png"}.issubset(names)
 
 
 def test_vercel_acceptance_rejects_spa_html_as_release_metadata():
