@@ -116,3 +116,70 @@ def register_commands(app):
                    "connection budget and review remaining API-only tables.")
         click.echo("NEXT: validate public TLS edge, providers, backups, "
                    "S3 antivirus, penetration tests and staging load benchmarks.")
+
+
+    @app.cli.command("prune-rate-limits")
+    @click.option("--max-rows", type=click.IntRange(1, 50000), default=10000)
+    @with_appcontext
+    def prune_rate_limits(max_rows):
+        """Bounded cleanup of expired Redis-free PostgreSQL rate-limit buckets."""
+        from sqlalchemy import text
+        if db.engine.dialect.name != "postgresql":
+            raise click.ClickException("PostgreSQL required for rate-limit cleanup")
+        result = db.session.execute(text("""
+            DELETE FROM rate_limit_counters
+            WHERE key_digest IN (
+                SELECT key_digest FROM rate_limit_counters
+                WHERE expires_at < now() - INTERVAL '1 day'
+                LIMIT :limit
+                FOR UPDATE SKIP LOCKED
+            )
+        """), {"limit": max_rows})
+        db.session.commit()
+        click.echo("Pruned " + str(result.rowcount) + " expired rate-limit buckets.")
+
+
+    @app.cli.command("run-scheduled")
+    @click.argument("job", type=click.Choice([
+        "rent-invoices", "rent-reminders", "lease-expiries",
+        "preventive-maintenance", "prune-credentials",
+    ]))
+    @with_appcontext
+    def run_scheduled(job):
+        """Run an allowlisted task once, without Redis, under a DB advisory lock.
+
+        The operator's protected cron is the scheduler. No public HTTP endpoint
+        is exposed, and at most one invocation per named job runs concurrently.
+        Provider/fiscal polling is deliberately excluded from this demo mode.
+        """
+        import os
+        from sqlalchemy import text
+        if db.engine.dialect.name != "postgresql":
+            raise click.ClickException("Scheduled jobs require PostgreSQL")
+        if os.getenv("KATS_TASK_MODE") != "inline":
+            raise click.ClickException("Set KATS_TASK_MODE=inline for Redis-free jobs")
+        from . import tasks
+        actions = {
+            "rent-invoices": tasks.generate_rent_invoices,
+            "rent-reminders": tasks.generate_rent_reminders,
+            "lease-expiries": tasks.generate_lease_expiries,
+            "preventive-maintenance": tasks.generate_preventive_maintenance,
+            "prune-credentials": tasks.prune_ephemeral_tokens,
+        }
+        with db.engine.connect() as lock_connection:
+            locked = lock_connection.execute(text(
+                "SELECT pg_try_advisory_lock(1941, hashtext(:name))"
+            ), {"name": job}).scalar_one()
+            if not locked:
+                raise click.ClickException("Job already running in another process")
+            try:
+                # Tasks own their app context, authorization scope and
+                # idempotency. Execute synchronously, not with .delay().
+                result = actions[job]()
+                if hasattr(result, "get") and callable(result.get):
+                    result = result.get(disable_sync_subtasks=False)
+                click.echo("Scheduled job finished: " + job)
+            finally:
+                lock_connection.execute(text(
+                    "SELECT pg_advisory_unlock(1941, hashtext(:name))"
+                ), {"name": job})
