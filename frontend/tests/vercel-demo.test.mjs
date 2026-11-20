@@ -60,7 +60,11 @@ test('client review config defaults to private staff invitations and synthetic d
   assert.ok(config.includes('PUBLIC_REGISTRATION_ENABLED=false'));
   assert.ok(config.includes('VITE_KATS_PUBLIC_DEMO=false'));
   assert.ok(config.includes('DB_POOL_SIZE=1'));
-  for(const key of ['RATELIMIT_STORAGE_URI','REDIS_URL','JWT_SECRET_KEY','CORS_ORIGINS','TRUSTED_HOSTS']){
+  assert.ok(config.includes('RATELIMIT_STORAGE_URI=katsdb://'));
+  assert.ok(config.includes('KATS_TASK_MODE=inline'));
+  assert.ok(!config.includes('REDIS_URL='));
+  assert.ok(docs.includes('ops/setup_neon_demo.py'));
+  for(const key of ['RATELIMIT_STORAGE_URI','KATS_TASK_MODE','JWT_SECRET_KEY','CORS_ORIGINS','TRUSTED_HOSTS','SMTP_HOST','MAIL_FROM']){
     assert.ok(config.includes(key+'='), 'missing '+key);
   }
   for(const word of ['Hobby','Pro','Hostwares','fictional','Redis','Celery','verify_vercel_preview.py']) {
