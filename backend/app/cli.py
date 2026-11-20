@@ -175,9 +175,7 @@ def register_commands(app):
             try:
                 # Tasks own their app context, authorization scope and
                 # idempotency. Execute synchronously, not with .delay().
-                result = actions[job]()
-                if hasattr(result, "get") and callable(result.get):
-                    result = result.get(disable_sync_subtasks=False)
+                actions[job]()
                 click.echo("Scheduled job finished: " + job)
             finally:
                 lock_connection.execute(text(
