@@ -1087,3 +1087,67 @@ def test_seeded_owner_records_and_downloads_advance(page):
     link = receipt.get_by_role("link", name="Download advance receipt")
     response = page.request.get(BASE + link.get_attribute("href"))
     assert response.ok and response.body().startswith(b"%PDF")
+
+
+def test_built_pwa_installability_offline_relaunch_and_reconnect(browser):
+    """Exercise the built worker. Vite's development server intentionally has none."""
+    from contextlib import closing
+    from pathlib import Path
+    import socket
+    import subprocess
+    import time
+    from urllib.request import urlopen
+
+    frontend = Path(__file__).resolve().parents[1] / "frontend"
+    if not (frontend / "dist/sw.js").exists():
+        pytest.skip("Build the production frontend before testing its worker")
+    with closing(socket.socket()) as port_socket:
+        port_socket.bind(("127.0.0.1", 0))
+        port = port_socket.getsockname()[1]
+    origin = f"http://127.0.0.1:{port}"
+    preview = subprocess.Popen(
+        ["node", "node_modules/vite/bin/vite.js", "preview", "--host", "127.0.0.1",
+         "--port", str(port), "--strictPort"], cwd=frontend)
+    context = browser.new_context()
+    try:
+        for _ in range(60):
+            try:
+                with urlopen(origin + "/sw.js", timeout=1) as response:
+                    assert b"__SHELL_HASH__" not in response.read()
+                break
+            except OSError:
+                time.sleep(0.25)
+        else:
+            pytest.fail("Built PWA preview failed to start")
+        page = context.new_page()
+        page.goto(origin + "/login", wait_until="domcontentloaded")
+        page.wait_for_function("!!navigator.serviceWorker.controller", timeout=30000)
+        session = context.new_cdp_session(page)
+        assert session.send("Page.getAppManifest")["errors"] == []
+        assert session.send("Page.getInstallabilityErrors")["installabilityErrors"] == []
+        await_paths = """async () => {
+          const keys = await caches.keys();
+          const cache = await caches.open(keys.find(k => k.startsWith('kats-static-')));
+          return (await cache.keys()).map(r => new URL(r.url).pathname).sort();
+        }"""
+        page.evaluate("fetch('/api/v1/auth/me', {cache:'no-store'}).then(r => r.text())")
+        assert page.evaluate(await_paths) == ["/offline-reconnect.js", "/offline.html"]
+        context.set_offline(True)
+        page.close()
+        page = context.new_page()
+        route = origin + "/login?source=pwa-test"
+        page.goto(route, wait_until="domcontentloaded")
+        expect(page.get_by_role("heading", name="You're offline.")).to_be_visible()
+        assert page.url == route
+        assert page.evaluate("""async () => {
+          try { await fetch('/api/v1/auth/me', {cache:'no-store'}); return false; }
+          catch { return true; }
+        }""")
+        context.set_offline(False)
+        page.wait_for_selector("#root")
+        assert page.url == route
+        assert page.evaluate(await_paths) == ["/offline-reconnect.js", "/offline.html"]
+    finally:
+        context.close()
+        preview.terminate()
+        preview.wait(timeout=10)

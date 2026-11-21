@@ -1,8 +1,9 @@
-// Served from the public static-only service-worker cache. This script never
-// accesses session, tenant or financial data; the app re-authenticates online.
+// The offline response is served at the requested URL. Reload it so normal
+// authentication and deep-link routing run again when connectivity returns.
 (function () {
   function reconnect() {
-    if (navigator.onLine) window.location.replace('/');
+    if (window.location.pathname === '/offline.html') window.location.replace('/dashboard');
+    else window.location.reload();
   }
   window.addEventListener('online', reconnect);
   document.getElementById('retry-online')?.addEventListener('click', reconnect);

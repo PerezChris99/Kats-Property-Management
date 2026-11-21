@@ -23,5 +23,8 @@ createRoot(element).render(<React.StrictMode>
     </QueryClientProvider>
   </React.StrictMode>);
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => { }));
+    const register = () => navigator.serviceWorker.register('/sw.js', {updateViaCache: 'none'})
+        .catch(() => console.warn('Offline support could not be registered.'));
+    if (document.readyState === 'complete') void register();
+    else window.addEventListener('load', register, {once: true});
 }

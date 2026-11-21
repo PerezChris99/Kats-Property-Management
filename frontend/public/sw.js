@@ -1,49 +1,47 @@
-/* Static-only offline support. No API, auth, HTML, tenant, financial or
- * signed-document responses are cached or served from previous sessions. */
-const CACHE = 'kats-static-v4';
-const STATIC = ['/offline.html', '/offline-reconnect.js', '/icon.svg', '/icon-192.png', '/icon-512-maskable.png', '/manifest.webmanifest', '/brand-mark.svg'];
-const MAX_ASSETS = 70;
+// The build gives each offline shell a content-derived cache name.
+const CACHE = 'kats-static-__SHELL_HASH__';
+const SHELL = ['/offline.html', '/offline-reconnect.js'];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(STATIC)));
-  self.skipWaiting();
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    const entries = await Promise.all(SHELL.map(async path => {
+      const response = await fetch(path, {cache: 'reload', credentials: 'omit', redirect: 'error'});
+      const type = response.headers.get('content-type') || '';
+      const validType = path.endsWith('.js') ? /javascript/i.test(type) : /^text\/html/i.test(type);
+      if (!response.ok || !validType) throw new Error('Offline shell unavailable');
+      return [path, response];
+    }));
+    await Promise.all(entries.map(([path, response]) => cache.put(path, response)));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(key => key.startsWith('kats-static-') && key !== CACHE)
-      .map(key => caches.delete(key)))));
-  self.clients.claim();
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key.startsWith('kats-static-') && key !== CACHE)
+      .map(key => caches.delete(key)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', event => {
   const request = event.request;
-  if (request.method !== 'GET') return;
   const url = new URL(request.url);
-  // Cross-origin photos/fonts may have unclear consent/licensing semantics.
-  // All private API responses explicitly bypass the service worker.
-  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
-  // Release discovery and SW registration are browser-network reads only.
-  // No old session may serve an obsolete build marker.
-  if (url.pathname === '/app-version.json' || url.pathname === '/sw.js') return;
+  if (request.method !== 'GET' || url.origin !== self.location.origin ||
+      url.pathname.startsWith('/api/') || url.pathname === '/api' ||
+      url.pathname === '/app-version.json' || url.pathname === '/sw.js' ||
+      url.pathname === '/readyz' || url.pathname === '/healthz') return;
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match('/offline.html')));
-    return;
+    event.respondWith(fetch(request).catch(async () => {
+      const cache = await caches.open(CACHE);
+      return await cache.match('/offline.html') || Response.error();
+    }));
+  } else if (!url.search && SHELL.includes(url.pathname)) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      return await cache.match(url.pathname) || fetch(request);
+    })());
   }
-  const staticAsset = url.pathname.startsWith('/assets/') ||
-    STATIC.includes(url.pathname);
-  if (!staticAsset) return;
-  event.respondWith((async () => {
-    const store = await caches.open(CACHE);
-    const cached = await store.match(request);
-    if (cached) return cached;
-    const response = await fetch(request);
-    if (response.ok && response.type === 'basic') {
-      await store.put(request, response.clone());
-      const keys = await store.keys();
-      await Promise.all(keys.slice(0, Math.max(0, keys.length - MAX_ASSETS))
-        .map(key => store.delete(key)));
-    }
-    return response;
-  })());
 });
