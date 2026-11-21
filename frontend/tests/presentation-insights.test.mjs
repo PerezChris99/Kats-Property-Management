@@ -47,7 +47,7 @@ test('role dashboards have operational hierarchy and no presentation walkthrough
   assert.ok(nav.includes('PAGE_META[page]?.icon'), 'icons for every supported route');
 });
 
-test('command palette and owner PWA installation preserve route permissions', () => {
+test('command palette respects route permissions and the workspace shares its install control', () => {
   const app = read('src/App.jsx');
   const command = read('src/QuickActionsPalette.jsx');
   const install = read('src/PwaInstallButton.jsx');
@@ -58,7 +58,7 @@ test('command palette and owner PWA installation preserve route permissions', ()
   assert.ok(command.includes('allowed.includes(item.path.slice(1))'), 'local role-based route list');
   assert.ok(command.includes('createPortal('), 'modal escapes header blur');
   assert.ok(command.includes('aria-modal="true"') && command.includes('Escape'));
-  assert.ok(install.includes("role !== 'OWNER'"), 'install prompt is owner-only');
+  assert.ok(app.includes('<PwaInstallButton/>'), 'all signed-in workspaces share the install control');
   assert.ok(install.includes('beforeinstallprompt'));
   assert.equal(manifest.start_url, '/dashboard');
   assert.equal(manifest.display, 'standalone');

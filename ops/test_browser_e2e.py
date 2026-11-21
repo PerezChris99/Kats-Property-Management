@@ -1151,3 +1151,32 @@ def test_built_pwa_installability_offline_relaunch_and_reconnect(browser):
         context.close()
         preview.terminate()
         preview.wait(timeout=10)
+
+
+@pytest.mark.parametrize("role", ["OWNER", "TENANT"])
+def test_shared_install_control_opens_role_dashboard(page, role):
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto(BASE + "/login")
+    expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=15000)
+    # Simulate browser eligibility while the user is still on the login page.
+    page.evaluate("""() => {
+      const event = new Event('beforeinstallprompt', {cancelable: true});
+      event.prompt = async () => { window.installPromptCalls = (window.installPromptCalls || 0) + 1; };
+      event.userChoice = Promise.resolve({outcome: 'dismissed'});
+      window.dispatchEvent(event);
+    }""")
+    if role == "OWNER":
+        page.locator(".pm-demo-owner").click()
+    else:
+        page.locator(".pm-demo-search").fill("Sarah Namusoke")
+        page.locator(".pm-demo-tenant-list button").first.click()
+    expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
+    button = page.get_by_role("button", name="Install app", exact=True)
+    expect(button).to_be_visible()
+    button.click()
+    assert page.evaluate("window.installPromptCalls") == 1
+    page.goto(BASE + "/dashboard")
+    dashboard = ".kats-tenant-dashboard" if role == "TENANT" else "#kats-owner-next"
+    expect(page.locator(dashboard)).to_be_visible(timeout=15000)
+    if role == "TENANT":
+        assert page.request.get(BASE + "/api/v1/audit").status == 403

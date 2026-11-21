@@ -783,7 +783,7 @@ function Portal({ user, logout, systemReady }) {
           <span>Workspace <span aria-hidden="true">/</span> {pageTitle}</span>
           <strong>{pageTitle}</strong>
         </div>
-        <div className="portal-header-tools"><QuickActionsPalette pages={nav}/><CheckAppUpdatesButton/><PwaInstallButton role={user.role}/><span className={'portal-system-state ' + (systemReady === true ? 'is-connected' : systemReady === false ? 'is-disconnected' : '')} role="status"><span className="portal-status-dot" aria-hidden="true"/>{systemReady === null ? 'Checking API' : systemReady ? 'System connected' : 'API unavailable'}</span><div className="portal-identity" title={user.full_name}>
+        <div className="portal-header-tools"><QuickActionsPalette pages={nav}/><CheckAppUpdatesButton/><PwaInstallButton/><span className={'portal-system-state ' + (systemReady === true ? 'is-connected' : systemReady === false ? 'is-disconnected' : '')} role="status"><span className="portal-status-dot" aria-hidden="true"/>{systemReady === null ? 'Checking API' : systemReady ? 'System connected' : 'API unavailable'}</span><div className="portal-identity" title={user.full_name}>
           <span className="identity-avatar" aria-hidden="true">{user.full_name.trim().charAt(0).toUpperCase()}</span>
           <span><strong>{user.full_name}</strong><small>{user.role.replaceAll('_', ' ')}</small></span>
         </div></div>
