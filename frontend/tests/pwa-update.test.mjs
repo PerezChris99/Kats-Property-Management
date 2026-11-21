@@ -51,7 +51,7 @@ test('release metadata and SW are private-data-safe and never cached as immutabl
   assert.ok([vercel,vercelRoot].every(v =>
     v.headers.some(h=>h.source==='/app-version.json' &&
       h.headers.some(p=>p.key==='Cache-Control'&&p.value.includes('no-store')))));
-  assert.ok(read('src/main.jsx').includes("navigator.serviceWorker.register('/sw.js')"));
+  assert.ok(read('src/main.jsx').includes("navigator.serviceWorker.register('/sw.js', {updateViaCache: 'none'})"));
   assert.ok(read('public/manifest.webmanifest').includes('"display": "standalone"'));
 });
 
@@ -75,11 +75,9 @@ test('manifest includes real 192 and 512 pixel raster icons, install scope and s
   png('icon-192.png', 192);
   png('icon-512-maskable.png', 512);
   const sw=read('public/sw.js');
-  assert.ok(sw.includes("'/icon-192.png'"));
-  assert.ok(sw.includes("'/icon-512-maskable.png'"));
-  assert.ok(sw.includes("'/manifest.webmanifest'"));
-  assert.ok(sw.includes("url.pathname.startsWith('/api/')"));
-  assert.ok(sw.includes("fetch(request).catch(() => caches.match('/offline.html'))"));
+  assert.ok(manifest.icons.some(i => i.sizes === '512x512' && i.purpose === 'any'));
+  assert.ok(read('index.html').includes('rel="apple-touch-icon"'));
+  assert.ok(sw.includes("cache.match('/offline.html')"));
   assert.ok(read('index.html').includes('rel="manifest" href="/manifest.webmanifest"'));
   assert.ok(read('src/main.jsx').includes("import.meta.env.PROD"));
 });

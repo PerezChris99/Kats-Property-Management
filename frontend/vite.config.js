@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 // Vercel builds the isolated frontend service and need not include sibling
@@ -30,6 +31,11 @@ const releaseId = process.env.KATS_RELEASE_SHA ||
 const versionAsset = {
   name: 'kats-release-discovery',
   generateBundle() {
+    const readPublic = file => readFileSync(new URL('./public/' + file, import.meta.url));
+    const worker = readPublic('sw.js').toString();
+    const hash = createHash('sha256').update(worker)
+      .update(readPublic('offline.html')).update(readPublic('offline-reconnect.js')).digest('hex');
+    this.emitFile({type: 'asset', fileName: 'sw.js', source: worker.replace('__SHELL_HASH__', hash)});
     this.emitFile({
       type: 'asset', fileName: 'app-version.json',
       source: JSON.stringify({version:releaseId})

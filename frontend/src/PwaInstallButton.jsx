@@ -34,21 +34,26 @@ export function PwaInstallButton({ role }) {
   }, []);
   if (role !== 'OWNER') return null;
   if (installed) return <span className="kats-installed-indicator">
-    <MonitorCheck size={16} aria-hidden="true"/> Desktop app</span>;
-  if (!offer) return null;
+    <MonitorCheck size={16} aria-hidden="true"/> Installed app</span>;
+  if (!offer) {
+    const appleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return appleMobile ? <details className="kats-install-help"><summary>Install app</summary>
+      <p>In Safari, open Share, choose Add to Home Screen, then tap Add.</p>
+    </details> : null;
+  }
   async function install() {
     const event = offer;
     pendingInstall = null;
     setOffer(null);
     try {
       await event.prompt();
-      const choice = await event.userChoice;
-      if (choice?.outcome === 'accepted') setInstalled(true);
+      await event.userChoice;
     } catch {
       // Browser owns install eligibility. Never impersonate success.
     }
   }
   return <button type="button" className="kats-install-trigger" onClick={install}>
-    <Download size={16} aria-hidden="true"/> Install desktop app
+    <Download size={16} aria-hidden="true"/> Install app
   </button>;
 }
