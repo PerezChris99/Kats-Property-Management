@@ -1157,6 +1157,7 @@ def test_built_pwa_installability_offline_relaunch_and_reconnect(browser):
 def test_shared_install_control_opens_role_dashboard(page, role):
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(BASE + "/login")
+    page.locator(".pm-demo-disclosure > summary").click()
     expect(page.locator(".pm-demo-owner")).to_be_visible(timeout=15000)
     # Simulate browser eligibility while the user is still on the login page.
     page.evaluate("""() => {
