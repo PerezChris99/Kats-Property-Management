@@ -91,6 +91,9 @@ def main():
             with db.engine.connect() as conn:
                 conn.execute(text("SELECT 1")).scalar_one()
                 check_schema_and_role(conn, heads)
+                if conn.execute(text("SELECT EXISTS(SELECT 1 FROM users WHERE lower(email) LIKE :pattern)"),
+                                {"pattern": "%@demo.kats.invalid"}).scalar_one():
+                    raise RuntimeError("The production database contains fictional demo accounts")
                 check_privileged_mfa(conn)
         store = os.getenv("RATELIMIT_STORAGE_URI") or os.getenv("REDIS_URL", "")
         if store == "katsdb://":

@@ -12,6 +12,7 @@ from ..models import new_id, utcnow
 class BankStatement(db.Model):
     __tablename__ = "bank_statements"
     id = db.Column(db.String(36), primary_key=True, default=new_id)
+    book_code = db.Column(db.String(40), db.ForeignKey("gl_accounts.code"), nullable=False, server_default="BANK")
     bank_label = db.Column(db.String(120), nullable=False)
     account_mask = db.Column(db.String(30), nullable=False)
     start_date = db.Column(db.Date, nullable=False)

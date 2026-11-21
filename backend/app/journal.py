@@ -28,8 +28,9 @@ def post_receipt_journal(payment, *, reverse=False):
     db.session.add(event)
     db.session.flush()
     amount = payment.amount_ugx
-    debit = "RENT_RECEIVABLE" if reverse else "CASH_CLEARING"
-    credit = "CASH_CLEARING" if reverse else "RENT_RECEIVABLE"
+    source = "TENANT_ADVANCES" if payment.advance_id else "CASH_CLEARING"
+    debit = "RENT_RECEIVABLE" if reverse else source
+    credit = source if reverse else "RENT_RECEIVABLE"
     db.session.add(JournalLine(event_id=event.id, account_code=debit, debit_ugx=amount, credit_ugx=0))
     db.session.add(JournalLine(event_id=event.id, account_code=credit, debit_ugx=0, credit_ugx=amount))
     return True

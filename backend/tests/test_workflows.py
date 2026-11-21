@@ -44,7 +44,7 @@ def test_manual_payment_requires_separate_approval_and_is_idempotent(app):
     })
     assert invoice_response.status_code == 201, invoice_response.json
     invoice_id = invoice_response.json["invoice"]["id"]
-    pending_payload = {"invoice_id": invoice_id, "method": "CASH", "amount_ugx": 100000,
+    pending_payload = {"invoice_id": invoice_id, "method": "CASH", "amount_ugx": 250000,
                        "idempotency_key": "pmt-0001"}
     pending = writer.post("/api/v1/payments/manual", json=pending_payload, headers=headers)
     assert pending.status_code == 201, pending.json
@@ -55,7 +55,9 @@ def test_manual_payment_requires_separate_approval_and_is_idempotent(app):
     assert writer.post("/api/v1/payments/" + payment_id + "/approve", headers=headers).status_code == 403
     confirmed = reviewer.post("/api/v1/payments/" + payment_id + "/approve", headers=csrf(reviewer))
     assert confirmed.status_code == 200, confirmed.json
-    assert confirmed.json["invoice"]["paid_ugx"] == 100000
+    assert confirmed.json["invoice"]["paid_ugx"] == 250000
+    replay = writer.post("/api/v1/payments/manual", json=pending_payload, headers=headers)
+    assert replay.status_code == 200 and replay.json["payment"]["id"] == payment_id
     assert reviewer.post("/api/v1/payments/" + payment_id + "/approve",
                          headers=csrf(reviewer)).status_code == 200
     assert db.session.query(LedgerEntry).filter_by(payment_id=payment_id).count() == 1

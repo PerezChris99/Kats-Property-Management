@@ -105,14 +105,14 @@ def list_matches(_user, statement_id):
 @bank_api.get("/finance/bank-statements/<statement_id>/candidates/<line_id>")
 @roles(*REVIEWERS)
 def bank_candidates(_user, statement_id, line_id):
-    statement_query(statement_id)
+    statement = statement_query(statement_id)
     line = db.session.query(BankStatementLine).filter_by(
         id=line_id, statement_id=statement_id).first()
     if not line:
         abort(404)
     from_date = line.booked_on.fromordinal(line.booked_on.toordinal() - 14)
     to_date = line.booked_on.fromordinal(line.booked_on.toordinal() + 14)
-    code = "CASH_CLEARING" if line.signed_ugx > 0 else "BANK"
+    code = "CASH_CLEARING" if line.signed_ugx > 0 else statement.book_code
     entries = db.session.query(GLEvent).join(
         GLLine, GLLine.event_id == GLEvent.id).filter(
         GLLine.account_code == code,
@@ -121,7 +121,7 @@ def bank_candidates(_user, statement_id, line_id):
     ).distinct().order_by(GLEvent.posted_on.desc()).limit(100).all()
     found = []
     for event in entries:
-        amount = eligible_source(event, line.signed_ugx)
+        amount = eligible_source(event, line.signed_ugx, statement.book_code)
         available = abs(amount) - abs(approved_amount_for_event(event.id))
         if available <= 0:
             continue

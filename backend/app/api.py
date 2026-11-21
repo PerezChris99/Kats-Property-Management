@@ -686,24 +686,34 @@ def record_manual_payment(user):
     method = required_string(obj, "method").upper()
     if method not in ("CASH", "BANK_TRANSFER"):
         return fail("Only cash and bank proof are accepted here")
-    invoice = db.session.get(Invoice, required_string(obj, "invoice_id"))
-    if not invoice or invoice.status in ("VOID", "PAID", "CREDITED"):
+    reference = obj.get("reference")
+    if reference is not None:
+        reference = required_string(obj, "reference", 160)
+    invoice = db.session.query(Invoice).filter_by(id=required_string(obj, "invoice_id")).with_for_update().first()
+    if not invoice:
         return fail("Open invoice required")
     key = required_string(obj, "idempotency_key", 128)
     existing = db.session.query(Payment).filter_by(idempotency_key=key).first()
     if existing:
         intended_amount = ugx(obj.get("amount_ugx"), positive=True)
         if (existing.invoice_id != invoice.id or existing.amount_ugx != intended_amount
-                or existing.method != method):
+                or existing.method != method or (existing.reference or "").strip() != (reference or "")
+                or existing.created_by != user.id):
             return fail("Idempotency key already used for a different payment", 409)
         return jsonify(payment=serialize(existing, "id", "status", "amount_ugx")), 200
+    if invoice.status in ("VOID", "PAID", "CREDITED"):
+        return fail("Open invoice required")
     amount = ugx(obj.get("amount_ugx"), positive=True)
     if amount > invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx:
         return fail("Payment is greater than outstanding invoice balance")
-    reference = obj.get("reference")
     if method == "BANK_TRANSFER":
         if not isinstance(reference, str) or not reference.strip():
             return fail("Bank transfer requires a reference")
+        from .finance.ledger import period_lock
+        from .models import RentAdvance
+        period_lock("receipt-reference")
+        if db.session.query(RentAdvance.id).filter_by(reference=reference.strip()).first():
+            return fail("Bank reference already recorded as an advance", 409)
     payment = Payment(invoice_id=invoice.id, amount_ugx=amount, method=method,
                       reference=reference, idempotency_key=key, created_by=user.id,
                       status="PENDING_REVIEW")
@@ -1142,21 +1152,23 @@ def caretaker_payments(user):
 @roles("CARETAKER")
 def caretaker_record_cash(user):
     obj = data()
-    invoice = db.session.get(Invoice, required_string(obj, "invoice_id"))
-    if not invoice or invoice.status in ("PAID", "VOID", "CREDITED"):
+    invoice = db.session.query(Invoice).filter_by(id=required_string(obj, "invoice_id")).with_for_update().first()
+    if not invoice:
         return fail("Open invoice required")
     lease = db.session.get(Lease, invoice.lease_id)
     ensure_assigned(user, lease.room_id)
     amount = ugx(obj.get("amount_ugx"), positive=True)
-    if amount > invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx:
-        return fail("Cash exceeds outstanding balance")
     key = required_string(obj, "idempotency_key", 128)
     existing = db.session.query(Payment).filter_by(idempotency_key=key).first()
     if existing:
         if (existing.invoice_id != invoice.id or existing.amount_ugx != amount
-                or existing.method != "CASH"):
+                or existing.method != "CASH" or existing.created_by != user.id):
             return fail("Idempotency key already used for another payment", 409)
         return jsonify(payment=serialize(existing, "id", "status", "amount_ugx"))
+    if invoice.status in ("PAID", "VOID", "CREDITED"):
+        return fail("Open invoice required")
+    if amount > invoice.total_ugx - invoice.credit_ugx - invoice.paid_ugx:
+        return fail("Cash exceeds outstanding balance")
     payment = Payment(invoice_id=invoice.id, amount_ugx=amount, method="CASH",
                       status="PENDING_REVIEW", idempotency_key=key, created_by=user.id)
     db.session.add(payment)

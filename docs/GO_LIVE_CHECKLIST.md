@@ -33,3 +33,11 @@ The owner must approve this checklist based on evidence; source code alone does 
 - [ ] Reviewed perez changes merged to main; release tag created only for an approved release.
 
 **No go-live signoffs are currently recorded.**
+
+## Owner handover for the first property
+
+1. Keep the fictional portfolio in its existing demo database. For an existing local PostgreSQL demo, use `python ops/local_postgres_demo.py upgrade` once to migrate it in place and refresh route permissions. Run the production migrations and `flask --app wsgi seed-permissions` against a separate database. Import only reconciled business records there.
+2. At the client meeting, record who collects, who independently reviews, each receiving bank's stable label and masked identifier, and the accountant's EFRIS process. The owner can review a staff collection. A collection entered by the owner requires another authorized reviewer.
+3. Use **Payments → Advance rent** for one cash voucher or bank transfer covering multiple rental months. Give the tenant the internal receipt, approve it, then allocate it to each invoice of the same lease. Unapplied UGX stays in tenant advance liabilities. Invoice-based rent charts show applied amounts. Use the ledger and advance register for money received before allocation.
+4. For each bank, compare the source statement to its dedicated GL opening and closing balances. Record externally issued fiscal documents through the agreed accountant process until the approved integration is tested.
+5. Walk one property through a full billing cycle, including a mid-month move-in, a lost-response retry, a reversal and a day without connectivity. Verify the approved offline receipt procedure, then reconcile before expanding to other buildings.

@@ -192,6 +192,8 @@ def create_app(test_config=None):
     from .finance.routes import gl_api
     app.register_blueprint(gl_api, url_prefix="/api/v1")
     from .finance.bank_routes import bank_api
+    from .advances import advances
+    app.register_blueprint(advances, url_prefix="/api/v1")
     app.register_blueprint(bank_api, url_prefix="/api/v1")
     from .workspace_search import workspace_search_api
     app.register_blueprint(workspace_search_api, url_prefix="/api/v1")

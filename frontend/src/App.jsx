@@ -40,6 +40,7 @@ const RenewalsPage = lazy(() => import('./Modules').then(m => ({ default: m.Rene
 const DepositsPage = lazy(() => import('./Modules').then(m => ({ default: m.DepositsPage })));
 const WorkOrdersPage = lazy(() => import('./Modules').then(m => ({ default: m.WorkOrdersPage })));
 const SettingsAdminPage = lazy(() => import('./Modules').then(m => ({ default: m.SettingsAdminPage })));
+const RentAdvances = lazy(() => import('./RentAdvances'));
 const ReceiptsPage = lazy(() => import('./Modules').then(m => ({ default: m.ReceiptsPage })));
 const TenantStatementsPage = lazy(() => import('./Modules').then(m => ({ default: m.TenantStatementsPage })));
 const TenantStatementSelfPage = lazy(() => import('./Modules').then(m => ({ default: m.TenantStatementSelfPage })));
@@ -450,6 +451,7 @@ function ResourcePage({ resource, user }) {
     }
     return <section className="page"><div className="page-head"><div><span className="eyebrow">OPERATIONS</span><h1>{resource.title}</h1></div>{canWrite && <button className="button" onClick={() => setEditing(!editing)}>{editing ? 'Cancel' : 'Add ' + resource.title.toLowerCase()}</button>}</div>
     {error && <div role="alert" className="error">{error} <button type="button" className="outline-button" onClick={() => { void load(); }}>Retry</button></div>}
+    {resource.path === 'payments' && <RentAdvances user={user}/>}
     {editing && canWrite && <form className="resource-form" onSubmit={submit}><h2>New record</h2><div className="fields">{resource.fields.filter(field => field.name !== 'idempotency_key').map(field => <label key={field.name}>{field.label}{field.options ? <select value={values[field.name] || ''} onChange={e => setValues({ ...values, [field.name]: e.target.value })} required={field.required}><option value="">Select</option>{field.options.map(option => <option key={option}>{option}</option>)}</select> : references[field.name]?.length ? <select value={values[field.name] || ''} onChange={e => setValues({ ...values, [field.name]: e.target.value })} required={field.required}><option value="">Select a record</option>{references[field.name].map(row => <option key={String(row.id)} value={String(row.id)}>{String(row.name || row.number || row.full_name || row.invoice_number || row.email || row.title || row.id)}</option>)}</select> : <input required={field.required} type={field.type || 'text'} min={field.type === 'number' ? (field.name === 'level' ? '-10' : '0') : undefined} value={values[field.name] || ''} onChange={e => setValues({ ...values, [field.name]: e.target.value })}/>}</label>)}</div><button className="button" disabled={busy}>{busy ? 'Saving…' : 'Save record'}</button></form>}
     <div className="record-toolbar">
       <label className="record-filter">{searchable ? 'Search all authorized records' : 'Filter loaded records'}
@@ -793,7 +795,7 @@ function Portal({ user, logout, systemReady }) {
         </div>}
         {page !== "dashboard" && page !== "more" && <WorkspaceSectionTabs pages={nav} active={page} role={user.role}/>}
         <Suspense fallback={<p className="data-loading" role="status">Opening workspace…</p>}>{page === 'more' ? <section className="page"><span className="eyebrow">YOUR WORKSPACE</span><h1>More</h1><div className="quick">{nav.map(key => <Link key={key} to={'/' + key}>{key[0].toUpperCase() + key.slice(1)}</Link>)}</div><button className="button" onClick={logout}>Sign out</button></section> : page === 'statements' && nav.includes(page) ? (user.role === 'TENANT' ? <TenantStatementSelfPage /> : <TenantStatementsPage />) :
-            page === 'receipts' && nav.includes(page) ? <ReceiptsPage /> :
+            page === 'receipts' && nav.includes(page) ? <><ReceiptsPage />{user.role === 'TENANT' && <RentAdvances user={user}/>}</> :
                 page === 'utilities' && nav.includes(page) ? <UtilitiesPage role={user.role}/> :
                 page === 'privacy-requests' && nav.includes(page) ? <PrivacyRequestsPage role={user.role}/> :
                 page === 'disputes' && nav.includes(page) ? <DisputesPage role={user.role}/> :

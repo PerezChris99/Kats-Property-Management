@@ -13,8 +13,8 @@ import re
 from datetime import date, timedelta
 from sqlalchemy import func, or_
 from ..extensions import db
-from .ledger import GLPostingError, period_lock, post_event
-from .gl_models import GLEvent, GLLine
+from .ledger import GLPostingError, period_lock, post_event, ensure_chart
+from .gl_models import GLAccount, GLEvent, GLLine
 from .bank_models import BankStatement, BankStatementLine, BankMatch
 
 LIMIT = 10**15
@@ -82,16 +82,20 @@ def import_statement(*, bank_label: str, account_mask: str, start: date, end: da
     if start > end:
         raise BankEvidenceError("Bank statement start cannot exceed end")
     rows = parse_bank_csv(csv_text, start, end)
-    # The canonical GL has one BANK control account, not a bank-account
-    # subledger. A different account could otherwise borrow an unrelated
-    # bank's book balance and be marked reconciled. Fail closed until the
-    # accounting model supports separately identified bank accounts.
     period_lock("bank-account")
-    existing_mask = db.session.query(BankStatement.account_mask).limit(1).scalar()
-    if existing_mask is not None and existing_mask != account_mask:
-        raise BankEvidenceError(
-            "Only one bank account can be reconciled to the current BANK ledger; "
-            "separate per-account accounting is required")
+    ensure_chart()
+    book_code = db.session.query(BankStatement.book_code).filter(
+        func.lower(BankStatement.bank_label) == bank_label.lower(),
+        BankStatement.account_mask == account_mask).limit(1).scalar()
+    if book_code is None:
+        if db.session.query(BankStatement.id).first() is None:
+            book_code = "BANK"
+        else:
+            identity = (bank_label.lower() + "|" + account_mask).encode()
+            book_code = "BANK_" + hashlib.sha256(identity).hexdigest()[:32]
+            db.session.add(GLAccount(code=book_code, name=bank_label + " " + account_mask,
+                                     kind="ASSET", active=True))
+            db.session.flush()
     if opening + sum(row[-1] for row in rows) != closing:
         raise BankEvidenceError("Statement inflow/outflow totals do not reconcile to closing balance")
     fingerprint = hashlib.sha256(
@@ -101,7 +105,7 @@ def import_statement(*, bank_label: str, account_mask: str, start: date, end: da
     if db.session.query(BankStatement.id).filter_by(content_sha256=fingerprint).first():
         raise BankEvidenceError("Bank statement already imported; inspect original evidence")
     batch = BankStatement(
-        bank_label=bank_label, account_mask=account_mask,
+        bank_label=bank_label, account_mask=account_mask, book_code=book_code,
         start_date=start, end_date=end, opening_ugx=opening,
         closing_ugx=closing, content_sha256=fingerprint, imported_by=actor_id,
         state="OPEN")
@@ -120,10 +124,10 @@ def cash_delta(event_id: str, code: str) -> int:
         GLLine.event_id == event_id, GLLine.account_code == code).scalar() or 0)
 
 
-def eligible_source(event: GLEvent, signed: int) -> int:
+def eligible_source(event: GLEvent, signed: int, book_code: str) -> int:
     if event.kind in ("BANK_SETTLEMENT", "OPENING_BALANCES"):
         return 0
-    code = "CASH_CLEARING" if signed > 0 else "BANK"
+    code = "CASH_CLEARING" if signed > 0 else book_code
     value = cash_delta(event.id, code)
     if value == 0 or (value > 0) != (signed > 0):
         return 0
@@ -142,7 +146,8 @@ def approved_amount_for_event(event_id: str):
 
 def propose_match(*, line: BankStatementLine, event: GLEvent,
                   amount: int, maker: str):
-    if db.session.get(BankStatement, line.statement_id).state != "OPEN":
+    statement = db.session.get(BankStatement, line.statement_id)
+    if statement.state != "OPEN":
         raise BankEvidenceError("A closed bank statement cannot be modified")
     if type(amount) is not int or amount == 0 or abs(amount) > LIMIT:
         raise BankEvidenceError("Match requires a signed nonzero integer UGX allocation")
@@ -150,7 +155,7 @@ def propose_match(*, line: BankStatementLine, event: GLEvent,
         raise BankEvidenceError("Bank and ledger transaction directions differ")
     if abs((event.posted_on - line.booked_on).days) > 14:
         raise BankEvidenceError("Source date differs by over 14 days; manual adjustment needed")
-    value = eligible_source(event, amount)
+    value = eligible_source(event, amount, statement.book_code)
     if not value or abs(amount) > abs(value):
         raise BankEvidenceError("GL event has no eligible cash/bank entry")
     if db.session.query(BankMatch.id).filter_by(
@@ -175,7 +180,7 @@ def approve_match(match: BankMatch, reviewer: str):
         raise BankEvidenceError("Bank review is no longer pending")
     if reviewer in (match.proposed_by, statement.imported_by):
         raise BankEvidenceError("Independent bank statement review required")
-    value = eligible_source(event, match.signed_ugx)
+    value = eligible_source(event, match.signed_ugx, statement.book_code)
     if not value:
         raise BankEvidenceError("GL source is no longer eligible")
     if abs(approved_amount_for_event(event.id) + match.signed_ugx) > abs(value):
@@ -191,16 +196,16 @@ def approve_match(match: BankMatch, reviewer: str):
         # bank deposit. This is a transfer only, not new income or cash.
         post_event(
             "bank-settlement:" + line.id, "BANK_SETTLEMENT", line.booked_on,
-            [("BANK", completed, 0), ("CASH_CLEARING", 0, completed)],
+            [(statement.book_code, completed, 0), ("CASH_CLEARING", 0, completed)],
             actor_id=reviewer)
     return completed
 
 
-def bank_book_balance(through: date, *, before=False):
+def bank_book_balance(through: date, *, book_code, before=False):
     query = db.session.query(func.coalesce(
         func.sum(GLLine.debit_ugx - GLLine.credit_ugx), 0)).join(
         GLEvent, GLEvent.id == GLLine.event_id).filter(
-        GLLine.account_code == "BANK")
+        GLLine.account_code == book_code)
     query = query.filter(GLEvent.posted_on < through if before else
                          GLEvent.posted_on <= through)
     return int(query.scalar() or 0)
@@ -232,12 +237,12 @@ def reconcile_report(statement: BankStatement):
             outstanding.append(row)
         if proposed:
             pending.append(row)
-    book_open = bank_book_balance(statement.start_date, before=True)
-    book_close = bank_book_balance(statement.end_date)
+    book_open = bank_book_balance(statement.start_date, book_code=statement.book_code, before=True)
+    book_close = bank_book_balance(statement.end_date, book_code=statement.book_code)
     return {
         "statement": {
             "id":statement.id,"bank_label":statement.bank_label,
-            "account_mask":statement.account_mask,
+            "account_mask":statement.account_mask, "book_code":statement.book_code,
             "start_date":statement.start_date.isoformat(),
             "end_date":statement.end_date.isoformat(),
             "state":statement.state,
@@ -255,6 +260,6 @@ def reconcile_report(statement: BankStatement):
             not outstanding and not pending and
             book_open == statement.opening_ugx and
             book_close == statement.closing_ugx),
-        "scope": "SINGLE_BOOK_BANK_ACCOUNT",
+        "scope": "PER_ACCOUNT_BANK_LEDGER",
         "warning": "Operator-imported bank CSV is not proof of independent bank confirmation. No payment provider was instructed to transfer funds.",
     }

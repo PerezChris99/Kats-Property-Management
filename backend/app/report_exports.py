@@ -178,7 +178,11 @@ def receipt_pdf(payment_id):
         "Recorded on: "+payment.created_at.date().isoformat(),
         "EFRIS invoice document reference: "+(fiscal_number or "Not fiscalized"),
     ]
-    pdf=pdf_document("Kats · Internal payment acknowledgement",lines,
+    title = "Kats · Internal payment acknowledgement"
+    if payment.advance_id:
+        title = "Kats · Advance rent allocation"
+        lines.append("Applied from advance receipt " + payment.advance_id + ". No additional cash received.")
+    pdf=pdf_document(title,lines,
        footer="Internal acknowledgement ONLY. Not a URA EFRIS receipt. Reversed payments are invalid.")
     return file_response(pdf,"application/pdf","kats-internal-receipt.pdf")
 

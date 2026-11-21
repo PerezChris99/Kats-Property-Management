@@ -133,11 +133,11 @@ reviewed matches are retained as audit evidence; forward migration 0035 also
 prevents SQL-level rewriting or deletion of bank statement headers and balances.
 A statement may transition to RECONCILED only through its single reviewed close.
 
-The initial chart of accounts has only **one** BANK control account without
-bank-account dimension. To avoid false per-account reconciliation, imports now
-reject a second masked bank account. Multi-bank support requires a dedicated
-bank-account register, per-account GL postings and balance calculations before
-that guard can be relaxed. Imported files are not bank-authenticated; human
+Migration 0037 preserves the historical BANK account and assigns separate
+asset ledgers to subsequent bank identities. Use a consistent bank label and
+masked identifier. Check both against the source statement before import.
+Opening balances and bank settlements must use that account's GL code.
+Imported files are not bank-authenticated; human
 verification against the issuing financial institution and legal/provider
 settlement evidence remain mandatory before go-live. No operational banking
 transfers occur through this workflow.
