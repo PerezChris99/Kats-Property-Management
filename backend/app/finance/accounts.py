@@ -11,6 +11,7 @@ DEFAULT_ACCOUNTS = (
     ("PREPAID_EXPENSE", "Prepaid expenses", "ASSET"),
     ("FIXED_ASSETS", "Property fixed assets", "ASSET"),
     ("ACCOUNTS_PAYABLE", "Vendor and operating payables", "LIABILITY"),
+    ("TENANT_ADVANCES", "Rent received before invoice allocation", "LIABILITY"),
     ("TENANT_DEPOSITS", "Tenant security deposit liability", "LIABILITY"),
     ("DEPOSIT_REFUNDS_PAYABLE", "Approved deposit refunds awaiting payout proof", "LIABILITY"),
     ("ACCRUED_EXPENSES", "Accrued expenses", "LIABILITY"),

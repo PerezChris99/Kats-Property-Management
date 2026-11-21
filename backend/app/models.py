@@ -102,8 +102,28 @@ class Invoice(db.Model):
         CheckConstraint("period_end >= period_start", name="ck_invoice_period"),
     )
 
+class RentAdvance(db.Model):
+    __tablename__ = "rent_advances"
+    id = db.Column(db.String(36), primary_key=True, default=new_id)
+    lease_id = db.Column(db.String(36), db.ForeignKey("leases.id"), nullable=False, index=True)
+    amount_ugx = db.Column(db.BigInteger, nullable=False)
+    method = db.Column(db.String(25), nullable=False)
+    reference = db.Column(db.String(160), nullable=False, unique=True)
+    idempotency_key = db.Column(db.String(128), nullable=False, unique=True)
+    status = db.Column(db.String(16), nullable=False)
+    created_by = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False)
+    reviewed_by = db.Column(db.String(36), db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    approved_at = db.Column(db.DateTime(timezone=True))
+    __table_args__ = (
+        CheckConstraint("amount_ugx > 0", name="ck_advance_positive"),
+        CheckConstraint("status IN ('PENDING','APPROVED','REVERSED')", name="ck_advance_state"),
+    )
+
+
 class Payment(db.Model):
     __tablename__ = "payments"
+    advance_id = db.Column(db.String(36), db.ForeignKey("rent_advances.id"), index=True)
     id = db.Column(db.String(36), primary_key=True, default=new_id)
     invoice_id = db.Column(db.String(36), db.ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False, index=True)
     amount_ugx = db.Column(db.BigInteger, nullable=False)

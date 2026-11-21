@@ -27,6 +27,16 @@ def main():
     dbfile.parent.mkdir(parents=True, exist_ok=True)
     with app.app_context():
         db.create_all()
+        # create_all leaves existing preview tables intact. Add the two nullable
+        # or defaulted fields without replacing any fictional records.
+        from sqlalchemy import inspect, text
+        with db.engine.begin() as connection:
+            inspector = inspect(connection)
+            if "advance_id" not in {c["name"] for c in inspector.get_columns("payments")}:
+                connection.execute(text("ALTER TABLE payments ADD COLUMN advance_id VARCHAR(36) REFERENCES rent_advances(id)"))
+                connection.execute(text("CREATE INDEX ix_payments_advance_id ON payments(advance_id)"))
+            if "book_code" not in {c["name"] for c in inspector.get_columns("bank_statements")}:
+                connection.execute(text("ALTER TABLE bank_statements ADD COLUMN book_code VARCHAR(40) NOT NULL DEFAULT 'BANK'"))
     print("[PREVIEW] SQLite schema ready at .local/kats-preview.sqlite3", flush=True)
 
 

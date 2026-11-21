@@ -150,6 +150,13 @@ def test_second_bank_account_cannot_use_first_accounts_gl_balance(app):
     first = upload("****1234")
     assert first.status_code == 201, first.get_json()
     second = upload("****9999")
-    assert second.status_code == 400, second.get_json()
-    assert "Only one bank account" in second.get_json()["error"]["message"]
-    assert db.session.query(BankStatement).count() == 1
+    assert second.status_code == 201, second.get_json()
+    post_event("opening:first-bank", "OPENING_BALANCES", date(2025, 1, 31),
+               [("BANK", 500, 0), ("OWNER_EQUITY", 0, 500)])
+    db.session.commit()
+    def report(result):
+        return client.get("/api/v1/finance/bank-statements/" + result.json["statement_id"]).json
+    assert report(first)["book_opening_ugx"] == 500
+    other = report(second)
+    assert other["book_opening_ugx"] == 0
+    assert other["statement"]["book_code"] != "BANK"

@@ -92,7 +92,7 @@ export default function BankReconciliationPage({ user }) {
     </div>
     <section className="kats-finance-workflows">
       <h2>Import a bank statement</h2>
-      <p className="note">Required CSV columns: date,reference,description,inflow_ugx,outflow_ugx. Amounts are integer Uganda shillings and must reconcile to the stated opening/closing bank balances. Mask the account number.</p>
+      <p className="note">Required CSV columns: date,reference,description,inflow_ugx,outflow_ugx. Amounts are integer Uganda shillings and must reconcile to the stated opening/closing bank balances. Use the same bank label and masked account identifier on every import for that account. Give accounts with identical endings distinct labels.</p>
       <form onSubmit={importCsv}>
         <div className="kats-finance-controls">
           <label>Bank name <input required maxLength={120} value={bankLabel} onChange={e=>setBankLabel(e.target.value)} placeholder="Bank label"/></label>
@@ -119,6 +119,7 @@ export default function BankReconciliationPage({ user }) {
     </div>
     {loading && <p role="status" className="data-loading">Loading bank and GL evidence…</p>}
     {statement && <>
+      <p>Opening balance GL account: <code>{statement.statement.book_code}</code></p>
       <div className="stat-grid">
         <div className="stat"><small>Bank opening balance</small><strong>{money(statement.statement.opening_ugx)}</strong></div>
         <div className="stat"><small>Bank closing balance</small><strong>{money(statement.statement.closing_ugx)}</strong></div>

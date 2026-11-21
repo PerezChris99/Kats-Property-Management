@@ -26,7 +26,7 @@ KATS is **one private property-management system belonging to Kats Properties**.
 | **Tenant portal** | Scoped lease, invoice, payment, maintenance, document and notification views |
 | **Insights & administration** | Live dashboards, reports/exports, audit trail, permissions, MFA, privacy and legal-page management |
 
-**Financial boundaries:** A recorded payment is not proof of bank settlement. Bank CSV imports require independent review and are not bank-authenticated; the current chart supports reconciliation for **one bank account** until a per-account subledger is implemented. MTN MoMo, Airtel Money and URA EFRIS adapters must stay disabled until each integration is verified and approved.
+**Financial boundaries:** A recorded payment is not proof of bank settlement. Bank CSV imports require independent review and are not bank-authenticated; each distinct bank label and masked account has a separate ledger. Approved advance rent stays in a tenant liability account until staff allocate it to invoices for the same lease. MTN MoMo, Airtel Money and URA EFRIS adapters must stay disabled until each integration is verified and approved.
 
 ## Technology stack
 

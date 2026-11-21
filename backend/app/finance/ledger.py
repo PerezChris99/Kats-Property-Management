@@ -63,6 +63,10 @@ def validate_lines(lines: list[tuple[str, int, int]]):
         if not isinstance(item, (list, tuple)) or len(item) != 3:
             raise GLPostingError("Each line requires account, debit and credit")
         code, dr, cr = item
+        if isinstance(code, str) and code.startswith("BANK_") and code not in allowed:
+            account = db.session.get(GLAccount, code)
+            if account and account.active and account.kind == "ASSET":
+                allowed.add(code)
         if code not in allowed or type(dr) is not int or type(cr) is not int:
             raise GLPostingError("Unsupported GL account or noninteger UGX amount")
         if not (0 <= dr <= LIMIT and 0 <= cr <= LIMIT and (dr == 0) != (cr == 0)):
