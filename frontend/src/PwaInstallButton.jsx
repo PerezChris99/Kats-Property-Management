@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Download, MonitorCheck } from 'lucide-react';
 
-// Chrome can fire the event while an owner is still signing in. Capture it at
+// Chrome can fire the event while a user is still signing in. Capture it at
 // app-module load, not only after the protected workspace component mounts.
 let pendingInstall = null;
 if (typeof window !== 'undefined') {
@@ -13,7 +13,7 @@ if (typeof window !== 'undefined') {
 }
 
 /** Browser-mediated installation; no prompts or cached privileged state. */
-export function PwaInstallButton({ role }) {
+export function PwaInstallButton() {
   const [offer, setOffer] = useState(pendingInstall);
   const [installed, setInstalled] = useState(() =>
     window.matchMedia('(display-mode: standalone)').matches ||
@@ -32,7 +32,6 @@ export function PwaInstallButton({ role }) {
       media.removeEventListener?.('change', detect);
     };
   }, []);
-  if (role !== 'OWNER') return null;
   if (installed) return <span className="kats-installed-indicator">
     <MonitorCheck size={16} aria-hidden="true"/> Installed app</span>;
   if (!offer) {
