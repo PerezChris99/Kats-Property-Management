@@ -1061,3 +1061,29 @@ def test_manual_update_check_exposes_status_without_reloading_in_development(pag
     expect(notice).to_be_visible(timeout=5000)
     expect(notice).to_contain_text("Update checks are available in deployed builds.")
     assert page.get_by_role("button", name="Get new update").count()==0
+
+
+def test_seeded_owner_records_and_downloads_advance(page):
+    """Exercise the normal payment workspace only on an opted-in synthetic preview."""
+    if os.environ.get("KATS_PREVIEW_MODE") != "1":
+        pytest.skip("Requires isolated fictional SQLite demo")
+    from uuid import uuid4
+    page.goto(BASE + "/login")
+    page.locator(".pm-demo-owner").click()
+    expect(page).to_have_url(re.compile(r"/dashboard$"), timeout=15000)
+    page.goto(BASE + "/payments")
+    panel = page.locator("details").filter(has_text="Advance rent and unapplied balances")
+    panel.locator("summary").click()
+    lease = panel.locator("select[name=lease_id]")
+    lease.locator("option").nth(1).wait_for(state="attached")
+    lease.select_option(index=1)
+    reference = "browser-advance-" + uuid4().hex
+    panel.get_by_label("Amount in UGX").fill("1500000")
+    panel.get_by_label("Cash voucher or bank reference").fill(reference)
+    panel.get_by_role("button", name="Record advance").click()
+    receipt = panel.locator("article").filter(has_text=reference)
+    expect(receipt).to_contain_text("PENDING")
+    expect(receipt.get_by_role("button", name="Approve receipt")).to_have_count(0)
+    link = receipt.get_by_role("link", name="Download advance receipt")
+    response = page.request.get(BASE + link.get_attribute("href"))
+    assert response.ok and response.body().startswith(b"%PDF")
